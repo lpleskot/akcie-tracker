@@ -23,27 +23,72 @@
 
 /**
  * @param {Array} transactions  Pole transakcí (chronologicky setřízené).
+ * @param {Array} [corporateActions]  Pole corporate actions (zatím jen "split").
+ * @param {Array} [dividends]  Pole vyplacených dividend.
+ * @param {Array} [withholdingTax]  Pole sražených daní u zdroje.
  * @returns {Object}  Mapa symbol -> position summary.
  */
-export function computePositions(transactions) {
-  // Setřídit chronologicky pro jistotu (date + time)
-  const sorted = [...transactions].sort((a, b) => {
-    const ka = `${a.date} ${a.time || "00:00:00"}`;
-    const kb = `${b.date} ${b.time || "00:00:00"}`;
-    return ka.localeCompare(kb);
-  });
+export function computePositions(
+  transactions,
+  corporateActions = [],
+  dividends = [],
+  withholdingTax = [],
+) {
+  // Sloučit transakce + corporate actions do jednoho chronologického streamu.
+  // Splity označíme časem 23:59:59 daného dne — aplikují se po všech transakcích.
+  const events = [
+    ...transactions.map((t) => ({
+      ...t,
+      _kind: "tx",
+      _ts: `${t.date} ${t.time || "00:00:00"}`,
+    })),
+    ...corporateActions.map((c) => ({
+      ...c,
+      _kind: "corp",
+      _ts: `${c.date} 23:59:59`,
+    })),
+  ];
+  events.sort((a, b) => a._ts.localeCompare(b._ts));
 
-  // Per-symbol state: { open_lots: [...], closed_lots: [...], realized_pnl }
+  // Per-symbol state: { open_lots: [...], closed_lots: [...], realized_pnl, splits: [] }
   const state = new Map();
 
   function s(sym) {
     if (!state.has(sym)) {
-      state.set(sym, { open_lots: [], closed_lots: [], realized_pnl: 0 });
+      state.set(sym, {
+        open_lots: [],
+        closed_lots: [],
+        realized_pnl: 0,
+        splits: [],
+      });
     }
     return state.get(sym);
   }
 
-  for (const tx of sorted) {
+  for (const ev of events) {
+    if (ev._kind === "corp") {
+      if (ev.type === "split") {
+        // Forward split 1:N → každý držený lot získá N-násobek kusů
+        // za 1/N původní ceny. Total cost basis zůstává stejný.
+        const ratio = ev.ratio_to / ev.ratio_from;
+        const st = s(ev.symbol);
+        for (const lot of st.open_lots) {
+          lot.qty *= ratio;
+          lot.original_qty *= ratio;
+          lot.price /= ratio;
+          lot.cost_per_unit /= ratio;
+        }
+        st.splits.push({
+          date: ev.date,
+          ratio_from: ev.ratio_from,
+          ratio_to: ev.ratio_to,
+          note: ev.note || "",
+        });
+      }
+      continue;
+    }
+
+    const tx = ev;
     const sym = tx.symbol;
     const qty = Math.abs(tx.quantity);
     const price = tx.price;
@@ -104,9 +149,47 @@ export function computePositions(transactions) {
     }
   }
 
+  // Agregovat dividendy + withholding tax per symbol
+  const incomeBySym = {};
+  function inc(sym) {
+    if (!incomeBySym[sym]) {
+      incomeBySym[sym] = {
+        dividends_local: 0,
+        dividends_usd: 0,
+        withholding_local: 0,
+        withholding_usd: 0,
+        dividend_records: [],
+        withholding_records: [],
+      };
+    }
+    return incomeBySym[sym];
+  }
+  for (const d of dividends) {
+    if (!d.symbol) continue;
+    const it = inc(d.symbol);
+    it.dividends_local += d.amount || 0;
+    it.dividends_usd += d.amount_usd || 0;
+    it.dividend_records.push(d);
+  }
+  for (const t of withholdingTax) {
+    if (!t.symbol) continue;
+    const it = inc(t.symbol);
+    it.withholding_local += t.amount || 0;
+    it.withholding_usd += t.amount_usd || 0;
+    it.withholding_records.push(t);
+  }
+
   // Sumarizovat výstup
   const result = {};
-  for (const [sym, st] of state.entries()) {
+  // Pozice nebo income — sjednotit klíče
+  const allSyms = new Set([...state.keys(), ...Object.keys(incomeBySym)]);
+  for (const sym of allSyms) {
+    const st = state.get(sym) || {
+      open_lots: [],
+      closed_lots: [],
+      realized_pnl: 0,
+      splits: [],
+    };
     let net_qty = 0;
     let cost_basis = 0;
     for (const lot of st.open_lots) {
@@ -117,6 +200,14 @@ export function computePositions(transactions) {
     for (const c of st.closed_lots) {
       if (!c.orphan) closed_cost_basis += c.qty * c.buy_cost_per_unit;
     }
+    const inc = incomeBySym[sym] || {
+      dividends_local: 0,
+      dividends_usd: 0,
+      withholding_local: 0,
+      withholding_usd: 0,
+      dividend_records: [],
+      withholding_records: [],
+    };
     result[sym] = {
       net_qty,
       cost_basis,
@@ -126,6 +217,16 @@ export function computePositions(transactions) {
       total_invested: cost_basis + closed_cost_basis,
       open_lots: st.open_lots,
       closed_lots: st.closed_lots,
+      splits: st.splits || [],
+      // Dividendy a daně (v původní měně i USD ekv.)
+      dividends_local: inc.dividends_local,
+      dividends_usd: inc.dividends_usd,
+      withholding_local: inc.withholding_local,
+      withholding_usd: inc.withholding_usd,
+      net_dividend_local: inc.dividends_local + inc.withholding_local,
+      net_dividend_usd: inc.dividends_usd + inc.withholding_usd,
+      dividend_records: inc.dividend_records,
+      withholding_records: inc.withholding_records,
     };
   }
   return result;

@@ -794,5 +794,260 @@
       "order_type": "LMT",
       "code": "O"
     }
-  ]
+  ],
+  "corporate_actions": [
+    {
+      "symbol": "BKNG",
+      "type": "split",
+      "date": "2026-04-06",
+      "ratio_from": 1,
+      "ratio_to": 25,
+      "note": "Forward split 25:1 (Booking Holdings)",
+      "source": "Yahoo Finance splits event"
+    }
+  ],
+  "account_holder": "PLEGI invest s.r.o.",
+  "account_type": "Institution Master",
+  "base_currency": "USD",
+  "dividends": [
+    {
+      "symbol": "CSU",
+      "date": "2026-04-15",
+      "currency": "CAD",
+      "amount": 4.16,
+      "per_share": 1.3875,
+      "description": "CSU(CA21037X1006) Cash Dividend CAD 1.3875 per Share",
+      "amount_usd": 3.027274,
+      "fx_to_usd": 0.72771
+    },
+    {
+      "symbol": "NOV",
+      "date": "2026-03-31",
+      "currency": "DKK",
+      "amount": 2385.0,
+      "per_share": 7.95,
+      "description": "NOV(DK0062498333) Cash Dividend DKK 7.95 per Share",
+      "amount_usd": 368.2917,
+      "fx_to_usd": 0.15442
+    },
+    {
+      "symbol": "CEDER",
+      "date": "2025-12-29",
+      "currency": "SEK",
+      "amount": 1710.0,
+      "per_share": 1.9,
+      "description": "CEDER(SE0015949946) Cash Dividend SEK 1.90 per Share",
+      "amount_usd": 185.9796,
+      "fx_to_usd": 0.10876
+    },
+    {
+      "symbol": "PYPL",
+      "date": "2026-03-25",
+      "currency": "USD",
+      "amount": 70.0,
+      "per_share": 0.14,
+      "description": "PYPL(US70450Y1038) Cash Dividend USD 0.14 per Share",
+      "amount_usd": 70.0
+    },
+    {
+      "symbol": "BKNG",
+      "date": "2026-03-31",
+      "currency": "USD",
+      "amount": 10.5,
+      "per_share": 10.5,
+      "description": "BKNG(US09857L1089) Cash Dividend USD 10.50 per Share",
+      "amount_usd": 10.5
+    },
+    {
+      "symbol": "RICK",
+      "date": "2026-03-31",
+      "currency": "USD",
+      "amount": 13.6,
+      "per_share": 0.08,
+      "description": "RICK(US74934Q1085) Cash Dividend USD 0.08 per Share",
+      "amount_usd": 13.6
+    },
+    {
+      "symbol": "NKE",
+      "date": "2026-04-01",
+      "currency": "USD",
+      "amount": 63.55,
+      "per_share": 0.41,
+      "description": "NKE(US6541061031) Cash Dividend USD 0.41 per Share",
+      "amount_usd": 63.55
+    },
+    {
+      "symbol": "KSPI",
+      "date": "2026-04-22",
+      "currency": "USD",
+      "amount": 116.44,
+      "per_share": 1.791359,
+      "description": "KSPI(US48581R2058) Cash Dividend USD 1.791359 per Share",
+      "amount_usd": 116.44
+    }
+  ],
+  "withholding_tax": [
+    {
+      "symbol": "CSU",
+      "date": "2026-04-15",
+      "currency": "CAD",
+      "amount": -0.62,
+      "country": "CA",
+      "description": "CSU(CA21037X1006) Cash Dividend CAD 1.3875 per Share - CA Tax",
+      "amount_usd": -0.45118,
+      "fx_to_usd": 0.72771
+    },
+    {
+      "symbol": "NOV",
+      "date": "2026-03-31",
+      "currency": "DKK",
+      "amount": -643.95,
+      "country": "DK",
+      "description": "NOV(DK0062498333) Cash Dividend DKK 7.95 per Share - DK Tax",
+      "amount_usd": -99.438759,
+      "fx_to_usd": 0.15442
+    },
+    {
+      "symbol": "CEDER",
+      "date": "2025-12-29",
+      "currency": "SEK",
+      "amount": -513.0,
+      "country": "SE",
+      "description": "CEDER(SE0015949946) Cash Dividend SEK 1.90 per Share - SE Tax",
+      "amount_usd": -55.79388,
+      "fx_to_usd": 0.10876
+    },
+    {
+      "symbol": "PYPL",
+      "date": "2026-03-25",
+      "currency": "USD",
+      "amount": -10.5,
+      "country": "US",
+      "description": "PYPL(US70450Y1038) Cash Dividend USD 0.14 per Share - US Tax",
+      "amount_usd": -10.5
+    },
+    {
+      "symbol": "BKNG",
+      "date": "2026-03-31",
+      "currency": "USD",
+      "amount": -1.58,
+      "country": "US",
+      "description": "BKNG(US09857L1089) Cash Dividend USD 10.50 per Share - US Tax",
+      "amount_usd": -1.58
+    },
+    {
+      "symbol": "RICK",
+      "date": "2026-03-31",
+      "currency": "USD",
+      "amount": -2.04,
+      "country": "US",
+      "description": "RICK(US74934Q1085) Cash Dividend USD 0.08 per Share - US Tax",
+      "amount_usd": -2.04
+    },
+    {
+      "symbol": "NKE",
+      "date": "2026-04-01",
+      "currency": "USD",
+      "amount": -9.53,
+      "country": "US",
+      "description": "NKE(US6541061031) Cash Dividend USD 0.41 per Share - US Tax",
+      "amount_usd": -9.53
+    }
+  ],
+  "cash_flows": [
+    {
+      "date": "2025-11-24",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 10.0,
+      "description": "Electronic Fund Transfer"
+    },
+    {
+      "date": "2025-12-01",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 9965.0,
+      "description": "Electronic Fund Transfer"
+    },
+    {
+      "date": "2025-12-08",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 69955.0,
+      "description": "Electronic Fund Transfer"
+    },
+    {
+      "date": "2025-12-17",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 48960.0,
+      "description": "Electronic Fund Transfer"
+    },
+    {
+      "date": "2026-02-05",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 19960.0,
+      "description": "Electronic Fund Transfer"
+    },
+    {
+      "date": "2026-02-09",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 18960.0,
+      "description": "Electronic Fund Transfer"
+    },
+    {
+      "date": "2026-02-19",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 24960.0,
+      "description": "Electronic Fund Transfer"
+    },
+    {
+      "date": "2026-03-04",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 15960.0,
+      "description": "Electronic Fund Transfer"
+    },
+    {
+      "date": "2026-01-06",
+      "type": "interest",
+      "currency": "USD",
+      "amount": 67.37,
+      "description": "USD Credit Interest for Dec-2025"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "interest",
+      "currency": "USD",
+      "amount": 57.85,
+      "description": "USD Credit Interest for Jan-2026"
+    },
+    {
+      "date": "2026-03-04",
+      "type": "interest",
+      "currency": "USD",
+      "amount": 14.68,
+      "description": "USD Credit Interest for Feb-2026"
+    },
+    {
+      "date": "2026-04-06",
+      "type": "interest",
+      "currency": "USD",
+      "amount": 2.6,
+      "description": "USD Credit Interest for Mar-2026"
+    }
+  ],
+  "cash_balance": {
+    "USD": 3008.46751585
+  },
+  "source_activity_statement": "podklady/U23077136_20251124_20260515.csv",
+  "customer_type": "Corporate",
+  "nav_summary": {
+    "cash_usd": 3008.46751585,
+    "stock_usd": 201155.3145268,
+    "total_usd": 204163.78204265
+  }
 }

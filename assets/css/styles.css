@@ -357,15 +357,18 @@ table.mini tr:hover {
 }
 .detail-section.summary {
   margin-top: 10px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   background: #ecece6;
   border-radius: 4px;
   font-size: 13px;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
   flex-wrap: wrap;
+}
+.detail-section.summary > div > div {
+  line-height: 1.7;
 }
 
 /* Type badge */
