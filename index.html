@@ -34,38 +34,28 @@
           <table id="tbl-overview">
             <thead>
               <tr>
-                <th class="sortable" data-sort-key="sym">
-                  Symbol<span class="hint" title="Ticker symbol akcie, jak je vedený u IBKR.">?</span>
-                </th>
-                <th class="sortable" data-sort-key="name">
-                  Název<span class="hint" title="Plný název emitenta z IBKR exportu.">?</span>
-                </th>
-                <th class="sortable" data-sort-key="exchange">
-                  Burza<span class="hint" title="Burza, kde je titul listován (NASDAQ, NYSE, Stockholm, atd.).">?</span>
-                </th>
-                <th class="sortable" data-sort-key="currency">
-                  Měna<span class="hint" title="Měna, ve které se titul obchoduje na burze.">?</span>
-                </th>
-                <th class="num sortable" data-sort-key="qty">
-                  Kusů<span class="hint" title="Aktuální počet držených kusů (po odečtení všech prodejů, FIFO).">?</span>
-                </th>
+                <th class="sortable" data-sort-key="sym">Symbol</th>
+                <th class="sortable" data-sort-key="name">Název</th>
+                <th class="sortable" data-sort-key="exchange">Burza</th>
+                <th class="sortable" data-sort-key="currency">Měna</th>
+                <th class="num sortable" data-sort-key="qty">Kusů</th>
                 <th class="num sortable" data-sort-key="avg_buy">
-                  Ø nákup<span class="hint" title="Vážená průměrná nákupní cena za 1 kus pro aktuálně držené kusy. FIFO bere v úvahu, že nejstarší nákupy mohly být prodány — Ø se počítá jen z otevřených lotů. Včetně alikvotní komise.">?</span>
+                  Ø nákup<span class="hint" title="Vážená průměrná nákupní cena za 1 kus pro aktuálně držené kusy. FIFO bere v úvahu, že nejstarší nákupy mohly být prodány — Ø se počítá jen z otevřených lotů. Včetně alikvotní komise.">i</span>
                 </th>
                 <th class="num sortable" data-sort-key="current">
-                  Aktuální<span class="hint" title="Aktuální tržní cena za 1 kus z Yahoo Finance. Zpoždění ~15 min.">?</span>
+                  Aktuální<span class="hint" title="Aktuální tržní cena za 1 kus z Yahoo Finance. Zpoždění ~15 min.">i</span>
                 </th>
                 <th class="num sortable" data-sort-key="cost">
-                  Nákupní cena pozice<span class="hint" title="Kolik celkem stálo pořízení aktuálně držených kusů. Součet (kusů × cena za kus + komise) ze všech otevřených lotů (FIFO). U pozic s částečným prodejem se týká JEN zbývajících kusů, ne celé historie.">?</span>
+                  Nákupní cena pozice<span class="hint" title="Kolik celkem stálo pořízení aktuálně držených kusů. Součet (kusů × cena za kus + komise) ze všech otevřených lotů (FIFO). U pozic s částečným prodejem se týká JEN zbývajících kusů, ne celé historie.">i</span>
                 </th>
                 <th class="num sortable" data-sort-key="value">
-                  Hodnota pozice<span class="hint" title="Aktuální tržní hodnota držených kusů: počet kusů × aktuální cena z Yahoo.">?</span>
+                  Hodnota pozice<span class="hint" title="Aktuální tržní hodnota držených kusů: počet kusů × aktuální cena z Yahoo.">i</span>
                 </th>
                 <th class="num sortable" data-sort-key="pnl">
-                  Zisk/Ztráta<span class="hint" title="Celková ekonomická Z/Z na této pozici. Součet REALIZOVANÉ Z/Z z už prodaných kusů (FIFO) + NEREALIZOVANÉ Z/Z z držených kusů (Hodnota pozice − Nákupní cena pozice).">?</span>
+                  Zisk/Ztráta<span class="hint" title="Celková ekonomická Z/Z na této pozici. Součet REALIZOVANÉ Z/Z z už prodaných kusů (FIFO) + NEREALIZOVANÉ Z/Z z držených kusů (Hodnota pozice − Nákupní cena pozice). Klikni na hodnotu Z/Z v řádku — rozbalí se detailní rozpad výpočtu.">i</span>
                 </th>
                 <th class="num sortable" data-sort-key="pct">
-                  %<span class="hint" title="Procentuální Z/Z vůči celkové vložené investici (vč. nákladů na již prodané loty). Z/Z ÷ Total invested.">?</span>
+                  %<span class="hint" title="Procentuální Z/Z vůči celkové vložené investici (vč. nákladů na již prodané loty). Z/Z ÷ Total invested.">i</span>
                 </th>
               </tr>
             </thead>

@@ -53,6 +53,7 @@ async function init() {
   setupTabs();
   setupRefresh();
   setupSort();
+  setupExpand();
 
   // 4) Fetch live quotes
   await refreshQuotes();
@@ -95,14 +96,16 @@ function setupRefresh() {
 function setupSort() {
   document.querySelectorAll("#tbl-overview th.sortable").forEach((th) => {
     th.addEventListener("click", (e) => {
-      // Klik na "?" tooltip nemá triggerovat sort
+      // Klik na info ikonu nemá triggerovat sort
       if (e.target.classList.contains("hint")) return;
       const key = th.dataset.sortKey;
+      const isNumeric = th.classList.contains("num");
       if (state.sort.key === key) {
         state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc";
       } else {
         state.sort.key = key;
-        state.sort.dir = "asc";
+        // Číselné sloupce: první klik = desc (největší první), text. = asc (abecedně)
+        state.sort.dir = isNumeric ? "desc" : "asc";
       }
       renderOverview();
     });
@@ -183,6 +186,8 @@ function renderOverview() {
   // 4) Vykreslit
   for (const r of rows) {
     const tr = document.createElement("tr");
+    tr.className = "position";
+    tr.dataset.sym = r.sym;
     tr.innerHTML = `
       <td class="symbol">${r.sym}</td>
       <td>${escapeHtml(r.inst.name)}</td>
@@ -193,11 +198,202 @@ function renderOverview() {
       <td class="num">${r.hasPrice ? fmtNum(r.currentPrice, 2) : '<span class="muted">—</span>'}</td>
       <td class="num">${fmtNum(r.pos.cost_basis, 2)}</td>
       <td class="num">${r.hasPrice ? fmtNum(r.marketValue, 2) : '<span class="muted">—</span>'}</td>
-      <td class="num ${signClass(r.totalPnl)}">${r.hasPrice ? fmtNum(r.totalPnl, 2) : '<span class="muted">—</span>'}</td>
+      <td class="num clickable ${signClass(r.totalPnl)}" data-action="expand" title="Klikněte pro detailní rozpad výpočtu">${r.hasPrice ? fmtNum(r.totalPnl, 2) + ' <span class="caret">▾</span>' : '<span class="muted">—</span>'}</td>
       <td class="num ${signClass(r.totalPct)}">${r.hasPrice ? fmtPct(r.totalPct) : '<span class="muted">—</span>'}</td>
     `;
     tbody.appendChild(tr);
   }
+}
+
+function setupExpand() {
+  const tbody = document.querySelector("#tbl-overview tbody");
+  tbody.addEventListener("click", (e) => {
+    const cell = e.target.closest('[data-action="expand"]');
+    if (!cell) return;
+    const tr = cell.closest("tr.position");
+    if (!tr) return;
+    toggleDetail(tr.dataset.sym, tr);
+  });
+}
+
+function toggleDetail(sym, tr) {
+  const next = tr.nextElementSibling;
+  if (next && next.classList.contains("detail") && next.dataset.sym === sym) {
+    next.remove();
+    tr.classList.remove("expanded");
+    return;
+  }
+  // Zavřít všechny ostatní otevřené detaily
+  document.querySelectorAll("tr.detail").forEach((d) => d.remove());
+  document.querySelectorAll("tr.position.expanded").forEach((p) =>
+    p.classList.remove("expanded"),
+  );
+  // Vytvořit nový detail
+  const detail = buildDetailRow(sym);
+  tr.after(detail);
+  tr.classList.add("expanded");
+}
+
+function buildDetailRow(sym) {
+  const inst = state.portfolio.instruments[sym];
+  const pos = state.positions[sym];
+  const q = state.quotes[inst.yahoo_symbol] || {};
+  const currentPrice = q.price;
+  const hasPrice = currentPrice != null && !q.error;
+  const u = unrealizedPnl(pos, currentPrice);
+  const ccy = inst.currency;
+
+  const txs = state.portfolio.transactions
+    .filter((t) => t.symbol === sym)
+    .sort((a, b) =>
+      `${a.date} ${a.time || ""}`.localeCompare(`${b.date} ${b.time || ""}`),
+    );
+
+  const buys = txs.filter((t) => t.type === "BUY");
+  const sells = txs.filter((t) => t.type === "SELL");
+
+  const html = [];
+  html.push(`<div class="detail-card">`);
+  html.push(
+    `<h3>${sym} — ${escapeHtml(inst.name)} <span class="muted">· ${inst.exchange} · ${ccy}</span></h3>`,
+  );
+
+  // Nákupy
+  html.push(`<div class="detail-section">`);
+  html.push(`<h4>Nákupy</h4>`);
+  html.push(`<table class="mini"><tbody>`);
+  let totalBuyQty = 0;
+  let totalBuyCost = 0;
+  for (const b of buys) {
+    const cost = Math.abs(b.proceeds) + Math.abs(b.commission);
+    totalBuyQty += b.quantity;
+    totalBuyCost += cost;
+    html.push(
+      `<tr>
+        <td>${b.date}</td>
+        <td class="num">${fmtNum(b.quantity, 0)} ks</td>
+        <td class="num muted">@ ${fmtNum(b.price, 4)}</td>
+        <td class="num muted">komise ${fmtNum(b.commission, 2)}</td>
+        <td class="num"><strong>${fmtNum(cost, 2)} ${ccy}</strong></td>
+      </tr>`,
+    );
+  }
+  html.push(`</tbody></table>`);
+  html.push(
+    `<div class="mini-total">Celkem ${buys.length} nákup${buys.length === 1 ? "" : "ů"}: <strong>${fmtNum(totalBuyCost, 2)} ${ccy}</strong> (${fmtNum(totalBuyQty, 0)} ks)</div>`,
+  );
+  html.push(`</div>`);
+
+  // Prodeje
+  if (sells.length > 0) {
+    html.push(`<div class="detail-section">`);
+    html.push(`<h4>Prodeje</h4>`);
+    html.push(`<table class="mini"><tbody>`);
+    let totalSellQty = 0;
+    let totalSellNet = 0;
+    for (const s of sells) {
+      const qty = Math.abs(s.quantity);
+      const net = Math.abs(s.proceeds) - Math.abs(s.commission);
+      totalSellQty += qty;
+      totalSellNet += net;
+      html.push(
+        `<tr>
+          <td>${s.date}</td>
+          <td class="num">${fmtNum(qty, 0)} ks</td>
+          <td class="num muted">@ ${fmtNum(s.price, 4)}</td>
+          <td class="num muted">komise ${fmtNum(s.commission, 2)}</td>
+          <td class="num"><strong>${fmtNum(net, 2)} ${ccy}</strong></td>
+        </tr>`,
+      );
+    }
+    html.push(`</tbody></table>`);
+    html.push(
+      `<div class="mini-total">Celkem ${sells.length} prodej${sells.length === 1 ? "" : sells.length < 5 ? "e" : "ů"}: <strong>${fmtNum(totalSellNet, 2)} ${ccy}</strong> (${fmtNum(totalSellQty, 0)} ks)</div>`,
+    );
+    html.push(`</div>`);
+
+    // FIFO matching
+    html.push(`<div class="detail-section">`);
+    html.push(
+      `<h4>FIFO matching — co bylo prodáno z jakého nákupu</h4>`,
+    );
+    html.push(`<table class="mini"><tbody>`);
+    for (const c of pos.closed_lots) {
+      if (c.orphan) {
+        html.push(
+          `<tr><td colspan="4" class="neg">⚠️ Prodej bez odpovídajícího nákupu: ${fmtNum(c.qty, 0)} ks @ ${fmtNum(c.sell_price, 4)} dne ${c.sell_date}</td></tr>`,
+        );
+        continue;
+      }
+      html.push(
+        `<tr>
+          <td class="num">${fmtNum(c.qty, 0)} ks</td>
+          <td class="muted">z lotu ${c.buy_date} @ ${fmtNum(c.buy_price, 4)}</td>
+          <td class="muted">→ prodáno ${c.sell_date} @ ${fmtNum(c.sell_price, 4)}</td>
+          <td class="num ${signClass(c.pnl)}"><strong>${fmtNum(c.pnl, 2)} ${ccy}</strong></td>
+        </tr>`,
+      );
+    }
+    html.push(`</tbody></table>`);
+    html.push(
+      `<div class="mini-total"><strong class="${signClass(pos.realized_pnl)}">Realizovaná Zisk/Ztráta: ${fmtNum(pos.realized_pnl, 2)} ${ccy}</strong></div>`,
+    );
+    html.push(`</div>`);
+  }
+
+  // Otevřené pozice
+  html.push(`<div class="detail-section">`);
+  html.push(
+    `<h4>Otevřené pozice (zbývá ${fmtNum(pos.net_qty, 0)} ks)</h4>`,
+  );
+  html.push(`<table class="mini"><tbody>`);
+  for (const lot of pos.open_lots) {
+    html.push(
+      `<tr>
+        <td>${lot.date}</td>
+        <td class="num">${fmtNum(lot.qty, 0)} ks</td>
+        <td class="num muted">@ ${fmtNum(lot.price, 4)} (cost ${fmtNum(lot.cost_per_unit, 4)}/ks vč. komise)</td>
+        <td class="num"><strong>${fmtNum(lot.qty * lot.cost_per_unit, 2)} ${ccy}</strong></td>
+      </tr>`,
+    );
+  }
+  html.push(`</tbody></table>`);
+  if (hasPrice) {
+    html.push(
+      `<div class="mini-total">Aktuální cena <strong>${fmtNum(currentPrice, 2)} ${ccy}</strong> → market value <strong>${fmtNum(u.market_value, 2)} ${ccy}</strong> &nbsp;·&nbsp; <strong class="${signClass(u.value)}">Nerealizovaná Z/Z: ${fmtNum(u.value, 2)} ${ccy}</strong></div>`,
+    );
+  } else {
+    html.push(
+      `<div class="mini-total muted">Aktuální cena z Yahoo není dostupná</div>`,
+    );
+  }
+  html.push(`</div>`);
+
+  // Sumář
+  if (hasPrice) {
+    const totalPnl = pos.realized_pnl + u.value;
+    const totalPct =
+      pos.total_invested > 0 ? (totalPnl / pos.total_invested) * 100 : 0;
+    html.push(`<div class="detail-section summary">`);
+    html.push(
+      `<span>CELKEM Zisk/Ztráta: <span class="${signClass(totalPnl)}"><strong>${fmtNum(totalPnl, 2)} ${ccy}</strong> (${fmtPct(totalPct)})</span></span>`,
+    );
+    html.push(
+      `<span class="muted">vůči celkové investici ${fmtNum(pos.total_invested, 2)} ${ccy}</span>`,
+    );
+    html.push(`</div>`);
+  }
+
+  html.push(`</div>`);
+
+  const tr = document.createElement("tr");
+  tr.className = "detail";
+  tr.dataset.sym = sym;
+  const td = document.createElement("td");
+  td.colSpan = 11;
+  td.innerHTML = html.join("");
+  tr.appendChild(td);
+  return tr;
 }
 
 // ---------- Transactions ----------
