@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="cs">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Akcie tracker</title>
+    <link rel="stylesheet" href="/assets/css/styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header class="app-header">
+        <div>
+          <h1 id="portfolio-name">Akcie tracker</h1>
+          <div class="portfolio-meta" id="portfolio-meta">Načítám…</div>
+        </div>
+      </header>
+
+      <div id="status" class="status" style="display: none">Načítám…</div>
+
+      <div id="summary-cards" class="summary"></div>
+
+      <div class="toolbar">
+        <div class="tabs">
+          <button class="tab active" data-view="overview">Přehled pozic</button>
+          <button class="tab" data-view="transactions">Transakce (účetní)</button>
+        </div>
+        <button id="btn-refresh" class="btn">Načíst znovu</button>
+        <button id="btn-export-csv" class="btn">Export CSV</button>
+      </div>
+
+      <section id="view-overview" class="view active">
+        <div class="table-wrap">
+          <table id="tbl-overview">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Název</th>
+                <th>Burza</th>
+                <th>Měna</th>
+                <th class="num">Kusů</th>
+                <th class="num">Ø nákup</th>
+                <th class="num">Cost basis</th>
+                <th class="num">Aktuální</th>
+                <th class="num">Denní</th>
+                <th class="num">Market value</th>
+                <th class="num">Nereal. P/L</th>
+                <th class="num">%</th>
+                <th class="num">Realiz. P/L</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="view-transactions" class="view">
+        <div class="table-wrap">
+          <table id="tbl-transactions">
+            <thead>
+              <tr>
+                <th>Datum</th>
+                <th>Čas</th>
+                <th>Symbol</th>
+                <th>Název</th>
+                <th>Burza</th>
+                <th>Typ</th>
+                <th class="num">Kusů</th>
+                <th class="num">Cena</th>
+                <th class="num">Hodnota</th>
+                <th class="num">Komise</th>
+                <th>Měna</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="app-footer">
+        Ceny: Yahoo Finance (zpoždění ~15 min). Pozice počítané metodou FIFO.
+      </footer>
+    </div>
+
+    <script type="module" src="/assets/js/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,26 @@
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Lokální env / secrets
+.env
+.env.local
+.env.*.local
+
+# Build / deps (pro budoucnost)
+node_modules/
+dist/
+.cache/
+
+# Logs
+*.log
+
+# Cowork temp files
+.local-claude/

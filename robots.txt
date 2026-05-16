@@ -1,0 +1,3 @@
+# Privátní tracker — nikam indexovat
+User-agent: *
+Disallow: /

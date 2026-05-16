@@ -1,0 +1,16 @@
+# Globální bezpečnostní hlavičky
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+
+# Cache pro statické assety
+/assets/*
+  Cache-Control: public, max-age=3600, must-revalidate
+
+# Portfolio JSON — vždy čerstvé
+/data/*
+  Cache-Control: no-cache
