@@ -14,6 +14,21 @@ const state = {
   positions: null,
   quotes: {},
   view: "overview",
+  sort: { key: "sym", dir: "asc" },
+};
+
+const sortGetters = {
+  sym: (r) => r.sym,
+  name: (r) => r.inst.name,
+  exchange: (r) => r.inst.exchange,
+  currency: (r) => r.inst.currency,
+  qty: (r) => r.pos.net_qty,
+  avg_buy: (r) => r.pos.avg_open_price,
+  current: (r) => (r.hasPrice ? r.currentPrice : -Infinity),
+  cost: (r) => r.pos.cost_basis,
+  value: (r) => (r.hasPrice ? r.marketValue : -Infinity),
+  pnl: (r) => (r.hasPrice ? r.totalPnl : -Infinity),
+  pct: (r) => (r.hasPrice ? r.totalPct : -Infinity),
 };
 
 // ---------- Bootstrap ----------
@@ -37,6 +52,7 @@ async function init() {
   renderHeader();
   setupTabs();
   setupRefresh();
+  setupSort();
 
   // 4) Fetch live quotes
   await refreshQuotes();
@@ -76,6 +92,23 @@ function setupRefresh() {
   });
 }
 
+function setupSort() {
+  document.querySelectorAll("#tbl-overview th.sortable").forEach((th) => {
+    th.addEventListener("click", (e) => {
+      // Klik na "?" tooltip nemá triggerovat sort
+      if (e.target.classList.contains("hint")) return;
+      const key = th.dataset.sortKey;
+      if (state.sort.key === key) {
+        state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc";
+      } else {
+        state.sort.key = key;
+        state.sort.dir = "asc";
+      }
+      renderOverview();
+    });
+  });
+}
+
 // ---------- Quotes ----------
 async function refreshQuotes() {
   const symbols = Object.values(state.portfolio.instruments).map(
@@ -101,37 +134,67 @@ function renderOverview() {
   const tbody = document.querySelector("#tbl-overview tbody");
   tbody.innerHTML = "";
 
-  const symbols = Object.keys(state.portfolio.instruments).sort();
-  for (const sym of symbols) {
+  // 1) Sesbírat řádky s vypočtenými hodnotami
+  const rows = [];
+  for (const sym of Object.keys(state.portfolio.instruments)) {
     const inst = state.portfolio.instruments[sym];
     const pos = state.positions[sym];
-    if (!pos || pos.net_qty === 0) continue; // skip closed positions
+    if (!pos || pos.net_qty === 0) continue;
 
     const q = state.quotes[inst.yahoo_symbol] || {};
     const currentPrice = q.price;
-    const previousClose = q.previous_close;
-
+    const hasPrice = currentPrice != null && !q.error;
     const u = unrealizedPnl(pos, currentPrice);
-    const dayChangePct =
-      currentPrice != null && previousClose
-        ? ((currentPrice - previousClose) / previousClose) * 100
-        : null;
+    const totalPnl = pos.realized_pnl + u.value;
+    const totalPct =
+      pos.total_invested > 0 ? (totalPnl / pos.total_invested) * 100 : 0;
 
+    rows.push({
+      sym,
+      inst,
+      pos,
+      currentPrice,
+      hasPrice,
+      marketValue: u.market_value,
+      totalPnl,
+      totalPct,
+    });
+  }
+
+  // 2) Setřídit
+  const getter = sortGetters[state.sort.key] || sortGetters.sym;
+  const dir = state.sort.dir === "desc" ? -1 : 1;
+  rows.sort((a, b) => {
+    const va = getter(a);
+    const vb = getter(b);
+    if (typeof va === "string") {
+      return dir * va.localeCompare(vb, "cs");
+    }
+    return dir * (va - vb);
+  });
+
+  // 3) Aktualizovat sortovací indikátory v hlavičkách
+  document.querySelectorAll("#tbl-overview th.sortable").forEach((th) => {
+    const isSorted = th.dataset.sortKey === state.sort.key;
+    th.classList.toggle("sorted", isSorted);
+    th.classList.toggle("desc", isSorted && state.sort.dir === "desc");
+  });
+
+  // 4) Vykreslit
+  for (const r of rows) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td class="symbol">${sym}</td>
-      <td>${escapeHtml(inst.name)}</td>
-      <td>${inst.exchange}</td>
-      <td>${inst.currency}</td>
-      <td class="num">${fmtNum(pos.net_qty, 0)}</td>
-      <td class="num">${fmtNum(pos.avg_open_price, 4)}</td>
-      <td class="num">${fmtNum(pos.cost_basis, 2)}</td>
-      <td class="num">${q.error ? '<span class="muted">err</span>' : fmtNum(currentPrice, 2)}</td>
-      <td class="num ${signClass(dayChangePct)}">${fmtPct(dayChangePct)}</td>
-      <td class="num">${fmtNum(u.market_value, 2)}</td>
-      <td class="num ${signClass(u.value)}">${fmtNum(u.value, 2)}</td>
-      <td class="num ${signClass(u.pct)}">${fmtPct(u.pct)}</td>
-      <td class="num ${signClass(pos.realized_pnl)}">${pos.realized_pnl !== 0 ? fmtNum(pos.realized_pnl, 2) : '<span class="muted">—</span>'}</td>
+      <td class="symbol">${r.sym}</td>
+      <td>${escapeHtml(r.inst.name)}</td>
+      <td>${r.inst.exchange}</td>
+      <td>${r.inst.currency}</td>
+      <td class="num">${fmtNum(r.pos.net_qty, 0)}</td>
+      <td class="num">${fmtNum(r.pos.avg_open_price, 4)}</td>
+      <td class="num">${r.hasPrice ? fmtNum(r.currentPrice, 2) : '<span class="muted">—</span>'}</td>
+      <td class="num">${fmtNum(r.pos.cost_basis, 2)}</td>
+      <td class="num">${r.hasPrice ? fmtNum(r.marketValue, 2) : '<span class="muted">—</span>'}</td>
+      <td class="num ${signClass(r.totalPnl)}">${r.hasPrice ? fmtNum(r.totalPnl, 2) : '<span class="muted">—</span>'}</td>
+      <td class="num ${signClass(r.totalPct)}">${r.hasPrice ? fmtPct(r.totalPct) : '<span class="muted">—</span>'}</td>
     `;
     tbody.appendChild(tr);
   }
@@ -169,7 +232,6 @@ function renderSummary() {
 
   // Per-currency totals
   const byCcy = {};
-  let totalRealizedByCcy = {};
 
   for (const sym of symbols) {
     const inst = state.portfolio.instruments[sym];
@@ -177,19 +239,23 @@ function renderSummary() {
     if (!pos) continue;
 
     const ccy = inst.currency;
-    if (!byCcy[ccy]) byCcy[ccy] = { cost: 0, market: 0, unrealized: 0 };
-    if (!totalRealizedByCcy[ccy]) totalRealizedByCcy[ccy] = 0;
+    if (!byCcy[ccy]) {
+      byCcy[ccy] = {
+        invested: 0,
+        market: 0,
+        realized: 0,
+        unrealized: 0,
+      };
+    }
 
     const q = state.quotes[inst.yahoo_symbol] || {};
-    byCcy[ccy].cost += pos.cost_basis;
+    byCcy[ccy].invested += pos.total_invested;
+    byCcy[ccy].realized += pos.realized_pnl;
     if (q.price != null) {
-      byCcy[ccy].market += pos.net_qty * q.price;
+      const market = pos.net_qty * q.price;
+      byCcy[ccy].market += market;
+      byCcy[ccy].unrealized += market - pos.cost_basis;
     }
-    totalRealizedByCcy[ccy] += pos.realized_pnl;
-  }
-
-  for (const ccy in byCcy) {
-    byCcy[ccy].unrealized = byCcy[ccy].market - byCcy[ccy].cost;
   }
 
   const wrap = document.getElementById("summary-cards");
@@ -201,26 +267,25 @@ function renderSummary() {
   ).length;
   wrap.appendChild(card("Otevřené pozice", openCount, `${symbols.length} titulů celkem`));
 
-  // Cards per currency
+  // Cards per currency — total Zisk/Ztráta
   for (const ccy of Object.keys(byCcy).sort()) {
     const c = byCcy[ccy];
-    const pct = c.cost > 0 ? (c.unrealized / c.cost) * 100 : 0;
-    const sub = `${fmtNum(c.market, 0)} ${ccy} aktuálně · cost ${fmtNum(c.cost, 0)} ${ccy}`;
-    const valueHtml = `<span class="${signClass(c.unrealized)}">${fmtNum(c.unrealized, 0)} ${ccy}</span> <span class="muted">(${fmtPct(pct)})</span>`;
-    wrap.appendChild(cardHtml(`Nerealiz. P/L · ${ccy}`, valueHtml, sub));
-  }
+    const totalPnl = c.realized + c.unrealized;
+    const pct = c.invested > 0 ? (totalPnl / c.invested) * 100 : 0;
 
-  // Realized P/L cards
-  for (const ccy of Object.keys(totalRealizedByCcy).sort()) {
-    if (totalRealizedByCcy[ccy] === 0) continue;
-    const r = totalRealizedByCcy[ccy];
-    wrap.appendChild(
-      cardHtml(
-        `Realizovaná P/L · ${ccy}`,
-        `<span class="${signClass(r)}">${fmtNum(r, 0)} ${ccy}</span>`,
-        "Z uzavřených prodejů",
-      ),
-    );
+    const subParts = [];
+    if (c.realized !== 0) {
+      subParts.push(`realizováno ${fmtNum(c.realized, 0)} ${ccy}`);
+    }
+    if (c.unrealized !== 0) {
+      subParts.push(`otevřené ${fmtNum(c.unrealized, 0)} ${ccy}`);
+    }
+    const sub = subParts.length
+      ? subParts.join(" · ")
+      : `investováno ${fmtNum(c.invested, 0)} ${ccy}`;
+
+    const valueHtml = `<span class="${signClass(totalPnl)}">${fmtNum(totalPnl, 0)} ${ccy}</span> <span class="muted">(${fmtPct(pct)})</span>`;
+    wrap.appendChild(cardHtml(`Zisk/Ztráta · ${ccy}`, valueHtml, sub));
   }
 }
 

@@ -194,6 +194,47 @@ th {
   position: sticky;
   top: 0;
   z-index: 1;
+  user-select: none;
+}
+
+th.sortable {
+  cursor: pointer;
+}
+th.sortable:hover {
+  background: #f0f0eb;
+  color: var(--color-text);
+}
+th.sortable.sorted {
+  color: var(--color-text);
+}
+th.sortable.sorted::after {
+  content: " ↑";
+  font-size: 11px;
+  opacity: 0.6;
+}
+th.sortable.sorted.desc::after {
+  content: " ↓";
+}
+
+.hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: #d8d8d2;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: none;
+  cursor: help;
+  vertical-align: middle;
+  transition: background 0.12s ease;
+}
+.hint:hover {
+  background: var(--color-accent);
 }
 
 tbody tr:nth-child(even) {

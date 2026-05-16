@@ -113,11 +113,17 @@ export function computePositions(transactions) {
       net_qty += lot.qty;
       cost_basis += lot.qty * lot.cost_per_unit;
     }
+    let closed_cost_basis = 0;
+    for (const c of st.closed_lots) {
+      if (!c.orphan) closed_cost_basis += c.qty * c.buy_cost_per_unit;
+    }
     result[sym] = {
       net_qty,
       cost_basis,
       avg_open_price: net_qty > 0 ? cost_basis / net_qty : 0,
       realized_pnl: st.realized_pnl,
+      closed_cost_basis,
+      total_invested: cost_basis + closed_cost_basis,
       open_lots: st.open_lots,
       closed_lots: st.closed_lots,
     };
