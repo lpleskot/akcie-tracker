@@ -1848,17 +1848,17 @@ function renderSummary() {
       ? (Math.pow(1 + totalReturnPct / 100, 1 / yearsSince) - 1) * 100
       : 0;
 
-  // === 3) Total Return % od inception (s absolutními čísly v sub) ===
+  // === 3) Total Return % od inception (primary = %, sub = absolutní hodnoty) ===
   const totalReturnCzk = fxUsdToCzk ? totalReturnUsd * fxUsdToCzk : null;
   const absLine =
     totalReturnCzk != null
-      ? `${fmtNum(totalReturnUsd, 0)} USD ≈ ${fmtNum(totalReturnCzk, 0)} Kč`
+      ? `${fmtNum(totalReturnCzk, 0)} Kč (${fmtNum(totalReturnUsd, 0)} USD)`
       : `${fmtNum(totalReturnUsd, 0)} USD`;
   wrap.appendChild(
     cardHtml(
       `Celkový výnos`,
-      `<span class="${signClass(totalReturnPct)}">${fmtPct(totalReturnPct)}</span> <span class="muted">${absLine}</span>`,
-      `od ${inception} (${Math.round(daysSince)} dní)`,
+      `<span class="${signClass(totalReturnPct)}">${fmtPct(totalReturnPct)}</span>`,
+      `${absLine}<br>od ${inception} (${Math.round(daysSince)} dní)`,
     ),
   );
 
@@ -1867,16 +1867,18 @@ function renderSummary() {
     cardHtml(
       `P.a. (anualizováno)`,
       `<span class="${signClass(paPct)}">${fmtPct(paPct)}</span>`,
-      `průměrný roční výnos`,
+      `průměrný roční výnos<br>${yearsSince.toFixed(2)} let od inception`,
     ),
   );
 
   // === 5) YTD % ===
-  // YTD = Mark-to-Market YTD (z IBKR snapshot) + dividendy 2026 + interest 2026
+  // Pro IBKR: použít předpočítaný M2M YTD z Activity Statement.
+  // Pro KB (a obecně pokud chybí snapshot): spočítat realized z 2026 transakcí
+  // + dividends 2026 net + interest 2026.
   const yearStart = `${today.getFullYear()}-01-01`;
   let ytdDivNet = 0;
-  for (const d of p.dividends || []) {
-    if (d.date >= yearStart) ytdDivNet += d.amount_usd || 0;
+  for (const dRec of p.dividends || []) {
+    if (dRec.date >= yearStart) ytdDivNet += dRec.amount_usd || 0;
   }
   for (const t of p.withholding_tax || []) {
     if (t.date >= yearStart) ytdDivNet += t.amount_usd || 0;
@@ -1884,26 +1886,54 @@ function renderSummary() {
   let ytdInterest = 0;
   for (const f of p.cash_flows || []) {
     if (f.type === "interest" && f.date >= yearStart) {
-      ytdInterest += f.amount;
+      ytdInterest += f.amount_usd || f.amount;
     }
   }
   const ytdM2m = p.ytd_mark_to_market_usd || 0;
-  const ytdPlUsd = ytdM2m + ytdDivNet + ytdInterest;
+
+  // YTD realized z 2026 transakcí (pro KB, kde nemáme snapshot)
+  let ytdRealizedUsd = 0;
+  let hasYtdRealized = false;
+  if (!p.ytd_mark_to_market_usd && state.positions) {
+    for (const sym in state.positions) {
+      const pos = state.positions[sym];
+      if (!pos.closed_lots) continue;
+      const inst = p.instruments[sym] || {};
+      const fxLocalToCzk = todayFxDate
+        ? getFxToCzk(todayFxDate, inst.currency)
+        : null;
+      if (!fxLocalToCzk || !fxUsdToCzk) continue;
+      for (const cl of pos.closed_lots) {
+        if (cl.orphan) continue;
+        if (!cl.sell_date || cl.sell_date < yearStart) continue;
+        const pnlUsd = (cl.pnl * fxLocalToCzk) / fxUsdToCzk;
+        ytdRealizedUsd += pnlUsd;
+        hasYtdRealized = true;
+      }
+    }
+  }
+
+  const ytdPlUsd = ytdM2m + ytdRealizedUsd + ytdDivNet + ytdInterest;
   const ytdPct =
     totalAssetsUsd > 0 ? (ytdPlUsd / totalAssetsUsd) * 100 : 0;
-  // P.a. extrapolace YTD
-  const yearStartDt = new Date(yearStart);
-  const yearsSoFar = Math.max(
-    1 / 365,
-    (today.getTime() - yearStartDt.getTime()) / 86400000 / 365.25,
-  );
-  const ytdPaPct =
-    (Math.pow(1 + ytdPct / 100, 1 / yearsSoFar) - 1) * 100;
+  const ytdCzk = fxUsdToCzk ? ytdPlUsd * fxUsdToCzk : null;
+  const ytdAbs =
+    ytdCzk != null
+      ? `${fmtNum(ytdCzk, 0)} Kč (${fmtNum(ytdPlUsd, 0)} USD)`
+      : `${fmtNum(ytdPlUsd, 0)} USD`;
+  let ytdSourceNote;
+  if (p.ytd_mark_to_market_usd != null && p.ytd_mark_to_market_usd !== 0) {
+    ytdSourceNote = `snapshot ${p.broker} k ${p.statement_period_end || "?"}`;
+  } else if (hasYtdRealized) {
+    ytdSourceNote = `realiz. prodeje + div. + úroky 2026 (otevřené pozice nejsou v M2M, údaj neúplný)`;
+  } else {
+    ytdSourceNote = `pouze div. + úroky 2026 (neúplné — chybí M2M snapshot)`;
+  }
   wrap.appendChild(
     cardHtml(
       `YTD ${today.getFullYear()}`,
-      `<span class="${signClass(ytdPct)}">${fmtPct(ytdPct)}</span> <span class="muted">(p.a. ${fmtPct(ytdPaPct)})</span>`,
-      `od ${yearStart} · IBKR snapshot k ${p.statement_period_end || "?"}`,
+      `<span class="${signClass(ytdPct)}">${fmtPct(ytdPct)}</span>`,
+      `${ytdAbs}<br>${ytdSourceNote}`,
     ),
   );
 
@@ -1915,8 +1945,8 @@ function renderSummary() {
     wrap.appendChild(
       cardHtml(
         `Dividendy (po dani) · CZK`,
-        `<span class="${signClass(netDivCzk)}">${fmtNum(netDivCzk, 0)} Kč</span> <span class="muted">${fmtNum(netDividendsUsd, 0)} USD</span>`,
-        `hrubé ${fmtNum(grossDivCzk, 0)} · daň ${fmtNum(taxDivCzk, 0)} Kč`,
+        `<span class="${signClass(netDivCzk)}">${fmtNum(netDivCzk, 0)} Kč</span>`,
+        `${fmtNum(netDividendsUsd, 0)} USD ekv.<br>hrubé ${fmtNum(grossDivCzk, 0)} · daň ${fmtNum(taxDivCzk, 0)} Kč`,
       ),
     );
   }
@@ -1929,10 +1959,11 @@ function card(label, value, sub = "") {
 function cardHtml(label, valueHtml, sub = "") {
   const d = document.createElement("div");
   d.className = "summary-card";
+  // sub může obsahovat HTML (např. <br>) — volající si escape řeší sám
   d.innerHTML = `
     <div class="label">${escapeHtml(label)}</div>
     <div class="value">${valueHtml}</div>
-    ${sub ? `<div class="sub">${escapeHtml(sub)}</div>` : ""}
+    ${sub ? `<div class="sub">${sub}</div>` : ""}
   `;
   return d;
 }
