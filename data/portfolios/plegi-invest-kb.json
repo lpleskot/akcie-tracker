@@ -2813,16 +2813,2345 @@
       "note": "KB Výběr CP"
     }
   ],
-  "dividends": [],
-  "withholding_tax": [],
-  "cash_flows": [],
-  "cash_balance": {},
+  "dividends": [
+    {
+      "date": "2024-01-15",
+      "symbol": "CNE.TO",
+      "isin": "CA1348083025",
+      "amount": 391.56,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu CANACOL ENERGY LTD"
+    },
+    {
+      "date": "2024-01-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-02-29",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-04-02",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-01-10",
+      "symbol": "DIS",
+      "isin": "US2546871060",
+      "amount": 28.8,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu WALT DISNEY CO/THE"
+    },
+    {
+      "date": "2024-01-22",
+      "symbol": "BABA",
+      "isin": "US01609W1027",
+      "amount": 70.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ALIBABA G"
+    },
+    {
+      "date": "2024-02-01",
+      "symbol": "CVS",
+      "isin": "US1266501006",
+      "amount": 43.89,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu CVS HEALTH CORP"
+    },
+    {
+      "date": "2024-03-01",
+      "symbol": "INTC",
+      "isin": "US4581401001",
+      "amount": 18.88,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu INTEL CORP"
+    },
+    {
+      "date": "2024-03-28",
+      "symbol": "AMBP",
+      "isin": "LU2369833749",
+      "amount": 212.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ARDAGH METAL PACKAGING SA"
+    },
+    {
+      "date": "2024-04-30",
+      "symbol": "YAL.AX",
+      "isin": "AU000000YAL0",
+      "amount": 855.08,
+      "currency": "AUD",
+      "description": "Výplata dividendy / výnosu YANCOAL A"
+    },
+    {
+      "date": "2024-04-30",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-05-02",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-05-02",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-05-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-06-28",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-05-27",
+      "symbol": "KOMB.PR",
+      "isin": "CZ0008019106",
+      "amount": 12977.62,
+      "currency": "CZK",
+      "description": "Výplata dividendy / výnosu KOMERČNÍ BANKA"
+    },
+    {
+      "date": "2024-05-16",
+      "symbol": "URW.AS",
+      "isin": "FR0013326246",
+      "amount": 247.5,
+      "currency": "EUR",
+      "description": "Výplata dividendy / výnosu UNIBAIL-R"
+    },
+    {
+      "date": "2024-06-05",
+      "symbol": "VNA.DE",
+      "isin": "DE000A1ML7J1",
+      "amount": 217.8,
+      "currency": "EUR",
+      "description": "Výplata dividendy / výnosu VONOVIA S"
+    },
+    {
+      "date": "2024-06-12",
+      "symbol": "P911.DE",
+      "isin": "DE000PAG9113",
+      "amount": 103.95,
+      "currency": "EUR",
+      "description": "Výplata dividendy / výnosu DR ING HC"
+    },
+    {
+      "date": "2024-04-24",
+      "symbol": "CRST.L",
+      "isin": "GB00B8VZXT93",
+      "amount": 370.65,
+      "currency": "GBP",
+      "description": "Výplata dividendy / výnosu CREST NIC"
+    },
+    {
+      "date": "2024-05-02",
+      "symbol": "CVS",
+      "isin": "US1266501006",
+      "amount": 43.89,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu CVS HEALTH CORP"
+    },
+    {
+      "date": "2024-05-27",
+      "symbol": "HUYA",
+      "isin": "US44852D1081",
+      "amount": 2164.14,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu HUYA INC-"
+    },
+    {
+      "date": "2024-06-03",
+      "symbol": "INTC",
+      "isin": "US4581401001",
+      "amount": 18.88,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu INTEL CORP"
+    },
+    {
+      "date": "2024-06-17",
+      "symbol": "GOOG",
+      "isin": "US02079K1079",
+      "amount": 16.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ALPHABET INC CLASS C"
+    },
+    {
+      "date": "2024-06-27",
+      "symbol": "AMBP",
+      "isin": "LU2369833749",
+      "amount": 212.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ARDAGH METAL PACKAGING SA"
+    },
+    {
+      "date": "2024-07-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-08-30",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-09-27",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-07-15",
+      "symbol": "BABA",
+      "isin": "US01609W1027",
+      "amount": 84.48,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ALIBABA G"
+    },
+    {
+      "date": "2024-07-16",
+      "symbol": "BABA",
+      "isin": "US01609W1027",
+      "amount": 128.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ALIBABA G"
+    },
+    {
+      "date": "2024-07-25",
+      "symbol": "DIS",
+      "isin": "US2546871060",
+      "amount": 43.2,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu WALT DISNEY CO/THE"
+    },
+    {
+      "date": "2024-08-01",
+      "symbol": "CVS",
+      "isin": "US1266501006",
+      "amount": 43.89,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu CVS HEALTH CORP"
+    },
+    {
+      "date": "2024-09-03",
+      "symbol": "INTC",
+      "isin": "US4581401001",
+      "amount": 47.5,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu INTEL CORP"
+    },
+    {
+      "date": "2024-09-16",
+      "symbol": "GOOG",
+      "isin": "US02079K1079",
+      "amount": 16.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ALPHABET INC CLASS C"
+    },
+    {
+      "date": "2024-09-27",
+      "symbol": "AMBP",
+      "isin": "LU2369833749",
+      "amount": 212.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ARDAGH METAL PACKAGING SA"
+    },
+    {
+      "date": "2024-10-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-11-29",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-12-16",
+      "symbol": "PXT.TO",
+      "isin": "CA69946Q1046",
+      "amount": 186.73,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu Parex Resources Inc"
+    },
+    {
+      "date": "2024-12-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-11-27",
+      "symbol": "PRX.AS",
+      "isin": "NL0013654783",
+      "amount": 20.9,
+      "currency": "EUR",
+      "description": "Výplata dividendy / výnosu PROSUS N."
+    },
+    {
+      "date": "2024-12-04",
+      "symbol": "MC.PA",
+      "isin": "FR0000121014",
+      "amount": 38.5,
+      "currency": "EUR",
+      "description": "Výplata dividendy / výnosu LVMH MOET HENNESSY LOUIS VU"
+    },
+    {
+      "date": "2024-10-14",
+      "symbol": "CRST.L",
+      "isin": "GB00B8VZXT93",
+      "amount": 32.23,
+      "currency": "GBP",
+      "description": "Výplata dividendy / výnosu CREST NIC"
+    },
+    {
+      "date": "2024-10-01",
+      "symbol": "NKE",
+      "isin": "US6541061031",
+      "amount": 20.35,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu NIKE INC"
+    },
+    {
+      "date": "2024-10-29",
+      "symbol": "HUYA",
+      "isin": "US44852D1081",
+      "amount": 3541.32,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu HUYA INC-"
+    },
+    {
+      "date": "2024-11-01",
+      "symbol": "CVS",
+      "isin": "US1266501006",
+      "amount": 43.89,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu CVS HEALTH CORP"
+    },
+    {
+      "date": "2024-12-16",
+      "symbol": "GOOG",
+      "isin": "US02079K1079",
+      "amount": 16.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ALPHABET INC CLASS C"
+    },
+    {
+      "date": "2024-12-20",
+      "symbol": "AMBP",
+      "isin": "LU2369833749",
+      "amount": 212.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ARDAGH METAL PACKAGING SA"
+    },
+    {
+      "date": "2025-01-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2025-02-28",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2025-03-18",
+      "symbol": "PXT.TO",
+      "isin": "CA69946Q1046",
+      "amount": 186.73,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu Parex Resources Inc"
+    },
+    {
+      "date": "2025-03-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu INPLAY OIL CORP"
+    },
+    {
+      "date": "2025-01-02",
+      "symbol": "NKE",
+      "isin": "US6541061031",
+      "amount": 22.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu NIKE INC"
+    },
+    {
+      "date": "2025-01-16",
+      "symbol": "DIS",
+      "isin": "US2546871060",
+      "amount": 48.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu WALT DISNEY CO/THE"
+    },
+    {
+      "date": "2025-02-03",
+      "symbol": "CVS",
+      "isin": "US1266501006",
+      "amount": 43.89,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu CVS HEALTH CORP"
+    },
+    {
+      "date": "2025-03-17",
+      "symbol": "GOOG",
+      "isin": "US02079K1079",
+      "amount": 16.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ALPHABET INC CLASS C"
+    },
+    {
+      "date": "2025-04-30",
+      "symbol": "YAL.AX",
+      "isin": "AU000000YAL0",
+      "amount": 1368.12,
+      "currency": "AUD",
+      "description": "Výplata dividendy / výnosu YANCOAL A"
+    },
+    {
+      "date": "2025-04-30",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.6,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu X-INPLAY OIL CORP - OLD"
+    },
+    {
+      "date": "2025-05-30",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.57,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-06-16",
+      "symbol": "PXT.TO",
+      "isin": "CA69946Q1046",
+      "amount": 186.73,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu Parex Resources Inc"
+    },
+    {
+      "date": "2025-06-30",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.57,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-05-26",
+      "symbol": "KOMB.PR",
+      "isin": "CZ0008019106",
+      "amount": 14334.1,
+      "currency": "CZK",
+      "description": "Výplata dividendy / výnosu KOMERČNÍ BANKA"
+    },
+    {
+      "date": "2025-04-28",
+      "symbol": "MC.PA",
+      "isin": "FR0000121014",
+      "amount": 52.5,
+      "currency": "EUR",
+      "description": "Výplata dividendy / výnosu LVMH MOET HENNESSY LOUIS VU"
+    },
+    {
+      "date": "2025-05-12",
+      "symbol": "URW.AS",
+      "isin": "FR0013326246",
+      "amount": 346.5,
+      "currency": "EUR",
+      "description": "Výplata dividendy / výnosu UNIBAIL-R"
+    },
+    {
+      "date": "2025-05-20",
+      "symbol": "EVO.ST",
+      "isin": "SE0012673267",
+      "amount": 316.4,
+      "currency": "EUR",
+      "description": "Výplata dividendy / výnosu Evolution AB"
+    },
+    {
+      "date": "2025-05-26",
+      "symbol": "P911.DE",
+      "isin": "DE000PAG9113",
+      "amount": 120.89,
+      "currency": "EUR",
+      "description": "Výplata dividendy / výnosu DR ING HC F PORSCHE AG"
+    },
+    {
+      "date": "2025-05-26",
+      "symbol": "P911.DE",
+      "isin": "DE000PAG9113",
+      "amount": 220.99,
+      "currency": "EUR",
+      "description": "Výplata dividendy / výnosu DR ING HC F PORSCHE AG"
+    },
+    {
+      "date": "2025-06-26",
+      "symbol": "VNA.DE",
+      "isin": "DE000A1ML7J1",
+      "amount": 295.24,
+      "currency": "EUR",
+      "description": "Výplata dividendy / výnosu VONOVIA S"
+    },
+    {
+      "date": "2025-04-28",
+      "symbol": "CRST.L",
+      "isin": "GB00B8VZXT93",
+      "amount": 38.68,
+      "currency": "GBP",
+      "description": "Výplata dividendy / výnosu CREST NIC"
+    },
+    {
+      "date": "2025-04-01",
+      "symbol": "NKE",
+      "isin": "US6541061031",
+      "amount": 22.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu NIKE INC"
+    },
+    {
+      "date": "2025-04-30",
+      "symbol": "SMSN.IL",
+      "isin": "US7960508882",
+      "amount": 25.47,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu SAMSUNG ELECTR-GDR"
+    },
+    {
+      "date": "2025-06-03",
+      "symbol": "SMSN.IL",
+      "isin": "US7960508882",
+      "amount": 26.25,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu SAMSUNG ELECTR-GDR"
+    },
+    {
+      "date": "2025-06-16",
+      "symbol": "GOOG",
+      "isin": "US02079K1079",
+      "amount": 25.2,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ALPHABET INC CLASS C"
+    },
+    {
+      "date": "2025-06-24",
+      "symbol": "UNH",
+      "isin": "US91324P1021",
+      "amount": 35.36,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu UNITEDHEALTH GROUP INC"
+    },
+    {
+      "date": "2025-07-01",
+      "symbol": "HUYA",
+      "isin": "US44852D1081",
+      "amount": 5996.13,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu HUYA INC-"
+    },
+    {
+      "date": "2025-09-19",
+      "symbol": "YAL.AX",
+      "isin": "AU000000YAL0",
+      "amount": 163.12,
+      "currency": "AUD",
+      "description": "Výplata dividendy / výnosu YANCOAL A"
+    },
+    {
+      "date": "2025-07-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.57,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-08-29",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.57,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-09-15",
+      "symbol": "PXT.TO",
+      "isin": "CA69946Q1046",
+      "amount": 186.73,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu Parex Resources Inc"
+    },
+    {
+      "date": "2025-09-29",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.57,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-08-20",
+      "symbol": "NOV.DE",
+      "isin": "DK0062498333",
+      "amount": 787.5,
+      "currency": "DKK",
+      "description": "Výplata dividendy / výnosu NOVO NORDISK A/S - DE REMOT"
+    },
+    {
+      "date": "2025-09-03",
+      "symbol": "PKN.WA",
+      "isin": "PLPKN0000018",
+      "amount": 1980.0,
+      "currency": "PLN",
+      "description": "Výplata dividendy / výnosu ORLEN"
+    },
+    {
+      "date": "2025-07-01",
+      "symbol": "NKE",
+      "isin": "US6541061031",
+      "amount": 60.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu NIKE INC"
+    },
+    {
+      "date": "2025-07-11",
+      "symbol": "BABA",
+      "isin": "US01609W1027",
+      "amount": 121.6,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ALIBABA G"
+    },
+    {
+      "date": "2025-07-11",
+      "symbol": "BABA",
+      "isin": "US01609W1027",
+      "amount": 134.4,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ALIBABA G"
+    },
+    {
+      "date": "2025-07-23",
+      "symbol": "DIS",
+      "isin": "US2546871060",
+      "amount": 48.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu WALT DISNEY CO/THE"
+    },
+    {
+      "date": "2025-09-02",
+      "symbol": "SMSN.IL",
+      "isin": "US7960508882",
+      "amount": 26.21,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu SAMSUNG ELECTR-GDR"
+    },
+    {
+      "date": "2025-09-15",
+      "symbol": "GOOG",
+      "isin": "US02079K1079",
+      "amount": 25.2,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ALPHABET INC CLASS C"
+    },
+    {
+      "date": "2025-09-23",
+      "symbol": "UNH",
+      "isin": "US91324P1021",
+      "amount": 68.51,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu UNITEDHEALTH GROUP INC"
+    },
+    {
+      "date": "2025-09-26",
+      "symbol": "LMT",
+      "isin": "US5398301094",
+      "amount": 36.3,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu LOCKHEED MARTIN CORP"
+    },
+    {
+      "date": "2025-10-07",
+      "symbol": "LNF.TO",
+      "isin": "CA5266821092",
+      "amount": 55.44,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu Leon's Furniture Ltd"
+    },
+    {
+      "date": "2025-10-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.57,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-11-04",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -33.57,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu InPlay Oil Corp - O"
+    },
+    {
+      "date": "2025-11-04",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.57,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu InPlay Oil Corp - O"
+    },
+    {
+      "date": "2025-11-28",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.57,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-12-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 33.57,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-11-19",
+      "symbol": "FILA.MI",
+      "isin": "IT0004967292",
+      "amount": 172.0,
+      "currency": "EUR",
+      "description": "Výplata dividendy / výnosu Fila SpA"
+    },
+    {
+      "date": "2025-11-26",
+      "symbol": "PRX.AS",
+      "isin": "NL0013654783",
+      "amount": 41.8,
+      "currency": "EUR",
+      "description": "Výplata dividendy / výnosu PROSUS N."
+    },
+    {
+      "date": "2025-12-04",
+      "symbol": "MC.PA",
+      "isin": "FR0000121014",
+      "amount": 82.5,
+      "currency": "EUR",
+      "description": "Výplata dividendy / výnosu LVMH MOET HENNESSY LOUIS VU"
+    },
+    {
+      "date": "2025-10-13",
+      "symbol": "CRST.L",
+      "isin": "GB00B8VZXT93",
+      "amount": 41.9,
+      "currency": "GBP",
+      "description": "Výplata dividendy / výnosu CREST NIC"
+    },
+    {
+      "date": "2025-10-01",
+      "symbol": "NKE",
+      "isin": "US6541061031",
+      "amount": 60.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu NIKE INC"
+    },
+    {
+      "date": "2025-11-18",
+      "symbol": "ACN",
+      "isin": "IE00B4BNMY34",
+      "amount": 32.6,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ACCENTURE PLC"
+    },
+    {
+      "date": "2025-12-03",
+      "symbol": "SMSN.IL",
+      "isin": "US7960508882",
+      "amount": 25.22,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu SAMSUNG ELECTR-GDR"
+    },
+    {
+      "date": "2025-12-10",
+      "symbol": "PYPL",
+      "isin": "US70450Y1038",
+      "amount": 9.8,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu PAYPAL HOLDINGS INC"
+    },
+    {
+      "date": "2025-12-15",
+      "symbol": "GOOG",
+      "isin": "US02079K1079",
+      "amount": 25.2,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ALPHABET INC CLASS C"
+    },
+    {
+      "date": "2025-12-16",
+      "symbol": "UNH",
+      "isin": "US91324P1021",
+      "amount": 68.51,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu UNITEDHEALTH GROUP INC"
+    },
+    {
+      "date": "2025-12-30",
+      "symbol": "LMT",
+      "isin": "US5398301094",
+      "amount": 37.95,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu LOCKHEED MARTIN CORP"
+    },
+    {
+      "date": "2025-12-30",
+      "symbol": "RICK",
+      "isin": "US74934Q1085",
+      "amount": 18.9,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu RCI Hospitality Holdings In"
+    },
+    {
+      "date": "2026-01-06",
+      "symbol": "LNF.TO",
+      "isin": "CA5266821092",
+      "amount": 55.44,
+      "currency": "CAD",
+      "description": "Výplata dividendy / výnosu Leon's Furniture Ltd"
+    },
+    {
+      "date": "2026-01-02",
+      "symbol": "NKE",
+      "isin": "US6541061031",
+      "amount": 61.5,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu NIKE INC"
+    },
+    {
+      "date": "2026-01-15",
+      "symbol": "DIS",
+      "isin": "US2546871060",
+      "amount": 72.0,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu WALT DISNEY CO/THE"
+    },
+    {
+      "date": "2026-02-16",
+      "symbol": "ACN",
+      "isin": "IE00B4BNMY34",
+      "amount": 32.6,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ACCENTURE PLC"
+    },
+    {
+      "date": "2026-03-16",
+      "symbol": "GOOG",
+      "isin": "US02079K1079",
+      "amount": 25.2,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu ALPHABET INC CLASS C"
+    },
+    {
+      "date": "2026-03-17",
+      "symbol": "UNH",
+      "isin": "US91324P1021",
+      "amount": 68.51,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu UNITEDHEALTH GROUP INC"
+    },
+    {
+      "date": "2026-03-27",
+      "symbol": "LMT",
+      "isin": "US5398301094",
+      "amount": 37.95,
+      "currency": "USD",
+      "description": "Výplata dividendy / výnosu LOCKHEED MARTIN CORP"
+    }
+  ],
+  "withholding_tax": [
+    {
+      "date": "2024-01-15",
+      "symbol": "CNE.TO",
+      "isin": "CA1348083025",
+      "amount": -58.73,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU CANACOL ENERGY LTD"
+    },
+    {
+      "date": "2024-01-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.04,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-02-29",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.04,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-04-02",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.04,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-01-10",
+      "symbol": "DIS",
+      "isin": "US2546871060",
+      "amount": -4.32,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU WALT DISNEY CO/THE"
+    },
+    {
+      "date": "2024-02-01",
+      "symbol": "CVS",
+      "isin": "US1266501006",
+      "amount": -6.58,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU CVS HEALTH CORP"
+    },
+    {
+      "date": "2024-03-01",
+      "symbol": "INTC",
+      "isin": "US4581401001",
+      "amount": -2.83,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU INTEL CORP"
+    },
+    {
+      "date": "2024-03-28",
+      "symbol": "AMBP",
+      "isin": "LU2369833749",
+      "amount": -31.8,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU ARDAGH METAL PACKAGING SA"
+    },
+    {
+      "date": "2024-04-30",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -8.4,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-05-02",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 8.4,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-05-02",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.04,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-05-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.04,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-06-28",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.04,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-05-27",
+      "symbol": "KOMB.PR",
+      "isin": "CZ0008019106",
+      "amount": -1946.0,
+      "currency": "CZK",
+      "country": "?",
+      "description": "Daň z KU KOMERČNÍ BANKA"
+    },
+    {
+      "date": "2024-05-02",
+      "symbol": "CVS",
+      "isin": "US1266501006",
+      "amount": -6.58,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU CVS HEALTH CORP"
+    },
+    {
+      "date": "2024-06-03",
+      "symbol": "INTC",
+      "isin": "US4581401001",
+      "amount": -2.83,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU INTEL CORP"
+    },
+    {
+      "date": "2024-06-17",
+      "symbol": "GOOG",
+      "isin": "US02079K1079",
+      "amount": -2.4,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU ALPHABET INC CLASS C"
+    },
+    {
+      "date": "2024-06-27",
+      "symbol": "AMBP",
+      "isin": "LU2369833749",
+      "amount": -31.8,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU ARDAGH METAL PACKAGING SA"
+    },
+    {
+      "date": "2024-07-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.04,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-08-30",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.04,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-09-27",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.04,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-07-25",
+      "symbol": "DIS",
+      "isin": "US2546871060",
+      "amount": -6.48,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU WALT DISNEY CO/THE"
+    },
+    {
+      "date": "2024-08-01",
+      "symbol": "CVS",
+      "isin": "US1266501006",
+      "amount": -6.58,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU CVS HEALTH CORP"
+    },
+    {
+      "date": "2024-09-03",
+      "symbol": "INTC",
+      "isin": "US4581401001",
+      "amount": -7.12,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU INTEL CORP"
+    },
+    {
+      "date": "2024-09-16",
+      "symbol": "GOOG",
+      "isin": "US02079K1079",
+      "amount": -2.4,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU ALPHABET INC CLASS C"
+    },
+    {
+      "date": "2024-09-27",
+      "symbol": "AMBP",
+      "isin": "LU2369833749",
+      "amount": -31.8,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU ARDAGH METAL PACKAGING SA"
+    },
+    {
+      "date": "2024-10-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.04,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-11-29",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.04,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-12-16",
+      "symbol": "PXT.TO",
+      "isin": "CA69946Q1046",
+      "amount": -28.0,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU Parex Resources Inc"
+    },
+    {
+      "date": "2024-12-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.04,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2024-12-04",
+      "symbol": "MC.PA",
+      "isin": "FR0000121014",
+      "amount": -9.62,
+      "currency": "EUR",
+      "country": "?",
+      "description": "Daň z KU LVMH MOET HENNESSY LOUIS VU"
+    },
+    {
+      "date": "2024-10-01",
+      "symbol": "NKE",
+      "isin": "US6541061031",
+      "amount": -3.05,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU NIKE INC"
+    },
+    {
+      "date": "2024-11-01",
+      "symbol": "CVS",
+      "isin": "US1266501006",
+      "amount": -6.58,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU CVS HEALTH CORP"
+    },
+    {
+      "date": "2024-12-16",
+      "symbol": "GOOG",
+      "isin": "US02079K1079",
+      "amount": -2.4,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU ALPHABET INC CLASS C"
+    },
+    {
+      "date": "2024-12-20",
+      "symbol": "AMBP",
+      "isin": "LU2369833749",
+      "amount": -31.8,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU ARDAGH METAL PACKAGING SA"
+    },
+    {
+      "date": "2025-01-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.04,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2025-02-28",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.04,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2025-03-18",
+      "symbol": "PXT.TO",
+      "isin": "CA69946Q1046",
+      "amount": -28.0,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU Parex Resources Inc"
+    },
+    {
+      "date": "2025-03-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.04,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU INPLAY OIL CORP"
+    },
+    {
+      "date": "2025-01-02",
+      "symbol": "NKE",
+      "isin": "US6541061031",
+      "amount": -3.3,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU NIKE INC"
+    },
+    {
+      "date": "2025-01-16",
+      "symbol": "DIS",
+      "isin": "US2546871060",
+      "amount": -7.2,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU WALT DISNEY CO/THE"
+    },
+    {
+      "date": "2025-02-03",
+      "symbol": "CVS",
+      "isin": "US1266501006",
+      "amount": -6.58,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU CVS HEALTH CORP"
+    },
+    {
+      "date": "2025-03-17",
+      "symbol": "GOOG",
+      "isin": "US02079K1079",
+      "amount": -2.4,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU ALPHABET INC CLASS C"
+    },
+    {
+      "date": "2025-04-30",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.04,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU X-INPLAY OIL CORP - OLD"
+    },
+    {
+      "date": "2025-05-30",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.03,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-06-16",
+      "symbol": "PXT.TO",
+      "isin": "CA69946Q1046",
+      "amount": -28.0,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU Parex Resources Inc"
+    },
+    {
+      "date": "2025-06-30",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.03,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-05-26",
+      "symbol": "KOMB.PR",
+      "isin": "CZ0008019106",
+      "amount": -2150.0,
+      "currency": "CZK",
+      "country": "?",
+      "description": "Daň z KU KOMERČNÍ BANKA"
+    },
+    {
+      "date": "2025-04-28",
+      "symbol": "MC.PA",
+      "isin": "FR0000121014",
+      "amount": -13.12,
+      "currency": "EUR",
+      "country": "?",
+      "description": "Daň z KU LVMH MOET HENNESSY LOUIS VU"
+    },
+    {
+      "date": "2025-05-20",
+      "symbol": "EVO.ST",
+      "isin": "SE0012673267",
+      "amount": -31.64,
+      "currency": "EUR",
+      "country": "?",
+      "description": "Daň z KU Evolution AB"
+    },
+    {
+      "date": "2025-05-26",
+      "symbol": "P911.DE",
+      "isin": "DE000PAG9113",
+      "amount": -31.88,
+      "currency": "EUR",
+      "country": "?",
+      "description": "Daň z KU DR ING HC F PORSCHE AG"
+    },
+    {
+      "date": "2025-04-01",
+      "symbol": "NKE",
+      "isin": "US6541061031",
+      "amount": -3.3,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU NIKE INC"
+    },
+    {
+      "date": "2025-04-30",
+      "symbol": "SMSN.IL",
+      "isin": "US7960508882",
+      "amount": -5.6,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU SAMSUNG ELECTR-GDR"
+    },
+    {
+      "date": "2025-06-03",
+      "symbol": "SMSN.IL",
+      "isin": "US7960508882",
+      "amount": -5.77,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU SAMSUNG ELECTR-GDR"
+    },
+    {
+      "date": "2025-06-16",
+      "symbol": "GOOG",
+      "isin": "US02079K1079",
+      "amount": -3.78,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU ALPHABET INC CLASS C"
+    },
+    {
+      "date": "2025-06-24",
+      "symbol": "UNH",
+      "isin": "US91324P1021",
+      "amount": -5.3,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU UNITEDHEALTH GROUP INC"
+    },
+    {
+      "date": "2025-07-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.03,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-08-29",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.03,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-09-15",
+      "symbol": "PXT.TO",
+      "isin": "CA69946Q1046",
+      "amount": -28.0,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU Parex Resources Inc"
+    },
+    {
+      "date": "2025-09-29",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.03,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-08-20",
+      "symbol": "NOV.DE",
+      "isin": "DK0062498333",
+      "amount": -212.62,
+      "currency": "DKK",
+      "country": "?",
+      "description": "Daň z KU NOVO NORDISK A/S - DE REMOT"
+    },
+    {
+      "date": "2025-09-03",
+      "symbol": "PKN.WA",
+      "isin": "PLPKN0000018",
+      "amount": -376.2,
+      "currency": "PLN",
+      "country": "?",
+      "description": "Daň z KU ORLEN"
+    },
+    {
+      "date": "2025-07-01",
+      "symbol": "NKE",
+      "isin": "US6541061031",
+      "amount": -9.0,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU NIKE INC"
+    },
+    {
+      "date": "2025-07-23",
+      "symbol": "DIS",
+      "isin": "US2546871060",
+      "amount": -7.2,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU WALT DISNEY CO/THE"
+    },
+    {
+      "date": "2025-09-02",
+      "symbol": "SMSN.IL",
+      "isin": "US7960508882",
+      "amount": -5.76,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU SAMSUNG ELECTR-GDR"
+    },
+    {
+      "date": "2025-09-15",
+      "symbol": "GOOG",
+      "isin": "US02079K1079",
+      "amount": -3.78,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU ALPHABET INC CLASS C"
+    },
+    {
+      "date": "2025-09-23",
+      "symbol": "UNH",
+      "isin": "US91324P1021",
+      "amount": -10.27,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU UNITEDHEALTH GROUP INC"
+    },
+    {
+      "date": "2025-09-26",
+      "symbol": "LMT",
+      "isin": "US5398301094",
+      "amount": -5.44,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU LOCKHEED MARTIN CORP"
+    },
+    {
+      "date": "2025-10-07",
+      "symbol": "LNF.TO",
+      "isin": "CA5266821092",
+      "amount": -8.31,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU Leon's Furniture Ltd"
+    },
+    {
+      "date": "2025-10-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -8.39,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-11-04",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": 8.39,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU InPlay Oil Corp - O"
+    },
+    {
+      "date": "2025-11-04",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.03,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-11-28",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.03,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-12-31",
+      "symbol": "IPO.TO",
+      "isin": "CA45780T4046",
+      "amount": -5.03,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU InPlay Oil Corp - ORDSHR"
+    },
+    {
+      "date": "2025-11-19",
+      "symbol": "FILA.MI",
+      "isin": "IT0004967292",
+      "amount": -44.72,
+      "currency": "EUR",
+      "country": "?",
+      "description": "Daň z KU Fila SpA"
+    },
+    {
+      "date": "2025-12-04",
+      "symbol": "MC.PA",
+      "isin": "FR0000121014",
+      "amount": -20.62,
+      "currency": "EUR",
+      "country": "?",
+      "description": "Daň z KU LVMH MOET HENNESSY LOUIS VU"
+    },
+    {
+      "date": "2025-10-01",
+      "symbol": "NKE",
+      "isin": "US6541061031",
+      "amount": -9.0,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU NIKE INC"
+    },
+    {
+      "date": "2025-11-18",
+      "symbol": "ACN",
+      "isin": "IE00B4BNMY34",
+      "amount": -8.15,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU ACCENTURE PLC"
+    },
+    {
+      "date": "2025-12-03",
+      "symbol": "SMSN.IL",
+      "isin": "US7960508882",
+      "amount": -5.54,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU SAMSUNG ELECTR-GDR"
+    },
+    {
+      "date": "2025-12-10",
+      "symbol": "PYPL",
+      "isin": "US70450Y1038",
+      "amount": -1.47,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU PAYPAL HOLDINGS INC"
+    },
+    {
+      "date": "2025-12-15",
+      "symbol": "GOOG",
+      "isin": "US02079K1079",
+      "amount": -3.78,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU ALPHABET INC CLASS C"
+    },
+    {
+      "date": "2025-12-16",
+      "symbol": "UNH",
+      "isin": "US91324P1021",
+      "amount": -10.27,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU UNITEDHEALTH GROUP INC"
+    },
+    {
+      "date": "2025-12-30",
+      "symbol": "LMT",
+      "isin": "US5398301094",
+      "amount": -5.69,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU LOCKHEED MARTIN CORP"
+    },
+    {
+      "date": "2025-12-30",
+      "symbol": "RICK",
+      "isin": "US74934Q1085",
+      "amount": -2.83,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU RCI Hospitality Holdings In"
+    },
+    {
+      "date": "2026-01-06",
+      "symbol": "LNF.TO",
+      "isin": "CA5266821092",
+      "amount": -8.31,
+      "currency": "CAD",
+      "country": "?",
+      "description": "Daň z KU Leon's Furniture Ltd"
+    },
+    {
+      "date": "2026-01-02",
+      "symbol": "NKE",
+      "isin": "US6541061031",
+      "amount": -9.22,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU NIKE INC"
+    },
+    {
+      "date": "2026-01-15",
+      "symbol": "DIS",
+      "isin": "US2546871060",
+      "amount": -10.8,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU WALT DISNEY CO/THE"
+    },
+    {
+      "date": "2026-02-16",
+      "symbol": "ACN",
+      "isin": "IE00B4BNMY34",
+      "amount": -8.15,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU ACCENTURE PLC"
+    },
+    {
+      "date": "2026-03-16",
+      "symbol": "GOOG",
+      "isin": "US02079K1079",
+      "amount": -3.78,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU ALPHABET INC CLASS C"
+    },
+    {
+      "date": "2026-03-17",
+      "symbol": "UNH",
+      "isin": "US91324P1021",
+      "amount": -10.27,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU UNITEDHEALTH GROUP INC"
+    },
+    {
+      "date": "2026-03-27",
+      "symbol": "LMT",
+      "isin": "US5398301094",
+      "amount": -5.69,
+      "currency": "USD",
+      "country": "?",
+      "description": "Daň z KU LOCKHEED MARTIN CORP"
+    }
+  ],
+  "cash_flows": [
+    {
+      "date": "2024-02-12",
+      "type": "fx_conversion",
+      "currency": "CAD",
+      "amount": 5893.36,
+      "description": "12.02.2024 Měnová konverze 5 893.36 12.02.2024"
+    },
+    {
+      "date": "2024-01-26",
+      "type": "fx_conversion",
+      "currency": "EUR",
+      "amount": 4000.0,
+      "description": "26.01.2024 Měnová konverze 4 000.00 26.01.2024"
+    },
+    {
+      "date": "2024-01-22",
+      "type": "external_fee",
+      "currency": "USD",
+      "amount": -1.4,
+      "description": "22.01.2024 Externí poplatek za CA c. 79581 18.01.2024 -1.40"
+    },
+    {
+      "date": "2024-01-26",
+      "type": "fx_conversion",
+      "currency": "USD",
+      "amount": -4605.87,
+      "description": "26.01.2024 Měnová konverze 26.01.2024 -4 605.87"
+    },
+    {
+      "date": "2024-02-12",
+      "type": "fx_conversion",
+      "currency": "USD",
+      "amount": -4400.0,
+      "description": "12.02.2024 Měnová konverze 12.02.2024 -4 400.00"
+    },
+    {
+      "date": "2024-05-22",
+      "type": "external_fee",
+      "currency": "USD",
+      "amount": -65.58,
+      "description": "22.05.2024 Externí poplatek za CA c. 81872 22.05.2024 -65.58"
+    },
+    {
+      "date": "2024-05-22",
+      "type": "external_fee",
+      "currency": "USD",
+      "amount": -2.56,
+      "description": "22.05.2024 Externí poplatek za CA c. 80923 22.05.2024 -2.56"
+    },
+    {
+      "date": "2024-05-27",
+      "type": "external_fee",
+      "currency": "USD",
+      "amount": -65.58,
+      "description": "27.05.2024 Externí poplatek za CA c. 82157 24.05.2024 -65.58"
+    },
+    {
+      "date": "2024-09-16",
+      "type": "fx_conversion",
+      "currency": "CAD",
+      "amount": 5904.99,
+      "description": "16.09.2024 Měnová konverze 5 904.99 13.09.2024"
+    },
+    {
+      "date": "2024-09-09",
+      "type": "deposit",
+      "currency": "CZK",
+      "amount": 100000.0,
+      "description": "09.09.2024 Vklad na klientský účet 100 000.00 09.09.2024"
+    },
+    {
+      "date": "2024-09-09",
+      "type": "fx_conversion",
+      "currency": "CZK",
+      "amount": -110000.0,
+      "description": "09.09.2024 Měnová konverze 09.09.2024 -110 000.00"
+    },
+    {
+      "date": "2024-09-13",
+      "type": "deposit",
+      "currency": "CZK",
+      "amount": 100000.0,
+      "description": "13.09.2024 Vklad na klientský účet 100 000.00 13.09.2024"
+    },
+    {
+      "date": "2024-09-16",
+      "type": "fx_conversion",
+      "currency": "CZK",
+      "amount": -98997.16,
+      "description": "16.09.2024 Měnová konverze 13.09.2024 -98 997.16"
+    },
+    {
+      "date": "2024-09-09",
+      "type": "fx_conversion",
+      "currency": "PLN",
+      "amount": 18713.85,
+      "description": "09.09.2024 Měnová konverze 18 713.85 09.09.2024"
+    },
+    {
+      "date": "2024-07-16",
+      "type": "external_fee",
+      "currency": "USD",
+      "amount": -2.56,
+      "description": "16.07.2024 Externí poplatek za CA c. 83733 12.07.2024 -2.56"
+    },
+    {
+      "date": "2024-12-30",
+      "type": "fx_conversion",
+      "currency": "AUD",
+      "amount": -855.08,
+      "description": "30.12.2024 Měnová konverze 30.12.2024 -855.08"
+    },
+    {
+      "date": "2024-11-25",
+      "type": "fx_conversion",
+      "currency": "CAD",
+      "amount": -728.0,
+      "description": "25.11.2024 Měnová konverze 25.11.2024 -728.00"
+    },
+    {
+      "date": "2024-11-25",
+      "type": "fx_conversion",
+      "currency": "CZK",
+      "amount": -736.0,
+      "description": "25.11.2024 Měnová konverze 25.11.2024 -736.00"
+    },
+    {
+      "date": "2024-12-11",
+      "type": "deposit",
+      "currency": "CZK",
+      "amount": 100000.0,
+      "description": "11.12.2024 Vklad na klientský účet 100 000.00 10.12.2024"
+    },
+    {
+      "date": "2024-11-21",
+      "type": "deposit",
+      "currency": "EUR",
+      "amount": 3950.0,
+      "description": "21.11.2024 Vklad na klientský účet 3 950.00 21.11.2024"
+    },
+    {
+      "date": "2024-11-25",
+      "type": "fx_conversion",
+      "currency": "EUR",
+      "amount": 448.27,
+      "description": "25.11.2024 Měnová konverze 448.27 25.11.2024"
+    },
+    {
+      "date": "2024-11-25",
+      "type": "fx_conversion",
+      "currency": "EUR",
+      "amount": 24.37,
+      "description": "25.11.2024 Měnová konverze 24.37 25.11.2024"
+    },
+    {
+      "date": "2024-11-25",
+      "type": "fx_conversion",
+      "currency": "EUR",
+      "amount": 28.05,
+      "description": "25.11.2024 Měnová konverze 28.05 25.11.2024"
+    },
+    {
+      "date": "2024-11-25",
+      "type": "fx_conversion",
+      "currency": "EUR",
+      "amount": 457.92,
+      "description": "25.11.2024 Měnová konverze 457.92 25.11.2024"
+    },
+    {
+      "date": "2024-11-26",
+      "type": "fx_conversion",
+      "currency": "EUR",
+      "amount": 2112.93,
+      "description": "26.11.2024 Měnová konverze 2 112.93 26.11.2024"
+    },
+    {
+      "date": "2024-11-25",
+      "type": "fx_conversion",
+      "currency": "GBP",
+      "amount": -402.0,
+      "description": "25.11.2024 Měnová konverze 25.11.2024 -402.00"
+    },
+    {
+      "date": "2024-11-25",
+      "type": "fx_conversion",
+      "currency": "PLN",
+      "amount": -114.0,
+      "description": "25.11.2024 Měnová konverze 25.11.2024 -114.00"
+    },
+    {
+      "date": "2024-10-29",
+      "type": "external_fee",
+      "currency": "USD",
+      "amount": -65.58,
+      "description": "29.10.2024 Externí poplatek za CA c. 85757 25.10.2024 -65.58"
+    },
+    {
+      "date": "2024-11-15",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 4000.0,
+      "description": "15.11.2024 Vklad na klientský účet 4 000.00 15.11.2024"
+    },
+    {
+      "date": "2024-11-21",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 4000.0,
+      "description": "21.11.2024 Vklad na klientský účet 4 000.00 21.11.2024"
+    },
+    {
+      "date": "2024-11-26",
+      "type": "fx_conversion",
+      "currency": "USD",
+      "amount": -2400.0,
+      "description": "26.11.2024 Měnová konverze 26.11.2024 -2 400.00"
+    },
+    {
+      "date": "2024-12-11",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 4100.0,
+      "description": "11.12.2024 Vklad na klientský účet 4 100.00 11.12.2024"
+    },
+    {
+      "date": "2024-12-30",
+      "type": "fx_conversion",
+      "currency": "USD",
+      "amount": 492.38,
+      "description": "30.12.2024 Měnová konverze 492.38 30.12.2024"
+    },
+    {
+      "date": "2025-01-02",
+      "type": "fx_conversion",
+      "currency": "CAD",
+      "amount": -188.27,
+      "description": "02.01.2025 Měnová konverze 02.01.2025 -188.27"
+    },
+    {
+      "date": "2025-01-02",
+      "type": "fx_conversion",
+      "currency": "CZK",
+      "amount": -100000.0,
+      "description": "02.01.2025 Měnová konverze 02.01.2025 -100 000.00"
+    },
+    {
+      "date": "2025-01-06",
+      "type": "deposit",
+      "currency": "CZK",
+      "amount": 100000.0,
+      "description": "06.01.2025 Vklad na klientský účet 100 000.00 06.01.2025"
+    },
+    {
+      "date": "2025-02-13",
+      "type": "deposit",
+      "currency": "CZK",
+      "amount": 100000.0,
+      "description": "13.02.2025 Vklad na klientský účet 100 000.00 13.02.2025"
+    },
+    {
+      "date": "2025-02-13",
+      "type": "fx_conversion",
+      "currency": "CZK",
+      "amount": -100000.0,
+      "description": "13.02.2025 Měnová konverze 13.02.2025 -100 000.00"
+    },
+    {
+      "date": "2025-02-10",
+      "type": "deposit",
+      "currency": "EUR",
+      "amount": 2000.0,
+      "description": "10.02.2025 Vklad na klientský účet 2 000.00 10.02.2025"
+    },
+    {
+      "date": "2025-01-02",
+      "type": "fx_conversion",
+      "currency": "PLN",
+      "amount": 16335.87,
+      "description": "02.01.2025 Měnová konverze 16 335.87 02.01.2025"
+    },
+    {
+      "date": "2025-01-08",
+      "type": "fx_conversion",
+      "currency": "PLN",
+      "amount": -16336.42,
+      "description": "08.01.2025 Měnová konverze 08.01.2025 -16 336.42"
+    },
+    {
+      "date": "2025-02-13",
+      "type": "fx_conversion",
+      "currency": "SEK",
+      "amount": 43455.59,
+      "description": "13.02.2025 Měnová konverze 43 455.59 13.02.2025"
+    },
+    {
+      "date": "2025-01-02",
+      "type": "fx_conversion",
+      "currency": "USD",
+      "amount": 121.22,
+      "description": "02.01.2025 Měnová konverze 121.22 02.01.2025"
+    },
+    {
+      "date": "2025-01-08",
+      "type": "fx_conversion",
+      "currency": "USD",
+      "amount": 3654.28,
+      "description": "08.01.2025 Měnová konverze 3 654.28 08.01.2025"
+    },
+    {
+      "date": "2025-01-06",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 4100.0,
+      "description": "06.01.2025 Vklad na klientský účet 4 100.00 06.01.2025"
+    },
+    {
+      "date": "2025-01-16",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 8200.0,
+      "description": "16.01.2025 Vklad na klientský účet 8 200.00 16.01.2025"
+    },
+    {
+      "date": "2025-02-10",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 4100.0,
+      "description": "10.02.2025 Vklad na klientský účet 4 100.00 10.02.2025"
+    },
+    {
+      "date": "2025-02-27",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 4100.0,
+      "description": "27.02.2025 Vklad na klientský účet 4 100.00 27.02.2025"
+    },
+    {
+      "date": "2025-05-19",
+      "type": "fx_conversion",
+      "currency": "CAD",
+      "amount": 6052.43,
+      "description": "19.05.2025 Měnová konverze 6 052.43 19.05.2025"
+    },
+    {
+      "date": "2025-05-02",
+      "type": "deposit",
+      "currency": "CZK",
+      "amount": 100000.0,
+      "description": "02.05.2025 Vklad na klientský účet 100 000.00 02.05.2025"
+    },
+    {
+      "date": "2025-05-02",
+      "type": "fx_conversion",
+      "currency": "CZK",
+      "amount": -100000.0,
+      "description": "02.05.2025 Měnová konverze 02.05.2025 -100 000.00"
+    },
+    {
+      "date": "2025-05-15",
+      "type": "deposit",
+      "currency": "CZK",
+      "amount": 200000.0,
+      "description": "15.05.2025 Vklad na klientský účet 200 000.00 15.05.2025"
+    },
+    {
+      "date": "2025-05-19",
+      "type": "fx_conversion",
+      "currency": "CZK",
+      "amount": -100000.0,
+      "description": "19.05.2025 Měnová konverze 19.05.2025 -100 000.00"
+    },
+    {
+      "date": "2025-06-09",
+      "type": "fx_conversion",
+      "currency": "CZK",
+      "amount": -75000.0,
+      "description": "09.06.2025 Měnová konverze 09.06.2025 -75 000.00"
+    },
+    {
+      "date": "2025-05-19",
+      "type": "deposit",
+      "currency": "EUR",
+      "amount": 4000.0,
+      "description": "19.05.2025 Vklad na klientský účet 4 000.00 19.05.2025"
+    },
+    {
+      "date": "2025-06-09",
+      "type": "fx_conversion",
+      "currency": "EUR",
+      "amount": 2911.69,
+      "description": "09.06.2025 Měnová konverze 2 911.69 09.06.2025"
+    },
+    {
+      "date": "2025-05-02",
+      "type": "fx_conversion",
+      "currency": "SEK",
+      "amount": 43649.06,
+      "description": "02.05.2025 Měnová konverze 43 649.06 02.05.2025"
+    },
+    {
+      "date": "2025-04-07",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 10000.0,
+      "description": "07.04.2025 Vklad na klientský účet 10 000.00 07.04.2025"
+    },
+    {
+      "date": "2025-04-09",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 8800.0,
+      "description": "09.04.2025 Vklad na klientský účet 8 800.00 09.04.2025"
+    },
+    {
+      "date": "2025-04-22",
+      "type": "external_fee",
+      "currency": "USD",
+      "amount": -65.58,
+      "description": "22.04.2025 Externí poplatek za CA c. 89635 22.04.2025 -65.58"
+    },
+    {
+      "date": "2025-04-30",
+      "type": "external_fee",
+      "currency": "USD",
+      "amount": -0.08,
+      "description": "30.04.2025 Externí poplatek za CA c. 88164 29.04.2025 -0.08"
+    },
+    {
+      "date": "2025-05-15",
+      "type": "deposit",
+      "currency": "USD",
+      "amount": 4500.0,
+      "description": "15.05.2025 Vklad na klientský účet 4 500.00 15.05.2025"
+    },
+    {
+      "date": "2025-05-22",
+      "type": "external_fee",
+      "currency": "USD",
+      "amount": -2.56,
+      "description": "22.05.2025 Externí poplatek za CA c. 89222 22.05.2025 -2.56"
+    },
+    {
+      "date": "2025-06-03",
+      "type": "external_fee",
+      "currency": "USD",
+      "amount": -0.08,
+      "description": "03.06.2025 Externí poplatek za CA c. 93196 30.05.2025 -0.08"
+    },
+    {
+      "date": "2025-07-01",
+      "type": "external_fee",
+      "currency": "USD",
+      "amount": -163.16,
+      "description": "01.07.2025 Externí poplatek za CA c. 90688 30.06.2025 -163.16"
+    },
+    {
+      "date": "2025-07-25",
+      "type": "fx_conversion",
+      "currency": "CZK",
+      "amount": -36000.0,
+      "description": "25.07.2025 Měnová konverze 25.07.2025 -36 000.00"
+    },
+    {
+      "date": "2025-07-30",
+      "type": "deposit",
+      "currency": "EUR",
+      "amount": 4000.0,
+      "description": "30.07.2025 Vklad na klientský účet 4 000.00 30.07.2025"
+    },
+    {
+      "date": "2025-07-31",
+      "type": "deposit",
+      "currency": "EUR",
+      "amount": 4000.0,
+      "description": "31.07.2025 Vklad na klientský účet 4 000.00 31.07.2025"
+    },
+    {
+      "date": "2025-07-11",
+      "type": "external_fee",
+      "currency": "USD",
+      "amount": -2.56,
+      "description": "11.07.2025 Externí poplatek za CA c. 92941 10.07.2025 -2.56"
+    },
+    {
+      "date": "2025-07-25",
+      "type": "fx_conversion",
+      "currency": "USD",
+      "amount": 1649.88,
+      "description": "25.07.2025 Měnová konverze 1 649.88 25.07.2025"
+    },
+    {
+      "date": "2025-09-10",
+      "type": "external_fee",
+      "currency": "USD",
+      "amount": -0.08,
+      "description": "10.09.2025 Externí poplatek za CA c. 93779 29.08.2025 -0.08"
+    },
+    {
+      "date": "2025-11-27",
+      "type": "fx_conversion",
+      "currency": "CZK",
+      "amount": -100000.0,
+      "description": "27.11.2025 Měnová konverze 27.11.2025 -100 000.00"
+    },
+    {
+      "date": "2025-11-27",
+      "type": "fx_conversion",
+      "currency": "EUR",
+      "amount": 3988.4,
+      "description": "27.11.2025 Měnová konverze 3 988.40 27.11.2025"
+    },
+    {
+      "date": "2025-12-03",
+      "type": "external_fee",
+      "currency": "USD",
+      "amount": -0.08,
+      "description": "03.12.2025 Externí poplatek za CA c. 95586 28.11.2025 -0.08"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "fx_conversion",
+      "currency": "AUD",
+      "amount": -1531.24,
+      "description": "04.02.2026 Měnová konverze 04.02.2026 -1 531.24"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "fx_conversion",
+      "currency": "CAD",
+      "amount": -14019.51,
+      "description": "06.02.2026 Měnová konverze 06.02.2026 -14 019.51"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "fx_conversion",
+      "currency": "PLN",
+      "amount": -1603.8,
+      "description": "06.02.2026 Měnová konverze 06.02.2026 -1 603.80"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "fx_conversion",
+      "currency": "SEK",
+      "amount": -72261.12,
+      "description": "04.02.2026 Měnová konverze 04.02.2026 -72 261.12"
+    },
+    {
+      "date": "2026-01-22",
+      "type": "external_fee",
+      "currency": "USD",
+      "amount": -7.5,
+      "description": "22.01.2026 Externí poplatek za CA c. 97045 22.01.2026 -7.50"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "fx_conversion",
+      "currency": "USD",
+      "amount": 415.82,
+      "description": "06.02.2026 Měnová konverze 415.82 06.02.2026"
+    },
+    {
+      "date": "2026-02-06",
+      "type": "fx_conversion",
+      "currency": "USD",
+      "amount": 9522.69,
+      "description": "06.02.2026 Měnová konverze 9 522.69 06.02.2026"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "fx_conversion",
+      "currency": "USD",
+      "amount": 8019.21,
+      "description": "04.02.2026 Měnová konverze 8 019.21 04.02.2026"
+    },
+    {
+      "date": "2026-02-04",
+      "type": "fx_conversion",
+      "currency": "USD",
+      "amount": 994.16,
+      "description": "04.02.2026 Měnová konverze 994.16 04.02.2026"
+    }
+  ],
+  "cash_balance": {
+    "AUD": 320.98,
+    "CAD": 128.21,
+    "CZK": 0.03,
+    "DKK": 574.88,
+    "EUR": 75.7,
+    "GBP": 65.5,
+    "USD": 366.95
+  },
   "_notes": [
     "17 synthetic opening transakcí pro pozice s pre-2023 historií. Cost basis je odhadnut na tržní cenu k 31.3.2023.",
     "TRN CP 2023 Q2 chybí — Q2 2023 transakce nejsou v importu.",
     "Dividendy + withholding tax z TRN CASH PDFs zatím neimportovány.",
     "7 synthetic Q2 2023 transakcí ze STAV PTF rozdílu (TRN CP Q2 2023 chybí).",
-    "Corporate actions s datem ≤ 2023-03-31 jsou již zahrnuty v synthetic opening transakcích k tomuto datu."
+    "Corporate actions s datem ≤ 2023-03-31 jsou již zahrnuty v synthetic opening transakcích k tomuto datu.",
+    "TRN CASH naimportováno: 114 dividend, 91 withholding tax, 83 cash flows. Unmatched: 0 divs, 0 taxes."
   ],
-  "synthetic_cutoff_date": "2023-03-31"
+  "synthetic_cutoff_date": "2023-03-31",
+  "total_deposits_by_ccy": {
+    "CZK": 800000.0,
+    "EUR": 17950.0,
+    "USD": 55900.0
+  }
 }
