@@ -2537,30 +2537,6 @@
   ],
   "corporate_actions": [
     {
-      "date": "2023-01-25",
-      "type": "received_share",
-      "isin_event": "CA1348083025",
-      "isin_underlying": "CA1348083025",
-      "symbol": "CNE.TO",
-      "quantity": 552.0,
-      "name": "CANACOL ENERGY LTD",
-      "currency": "CAD",
-      "kb_id": "",
-      "note": "KB Vklad CP"
-    },
-    {
-      "date": "2023-01-25",
-      "type": "removed_share",
-      "isin_event": "CA1348082035",
-      "isin_underlying": "CA1348083025",
-      "symbol": "CNE.TO",
-      "quantity": 2760.0,
-      "name": "X-CANACOL ENERGY LTD old",
-      "currency": "CAD",
-      "kb_id": "",
-      "note": "KB Výběr CP"
-    },
-    {
       "date": "2023-09-18",
       "type": "received_share",
       "isin_event": "NL0013654783",
@@ -2845,6 +2821,8 @@
     "17 synthetic opening transakcí pro pozice s pre-2023 historií. Cost basis je odhadnut na tržní cenu k 31.3.2023.",
     "TRN CP 2023 Q2 chybí — Q2 2023 transakce nejsou v importu.",
     "Dividendy + withholding tax z TRN CASH PDFs zatím neimportovány.",
-    "7 synthetic Q2 2023 transakcí ze STAV PTF rozdílu (TRN CP Q2 2023 chybí)."
-  ]
+    "7 synthetic Q2 2023 transakcí ze STAV PTF rozdílu (TRN CP Q2 2023 chybí).",
+    "Corporate actions s datem ≤ 2023-03-31 jsou již zahrnuty v synthetic opening transakcích k tomuto datu."
+  ],
+  "synthetic_cutoff_date": "2023-03-31"
 }

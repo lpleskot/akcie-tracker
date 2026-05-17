@@ -22,6 +22,101 @@
  */
 
 /**
+ * Pre-process KB-style corporate actions:
+ *   - received_share + removed_share spárované ve 30 dnech na stejném
+ *     isin_underlying → SPLIT (forward / reverse podle směru qty).
+ *   - Unpaired received_share → BONUS_SHARES (přidat lot za 0).
+ *   - Unpaired removed_share → CANCELLATION (FIFO konzumace bez realized).
+ *   - Pokud je vstup už klasický {type:"split", ratio_from, ratio_to} → projde beze změny.
+ */
+function preprocessCorporateActions(corps) {
+  const result = [];
+  const consumed = new Set();
+  const byIsin = new Map();
+  // Index podle isin_underlying pro rychlé párování
+  for (let i = 0; i < corps.length; i++) {
+    const c = corps[i];
+    if (c.type === "split") {
+      result.push(c);
+      consumed.add(i);
+      continue;
+    }
+    if (c.type === "received_share" || c.type === "removed_share") {
+      const k = c.isin_underlying || c.symbol;
+      if (!byIsin.has(k)) byIsin.set(k, []);
+      byIsin.get(k).push({ ...c, _idx: i });
+    }
+  }
+  // Pro každý isin: najít páry (received + removed) ve 30 dnech
+  for (const [, items] of byIsin) {
+    items.sort((a, b) => a.date.localeCompare(b.date));
+    for (let i = 0; i < items.length; i++) {
+      if (consumed.has(items[i]._idx)) continue;
+      const a = items[i];
+      // Najít párovou položku opačného typu ve 30 dnech
+      const targetType =
+        a.type === "received_share" ? "removed_share" : "received_share";
+      let pair = null;
+      for (let j = 0; j < items.length; j++) {
+        if (i === j || consumed.has(items[j]._idx)) continue;
+        const b = items[j];
+        if (b.type !== targetType) continue;
+        const daysDiff = Math.abs(
+          (new Date(b.date).getTime() - new Date(a.date).getTime()) /
+            86400000,
+        );
+        if (daysDiff <= 30) {
+          pair = b;
+          break;
+        }
+      }
+      if (pair) {
+        // Split: starý qty (removed) → nový qty (received)
+        const removed = a.type === "removed_share" ? a : pair;
+        const received = a.type === "received_share" ? a : pair;
+        const ratio_from = removed.quantity;
+        const ratio_to = received.quantity;
+        result.push({
+          type: "split",
+          date: received.date,
+          symbol: received.symbol || received.isin_underlying,
+          ratio_from,
+          ratio_to,
+          note: `${received.name || ""} ↔ ${removed.name || ""} (auto-detected split ${ratio_to}:${ratio_from})`,
+        });
+        consumed.add(a._idx);
+        consumed.add(pair._idx);
+      }
+    }
+    // Unpaired položky
+    for (const it of items) {
+      if (consumed.has(it._idx)) continue;
+      if (it.type === "received_share") {
+        result.push({
+          type: "bonus_shares",
+          date: it.date,
+          symbol: it.symbol || it.isin_underlying,
+          quantity: it.quantity,
+          name: it.name,
+          note: it.note,
+        });
+      } else if (it.type === "removed_share") {
+        result.push({
+          type: "cancellation",
+          date: it.date,
+          symbol: it.symbol || it.isin_underlying,
+          quantity: it.quantity,
+          name: it.name,
+          note: it.note,
+        });
+      }
+      consumed.add(it._idx);
+    }
+  }
+  return result;
+}
+
+/**
  * @param {Array} transactions  Pole transakcí (chronologicky setřízené).
  * @param {Array} [corporateActions]  Pole corporate actions (zatím jen "split").
  * @param {Array} [dividends]  Pole vyplacených dividend.
@@ -34,6 +129,12 @@ export function computePositions(
   dividends = [],
   withholdingTax = [],
 ) {
+  // Předzpracování corporate actions: spárovat received_share + removed_share
+  // ve 30denním okně se stejným isin_underlying → split event.
+  // Unpaired received_share = bonus shares (add zero-cost lot).
+  // Unpaired removed_share = cancellation (consume FIFO bez realized).
+  const processedCorps = preprocessCorporateActions(corporateActions);
+
   // Sloučit transakce + corporate actions do jednoho chronologického streamu.
   // Splity označíme časem 23:59:59 daného dne — aplikují se po všech transakcích.
   const events = [
@@ -42,7 +143,7 @@ export function computePositions(
       _kind: "tx",
       _ts: `${t.date} ${t.time || "00:00:00"}`,
     })),
-    ...corporateActions.map((c) => ({
+    ...processedCorps.map((c) => ({
       ...c,
       _kind: "corp",
       _ts: `${c.date} 23:59:59`,
@@ -83,6 +184,41 @@ export function computePositions(
           ratio_from: ev.ratio_from,
           ratio_to: ev.ratio_to,
           note: ev.note || "",
+        });
+      } else if (ev.type === "bonus_shares") {
+        // Bonus / spinoff shares: přidat lot za nulový cost
+        const sym = ev.symbol || ev.isin_underlying;
+        s(sym).open_lots.push({
+          date: ev.date,
+          time: "",
+          qty: ev.quantity,
+          original_qty: ev.quantity,
+          price: 0,
+          cost_per_unit: 0,
+        });
+        s(sym).splits.push({
+          date: ev.date,
+          ratio_from: 0,
+          ratio_to: 0,
+          note: `Bonus shares: ${ev.quantity} ks ${ev.name || sym}`,
+        });
+      } else if (ev.type === "cancellation") {
+        // Cancellation: konzumovat FIFO, bez realized P/L
+        const sym = ev.symbol || ev.isin_underlying;
+        let remaining = ev.quantity;
+        const lots = s(sym).open_lots;
+        while (remaining > 0 && lots.length > 0) {
+          const lot = lots[0];
+          const take = Math.min(remaining, lot.qty);
+          lot.qty -= take;
+          remaining -= take;
+          if (lot.qty <= 1e-9) lots.shift();
+        }
+        s(sym).splits.push({
+          date: ev.date,
+          ratio_from: 0,
+          ratio_to: 0,
+          note: `Cancellation: ${ev.quantity} ks zaniklo`,
         });
       }
       continue;
