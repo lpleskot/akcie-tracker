@@ -8,6 +8,9 @@ import {
 
 const PORTFOLIO_URL = "./data/portfolios/plegi-invest-ibkr.json";
 const FX_URL = "./data/fx_rates.json";
+// Watchlist + alerts jsou teď KV-backed přes Pages Functions
+const WATCHLIST_URL = "/api/watchlist";
+const ALERTS_URL = "/api/alerts";
 const QUOTE_URL = "/api/quote";
 
 const state = {
@@ -45,19 +48,18 @@ init().catch((err) => {
 async function init() {
   setStatus("Načítám portfolio…");
 
-  // 1) Load portfolio JSON + FX rates (paralelně)
-  const [portfolioRes, fxRes] = await Promise.all([
+  // 1) Load portfolio JSON + FX rates + watchlist + alerts (paralelně)
+  const [portfolioRes, fxRes, watchRes, alertsRes] = await Promise.all([
     fetch(PORTFOLIO_URL, { cache: "no-cache" }),
     fetch(FX_URL, { cache: "no-cache" }),
+    fetch(WATCHLIST_URL, { cache: "no-cache" }),
+    fetch(ALERTS_URL, { cache: "no-cache" }),
   ]);
   if (!portfolioRes.ok) throw new Error(`Portfolio JSON ${portfolioRes.status}`);
   state.portfolio = await portfolioRes.json();
-  if (fxRes.ok) {
-    state.fxRates = await fxRes.json();
-  } else {
-    console.warn("FX rates nedostupné — report v CZK nebude přesný");
-    state.fxRates = { dates: {} };
-  }
+  state.fxRates = fxRes.ok ? await fxRes.json() : { dates: {} };
+  state.watchlist = watchRes.ok ? await watchRes.json() : { items: [] };
+  state.alerts = alertsRes.ok ? await alertsRes.json() : { rules: [], fired: {} };
 
   // 2) Compute FIFO positions (vč. corp. actions, dividend a withholding tax)
   state.positions = computePositions(
@@ -76,6 +78,8 @@ async function init() {
   setupTxFilter();
   setupReportFilter();
   setupOverviewSearch();
+  setupWatchlistModal();
+  setupAlertsModal();
 
   // 4) Fetch live quotes
   await refreshQuotes();
@@ -153,13 +157,490 @@ async function refreshQuotes() {
   state.quotes = data.quotes;
   state.quotesFetchedAt = data.fetched_at;
 
+  // Pre-fetch quotes pro symboly ve watchlistu (nedrží je, ale chceme cenu)
+  const portfolioSyms = Object.values(state.portfolio.instruments).map(
+    (i) => i.yahoo_symbol,
+  );
+  const watchSyms = (state.watchlist?.items || [])
+    .map((w) => w.yahoo_symbol)
+    .filter((s) => s && !portfolioSyms.includes(s));
+  if (watchSyms.length > 0) {
+    try {
+      const wRes = await fetch(
+        `${QUOTE_URL}?symbols=${encodeURIComponent(watchSyms.join(","))}`,
+      );
+      if (wRes.ok) {
+        const wData = await wRes.json();
+        Object.assign(state.quotes, wData.quotes);
+      }
+    } catch (e) {
+      console.warn("Watchlist quotes fetch failed", e);
+    }
+  }
+
   setStatus(null);
   renderOverview();
   renderAllocation();
+  renderWatchlist();
+  renderAlerts();
   renderTransactions();
   renderDividends();
   renderReport();
   renderSummary();
+}
+
+// ---------- Modal helpers ----------
+function openModal(id) {
+  const m = document.getElementById(id);
+  if (m) {
+    m.hidden = false;
+    // Focus first input
+    const inp = m.querySelector("input, select");
+    if (inp) inp.focus();
+  }
+}
+function closeModal(id) {
+  const m = document.getElementById(id);
+  if (m) m.hidden = true;
+}
+function setupModalClose(id) {
+  const m = document.getElementById(id);
+  if (!m) return;
+  // Close on backdrop click
+  m.addEventListener("click", (e) => {
+    if (e.target === m) closeModal(id);
+  });
+  // Close on data-close buttons
+  m.querySelectorAll("[data-close]").forEach((b) =>
+    b.addEventListener("click", () => closeModal(id)),
+  );
+  // ESC key
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !m.hidden) closeModal(id);
+  });
+}
+
+// ---------- Watchlist modal + reload ----------
+function setupWatchlistModal() {
+  document
+    .getElementById("btn-add-watch")
+    ?.addEventListener("click", () => {
+      // Reset form
+      const f = document.getElementById("form-add-watch");
+      if (f) f.reset();
+      document.getElementById("watch-error").textContent = "";
+      openModal("modal-add-watch");
+    });
+  setupModalClose("modal-add-watch");
+
+  // Toggle vstupů podle typu pravidla
+  const typeSel = document.getElementById("rule-type-watch");
+  const valueWrap = document.getElementById("rule-value-wrap");
+  const refWrap = document.getElementById("rule-ref-wrap");
+  const thresholdWrap = document.getElementById("rule-threshold-wrap");
+  function syncRuleFields() {
+    const t = typeSel.value;
+    if (t === "drop_pct") {
+      valueWrap.hidden = true;
+      refWrap.hidden = false;
+      thresholdWrap.hidden = false;
+    } else {
+      valueWrap.hidden = false;
+      refWrap.hidden = true;
+      thresholdWrap.hidden = true;
+    }
+  }
+  typeSel?.addEventListener("change", syncRuleFields);
+  syncRuleFields();
+
+  // Submit
+  document
+    .getElementById("form-add-watch")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const symbol = fd.get("symbol").trim();
+      const type = fd.get("rule_type");
+      const rule = { type, armed: true };
+      if (type === "drop_pct") {
+        rule.ref_price = parseFloat(fd.get("rule_ref_price"));
+        rule.threshold_pct = parseFloat(fd.get("rule_threshold"));
+        if (isNaN(rule.ref_price) || isNaN(rule.threshold_pct)) {
+          showWatchError("Vyplň referenční cenu i pokles %");
+          return;
+        }
+      } else {
+        rule.value = parseFloat(fd.get("rule_value"));
+        if (isNaN(rule.value)) {
+          showWatchError("Vyplň hodnotu");
+          return;
+        }
+      }
+      try {
+        const res = await fetch(WATCHLIST_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "add",
+            symbol,
+            yahoo_symbol: symbol,
+            rules: [rule],
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showWatchError(data.error || `HTTP ${res.status}`);
+          return;
+        }
+        closeModal("modal-add-watch");
+        await reloadWatchlist();
+      } catch (err) {
+        showWatchError(err.message);
+      }
+    });
+}
+
+function showWatchError(msg) {
+  const el = document.getElementById("watch-error");
+  if (el) el.textContent = msg;
+}
+
+async function reloadWatchlist() {
+  const res = await fetch(WATCHLIST_URL, { cache: "no-cache" });
+  if (res.ok) {
+    state.watchlist = await res.json();
+    // Re-fetch quotes pro nové symboly
+    const have = new Set(Object.keys(state.quotes));
+    const need = (state.watchlist.items || [])
+      .map((w) => w.yahoo_symbol)
+      .filter((s) => s && !have.has(s));
+    if (need.length > 0) {
+      try {
+        const qRes = await fetch(
+          `${QUOTE_URL}?symbols=${encodeURIComponent(need.join(","))}`,
+        );
+        if (qRes.ok) {
+          const qData = await qRes.json();
+          Object.assign(state.quotes, qData.quotes);
+        }
+      } catch {}
+    }
+    renderWatchlist();
+  }
+}
+
+// ---------- Alerts modal + reload ----------
+function setupAlertsModal() {
+  document.getElementById("btn-add-alert")?.addEventListener("click", () => {
+    const f = document.getElementById("form-add-alert");
+    if (f) f.reset();
+    document.getElementById("alert-error").textContent = "";
+    // Naplnit symbol dropdown držených pozic
+    const sel = document.getElementById("alert-symbol");
+    if (sel) {
+      sel.innerHTML = "";
+      const syms = Object.keys(state.positions || {})
+        .filter((s) => state.positions[s].net_qty > 0)
+        .sort();
+      for (const s of syms) {
+        const o = document.createElement("option");
+        o.value = s;
+        o.textContent = `${s} — ${state.portfolio.instruments[s]?.name || ""}`;
+        sel.appendChild(o);
+      }
+    }
+    openModal("modal-add-alert");
+  });
+  setupModalClose("modal-add-alert");
+
+  // Toggle symbol dropdown
+  const alertType = document.getElementById("alert-type");
+  const symbolWrap = document.getElementById("alert-symbol-wrap");
+  function syncAlertFields() {
+    const t = alertType.value;
+    symbolWrap.hidden = t !== "drop_from_buy";
+  }
+  alertType?.addEventListener("change", syncAlertFields);
+  syncAlertFields();
+
+  // Submit
+  document
+    .getElementById("form-add-alert")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const type = fd.get("alert_type");
+      const threshold = parseFloat(fd.get("alert_threshold"));
+      const desc = fd.get("alert_desc")?.trim();
+      if (isNaN(threshold)) {
+        document.getElementById("alert-error").textContent =
+          "Vyplň pokles v %";
+        return;
+      }
+      const rule = {
+        type,
+        scope: "owned",
+        threshold_pct: threshold,
+        armed: true,
+        description:
+          desc ||
+          `${type === "drop_from_buy_all" ? "Jakákoliv pozice" : type === "drop_from_52w_high" ? "52w high" : fd.get("alert_symbol")} pokles ≥ ${Math.abs(threshold)}%`,
+      };
+      if (type === "drop_from_buy") {
+        rule.symbol = fd.get("alert_symbol");
+        if (!rule.symbol) {
+          document.getElementById("alert-error").textContent =
+            "Vyber ticker";
+          return;
+        }
+      }
+      try {
+        const res = await fetch(ALERTS_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "add", rule }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          document.getElementById("alert-error").textContent =
+            data.error || `HTTP ${res.status}`;
+          return;
+        }
+        closeModal("modal-add-alert");
+        await reloadAlerts();
+      } catch (err) {
+        document.getElementById("alert-error").textContent = err.message;
+      }
+    });
+}
+
+async function reloadAlerts() {
+  const res = await fetch(ALERTS_URL, { cache: "no-cache" });
+  if (res.ok) {
+    state.alerts = await res.json();
+    renderAlerts();
+  }
+}
+
+// Globální delegovaný handler pro Delete/Re-arm tlačítka
+document.addEventListener("click", async (e) => {
+  const t = e.target;
+  if (t.matches?.("[data-watch-delete]")) {
+    const id = t.dataset.watchDelete;
+    if (!confirm("Smazat ticker z watchlistu?")) return;
+    const res = await fetch(WATCHLIST_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", id }),
+    });
+    if (res.ok) await reloadWatchlist();
+  }
+  if (t.matches?.("[data-alert-delete]")) {
+    const id = t.dataset.alertDelete;
+    if (!confirm("Smazat alert pravidlo?")) return;
+    const res = await fetch(ALERTS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", id }),
+    });
+    if (res.ok) await reloadAlerts();
+  }
+  if (t.matches?.("[data-alert-rearm]")) {
+    const id = t.dataset.alertRearm;
+    const res = await fetch(ALERTS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "rearm", id }),
+    });
+    if (res.ok) await reloadAlerts();
+  }
+});
+
+// ---------- Watchlist ----------
+function renderWatchlist() {
+  const items = state.watchlist?.items || [];
+  const count = document.getElementById("watchlist-count");
+  const empty = document.getElementById("watchlist-empty");
+  const wrap = document.getElementById("watchlist-wrap");
+  const tbody = document.querySelector("#tbl-watchlist tbody");
+  if (!tbody) return;
+
+  if (count) {
+    count.textContent =
+      items.length === 0
+        ? "prázdný"
+        : `${items.length} ticker${items.length === 1 ? "" : items.length < 5 ? "y" : "ů"}`;
+  }
+  if (items.length === 0) {
+    if (empty) empty.style.display = "block";
+    if (wrap) wrap.style.display = "none";
+    return;
+  }
+  if (empty) empty.style.display = "none";
+  if (wrap) wrap.style.display = "";
+
+  tbody.innerHTML = "";
+  for (const it of items) {
+    const quote = state.quotes[it.yahoo_symbol] || {};
+    const price = quote.price;
+    const ccy = quote.currency || "?";
+    const rules = it.rules || [];
+
+    const rulesHtml = rules
+      .map((r) => {
+        if (r.type === "price_below") {
+          const met = price != null && price < r.value;
+          return `<span class="${met ? "neg" : "muted"}">cena < ${fmtNum(r.value, 2)} ${ccy}</span>`;
+        }
+        if (r.type === "price_above") {
+          const met = price != null && price > r.value;
+          return `<span class="${met ? "pos" : "muted"}">cena > ${fmtNum(r.value, 2)} ${ccy}</span>`;
+        }
+        if (r.type === "drop_pct") {
+          const change =
+            price != null && r.ref_price
+              ? ((price - r.ref_price) / r.ref_price) * 100
+              : null;
+          const met = change != null && change <= r.threshold_pct;
+          return `<span class="${met ? "neg" : "muted"}">pokles ≥ ${Math.abs(r.threshold_pct)}% od ${fmtNum(r.ref_price, 2)} (${change != null ? fmtPct(change) : "?"})</span>`;
+        }
+        return `<span class="muted">${escapeHtml(r.type)}</span>`;
+      })
+      .join(" · ");
+
+    const anyMet = rules.some((r) => {
+      if (price == null) return false;
+      if (r.type === "price_below") return price < r.value;
+      if (r.type === "price_above") return price > r.value;
+      if (r.type === "drop_pct" && r.ref_price)
+        return ((price - r.ref_price) / r.ref_price) * 100 <= r.threshold_pct;
+      return false;
+    });
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="symbol">${it.symbol}</td>
+      <td>${escapeHtml(it.name || quote.name || "")}</td>
+      <td>${ccy}</td>
+      <td class="num">${price != null ? fmtNum(price, 2) : '<span class="muted">—</span>'}</td>
+      <td>${rulesHtml || '<span class="muted">žádné pravidlo</span>'}</td>
+      <td>${anyMet ? '<span class="badge sell">SPLNĚNO</span>' : '<span class="muted">armed</span>'}</td>
+      <td><button class="btn-link" data-watch-delete="${it.id}">Smazat</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+// ---------- Alerts (na držené pozice) ----------
+function renderAlerts() {
+  const rules = state.alerts?.rules || [];
+  const container = document.getElementById("alerts-content");
+  const count = document.getElementById("alerts-count");
+  if (!container) return;
+  container.innerHTML = "";
+  if (count) {
+    count.textContent =
+      rules.length === 0
+        ? "žádné"
+        : `${rules.length} pravidl${rules.length === 1 ? "o" : rules.length < 5 ? "a" : ""}`;
+  }
+
+  if (rules.length === 0) {
+    container.innerHTML = `<div class="status">Žádná pravidla. Až bude backend, přidáte je přes formulář.</div>`;
+    return;
+  }
+
+  for (const rule of rules) {
+    const card = document.createElement("div");
+    card.className = "report-event";
+    let header = `<strong>${escapeHtml(rule.description || rule.id)}</strong>`;
+    const armedBadge = rule.armed
+      ? `<span class="badge buy">armed</span>`
+      : `<span class="badge sell">disabled</span>`;
+    let html = `
+      <div class="report-event-header">
+        <span>${header}</span>
+        <span>
+          ${armedBadge}
+          <button class="btn-link" data-alert-rearm="${rule.id}" title="Smaže fired stav — pravidlo bude znovu odpalovat při příští kontrole">Re-arm</button>
+          <button class="btn-link" data-alert-delete="${rule.id}">Smazat</button>
+        </span>
+      </div>
+    `;
+
+    // Vyhodnotit kdo by aktuálně splnil
+    const matches = evaluateRule(rule);
+
+    if (matches.length === 0) {
+      html += `<div style="padding:12px 18px;" class="muted">Aktuálně žádný titul nesplňuje toto pravidlo. ✓</div>`;
+    } else {
+      html += `<table><thead><tr><th>Symbol</th><th>Název</th><th class="num">Současná cena</th><th class="num">Ø nákup</th><th class="num">Změna</th></tr></thead><tbody>`;
+      for (const m of matches) {
+        html += `
+          <tr>
+            <td class="symbol">${m.symbol}</td>
+            <td>${escapeHtml(m.name)}</td>
+            <td class="num">${fmtNum(m.current, 2)} ${m.currency}</td>
+            <td class="num">${fmtNum(m.reference, 2)} ${m.currency}</td>
+            <td class="num neg"><strong>${fmtPct(m.changePct)}</strong></td>
+          </tr>`;
+      }
+      html += `</tbody></table>`;
+      html += `<div style="padding:8px 18px;" class="muted">Pokud by cron běžel teď: <strong>${matches.length} ${matches.length === 1 ? "alert" : matches.length < 5 ? "alerty" : "alertů"}</strong> by se odeslalo.</div>`;
+    }
+    card.innerHTML = html;
+    container.appendChild(card);
+  }
+}
+
+function evaluateRule(rule) {
+  const matches = [];
+  if (rule.type === "drop_from_buy_all" && rule.scope === "owned") {
+    for (const sym in state.positions) {
+      const pos = state.positions[sym];
+      if (!pos || pos.net_qty === 0) continue;
+      const inst = state.portfolio.instruments[sym];
+      const quote = state.quotes[inst.yahoo_symbol] || {};
+      if (quote.price == null) continue;
+      const change =
+        ((quote.price - pos.avg_open_price) / pos.avg_open_price) * 100;
+      if (change <= rule.threshold_pct) {
+        matches.push({
+          symbol: sym,
+          name: inst.name,
+          currency: inst.currency,
+          current: quote.price,
+          reference: pos.avg_open_price,
+          changePct: change,
+        });
+      }
+    }
+  }
+  if (rule.type === "drop_from_buy" && rule.symbol) {
+    const sym = rule.symbol;
+    const pos = state.positions[sym];
+    const inst = state.portfolio.instruments[sym];
+    if (pos && pos.net_qty > 0 && inst) {
+      const quote = state.quotes[inst.yahoo_symbol] || {};
+      if (quote.price != null) {
+        const change =
+          ((quote.price - pos.avg_open_price) / pos.avg_open_price) * 100;
+        if (change <= rule.threshold_pct) {
+          matches.push({
+            symbol: sym,
+            name: inst.name,
+            currency: inst.currency,
+            current: quote.price,
+            reference: pos.avg_open_price,
+            changePct: change,
+          });
+        }
+      }
+    }
+  }
+  // Setřídit dle největšího propadu
+  matches.sort((a, b) => a.changePct - b.changePct);
+  return matches;
 }
 
 // ---------- Allocation ----------

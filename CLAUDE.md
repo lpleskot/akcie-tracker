@@ -30,24 +30,34 @@ a cache). Žádný build krok, žádné node_modules.
 - **Yahoo ticker mapování:** ve `instruments[<sym>].yahoo_symbol` u každého
   titulu (US tituly bez přípony, ostatní s `.TO`, `.ST`, `.PA`, `.DE`).
 
-**Stav vývoje (k 2026-05-16):**
+**Stav vývoje (k 2026-05-17):**
 
 - ✅ Iniciální struktura + soubory podle playbooku
-- ✅ Import 23 titulů, 44 nákupů, 4 prodejů z IBKR exportu (období 12/2025–3/2026)
-- ✅ CF Function pro quote endpoint (Yahoo proxy s cache)
-- ✅ FIFO engine v JS
-- ✅ Frontend: Přehled pozic + Transakční log + CSV export
-- ⏳ Deploy na Cloudflare Pages (čeká na první commit + publish)
-- ⏳ Cloudflare Access policy
-- ⏳ Test celé pipeline na živém deploy
+- ✅ Import 23 titulů, 44 nákupů, 4 prodejů z IBKR Trade Confirmation
+- ✅ FIFO engine v JS (matematicky shodné s IBKR autoritou)
+- ✅ Activity Statement import — dividendy, withholding, cash, NAV
+- ✅ ČNB kurzový archiv (`data/fx_rates.json`)
+- ✅ Stock splity (BKNG 25:1 na 2026-04-06)
+- ✅ Frontend taby: Přehled pozic, Alokace, Watchlist, Alerty, Transakce, Dividendy, Report pro účetní
+- ✅ Search, sort, filter, expand detail, info tooltips
+- ✅ Summary dlaždice: Celkový výnos %, P.a., YTD, Dividendy CZK
+- ✅ Deploy CF Pages + CF Access
+- ✅ **Backend pro alerty:** CF Pages Functions (KV CRUD) + samostatný cron worker
+
+**Architektura alertů:**
+
+- `/api/watchlist` a `/api/alerts` (CF Pages Functions) — CRUD nad KV namespace `AKCIE_TRACKER_KV`
+- Worker `workers/cron-alerts/` (separátní) — cron `0 15 * * *` UTC, vyhodnocuje pravidla, posílá email přes Resend (`alerts@notify.plegiholding.cz`)
+- KV klíče: `watchlist` (JSON pole položek), `alerts` (JSON pole pravidel), `fired:alert:{ruleId}:{symbol}` a `fired:watch:{itemId}:{ruleId}` (deduplikace odeslaných)
 
 **Co ještě není (budoucí iterace):**
 
-- Přepočet hodnot do CZK přes historické kurzy ČNB
-- Dividendy (chybí v trade confirmation reportu)
 - Více portfolií (selector v UI)
-- Workflow pro inkrementální import dalších obchodů z IBKR
+- Upload form pro nový IBKR Activity Statement (zatím se importuje přes Cowork)
 - PDF export reportu pro účetní (zatím jen CSV)
+- Telegram channel jako alternativa k emailu
+- Custom doména `akcie.plegiholding.cz` (zatím `*.pages.dev`)
+- Auto-fetch ČNB kurzů při importu nových transakcí
 
 ## Pravidla pro Claude
 

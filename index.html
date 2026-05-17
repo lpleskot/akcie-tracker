@@ -24,6 +24,8 @@
         <div class="tabs">
           <button class="tab active" data-view="overview">Přehled pozic</button>
           <button class="tab" data-view="allocation">Alokace</button>
+          <button class="tab" data-view="watchlist">Watchlist</button>
+          <button class="tab" data-view="alerts">Alerty</button>
           <button class="tab" data-view="transactions">Transakce</button>
           <button class="tab" data-view="dividends">Dividendy</button>
           <button class="tab" data-view="report">Report pro účetní</button>
@@ -143,6 +145,51 @@
         </div>
       </section>
 
+      <section id="view-watchlist" class="view">
+        <div class="filter-bar">
+          <span class="filter-label">Watchlist:</span>
+          <span class="filter-count" id="watchlist-count"></span>
+          <button id="btn-add-watch" class="btn primary">+ Přidat ticker</button>
+        </div>
+        <div class="report-intro muted">
+          Sledované tickery, které ještě nedržíte v portfoliu. Aktuální cena + nastavená pravidla (cena pod / nad X, pokles % od referenční ceny).
+          Až bude backend hotový, přidávání bude přes formulář; zatím se watchlist edituje v <code>data/watchlist.json</code>.
+        </div>
+        <div id="watchlist-empty" class="status" style="display:none">
+          Žádné tickery zatím ve watchlistu. Až bude backend připravený, přidáte ticker přes tlačítko nahoře.
+        </div>
+        <div class="table-wrap" id="watchlist-wrap" style="display:none">
+          <table id="tbl-watchlist">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Název</th>
+                <th>Měna</th>
+                <th class="num">Aktuální</th>
+                <th>Pravidla</th>
+                <th>Stav</th>
+                <th>Akce</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="view-alerts" class="view">
+        <div class="filter-bar">
+          <span class="filter-label">Pravidla pro alerty:</span>
+          <span class="filter-count" id="alerts-count"></span>
+          <button id="btn-add-alert" class="btn primary">+ Přidat pravidlo</button>
+        </div>
+        <div class="report-intro muted">
+          Pravidla pro automatické alerty na <strong>vámi držené pozice</strong>.
+          Náhled „Aktuálně splňuje" ukazuje, které tickery by právě teď spustily alert.
+          Až bude cron worker nasazený, splněná pravidla automaticky pošlou email a označí se jako „fired" (znovu se nepošlou, dokud manuálně nezapnete „Re-arm").
+        </div>
+        <div id="alerts-content"></div>
+      </section>
+
       <section id="view-report" class="view">
         <div class="filter-bar">
           <span class="filter-label">Rok prodeje:</span>
@@ -189,6 +236,110 @@
       <footer class="app-footer">
         Ceny: Yahoo Finance (zpoždění ~15 min). Pozice počítané metodou FIFO.
       </footer>
+    </div>
+
+    <!-- Modal: Přidat ticker do watchlistu -->
+    <div class="modal-overlay" id="modal-add-watch" hidden>
+      <div class="modal">
+        <h3>Přidat ticker do watchlistu</h3>
+        <form id="form-add-watch">
+          <label>
+            <span>Ticker (Yahoo symbol)</span>
+            <input
+              type="text"
+              name="symbol"
+              placeholder="TSLA, MSFT, CEZ.PR..."
+              required
+              autocomplete="off"
+            />
+          </label>
+          <p class="muted small">
+            Pro neamerické burzy přidejte příponu: <code>.PR</code> Praha,
+            <code>.ST</code> Stockholm, <code>.PA</code> Paříž,
+            <code>.DE</code> Xetra, <code>.TO</code> Toronto, <code>.L</code> Londýn,
+            <code>.HK</code> Hong Kong, <code>.T</code> Tokio
+          </p>
+
+          <h4>Pravidlo</h4>
+          <label>
+            <span>Typ</span>
+            <select name="rule_type" id="rule-type-watch">
+              <option value="price_below">Cena pod X</option>
+              <option value="price_above">Cena nad X</option>
+              <option value="drop_pct">Pokles % od referenční ceny</option>
+            </select>
+          </label>
+          <label id="rule-value-wrap">
+            <span>Hodnota</span>
+            <input
+              type="number"
+              name="rule_value"
+              step="0.0001"
+              required
+              placeholder="např. 200.00"
+            />
+          </label>
+          <label id="rule-ref-wrap" hidden>
+            <span>Referenční cena (od které počítat pokles)</span>
+            <input type="number" name="rule_ref_price" step="0.0001" placeholder="cena při přidání" />
+          </label>
+          <label id="rule-threshold-wrap" hidden>
+            <span>Pokles % (záporná hodnota, např. -15)</span>
+            <input type="number" name="rule_threshold" step="0.1" placeholder="-15" />
+          </label>
+
+          <div class="modal-error" id="watch-error"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn" data-close>Zrušit</button>
+            <button type="submit" class="btn primary">Přidat</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Přidat alert pravidlo -->
+    <div class="modal-overlay" id="modal-add-alert" hidden>
+      <div class="modal">
+        <h3>Přidat pravidlo pro alerty</h3>
+        <form id="form-add-alert">
+          <label>
+            <span>Typ pravidla</span>
+            <select name="alert_type" id="alert-type">
+              <option value="drop_from_buy_all">Jakákoliv pozice klesne pod X % od nákupní ceny</option>
+              <option value="drop_from_buy">Konkrétní ticker klesne pod X % od nákupní ceny</option>
+              <option value="drop_from_52w_high">Pozice klesne pod X % od 52-week high</option>
+            </select>
+          </label>
+          <label id="alert-symbol-wrap" hidden>
+            <span>Ticker</span>
+            <select name="alert_symbol" id="alert-symbol"></select>
+          </label>
+          <label>
+            <span>Pokles v % (záporné, např. -20)</span>
+            <input
+              type="number"
+              name="alert_threshold"
+              step="0.1"
+              value="-20"
+              required
+            />
+          </label>
+          <label>
+            <span>Popis (volitelně)</span>
+            <input
+              type="text"
+              name="alert_desc"
+              placeholder="např. Hlídání mojí největší ztrátové pozice"
+            />
+          </label>
+
+          <div class="modal-error" id="alert-error"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn" data-close>Zrušit</button>
+            <button type="submit" class="btn primary">Přidat</button>
+          </div>
+        </form>
+      </div>
     </div>
 
     <script type="module" src="/assets/js/app.js"></script>

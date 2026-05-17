@@ -1,0 +1,4 @@
+{
+  "_comment": "Sledované tickery, které nedržíte. Až bude KV backend hotový, přidávání bude přes UI formulář; zatím je tento soubor source of truth.",
+  "items": []
+}

@@ -1,0 +1,13 @@
+{
+  "_comment": "Pravidla pro alerty na držené pozice. Až bude KV backend hotový, fired stav půjde do KV; zatím UI ukazuje 'currently matching' preview.",
+  "rules": [
+    {
+      "id": "any-position-drop-20",
+      "type": "drop_from_buy_all",
+      "scope": "owned",
+      "threshold_pct": -20,
+      "armed": true,
+      "description": "Jakákoliv držená pozice klesne 20 % pod průměrnou nákupní cenu (FIFO)"
+    }
+  ]
+}
