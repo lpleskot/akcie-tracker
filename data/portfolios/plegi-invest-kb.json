@@ -6,348 +6,959 @@
   "account_holder": "PLEGI INVEST S.R.O.",
   "customer_type": "Corporate",
   "base_currency": "CZK",
-  "inception_date": "2024-01-16",
-  "period_from": "2024-01-16",
+  "inception_date": "2022-12-30",
+  "period_from": "2022-12-30",
   "period_to": "2026-02-25",
   "instruments": {
-    "GRPN": {
-      "name": "GROUPON INC",
-      "currency": "USD",
-      "all_currencies": null,
-      "yahoo_symbol": "GRPN",
-      "yahoo_unmapped": false,
-      "isin": "US3994732069"
-    },
-    "P911.DE": {
-      "name": "DR ING HC F PORSCHE AG",
-      "currency": "EUR",
-      "all_currencies": null,
-      "yahoo_symbol": "P911.DE",
-      "yahoo_unmapped": false,
-      "isin": "DE000PAG9113"
-    },
-    "BABA": {
-      "name": "ALIBABA GROUP HOLDING-SP ADR",
-      "currency": "USD",
-      "all_currencies": null,
-      "yahoo_symbol": "BABA",
-      "yahoo_unmapped": false,
-      "isin": "US01609W1027"
-    },
     "CNE.TO": {
+      "isin": "CA1348083025",
       "name": "CANACOL ENERGY LTD",
       "currency": "CAD",
       "all_currencies": null,
       "yahoo_symbol": "CNE.TO",
-      "yahoo_unmapped": false,
-      "isin": "CA1348083025"
+      "yahoo_unmapped": false
     },
-    "WBD": {
-      "name": "WARNER BROS DISCOVERY INC",
+    "YAL.AX": {
+      "isin": "AU000000YAL0",
+      "name": "YANCOAL AUSTRALIA LTD",
+      "currency": "AUD",
+      "all_currencies": [
+        "AUD",
+        "CAD"
+      ],
+      "yahoo_symbol": "YAL.AX",
+      "yahoo_unmapped": false
+    },
+    "GRPN": {
+      "isin": "US3994732069",
+      "name": "GROUPON INC",
       "currency": "USD",
       "all_currencies": null,
-      "yahoo_symbol": "WBD",
-      "yahoo_unmapped": false,
-      "isin": "US9344231041"
+      "yahoo_symbol": "GRPN",
+      "yahoo_unmapped": false
     },
-    "SMSI": {
-      "name": "SMITH MICRO SOFTWARE, INC. ORDSHR",
+    "UPST": {
+      "isin": "US91680M1071",
+      "name": "UPSTART HOLDINGS INC",
       "currency": "USD",
       "all_currencies": null,
-      "yahoo_symbol": "SMSI",
-      "yahoo_unmapped": false,
-      "isin": "US8321544053"
+      "yahoo_symbol": "UPST",
+      "yahoo_unmapped": false
     },
-    "SPCE": {
-      "name": "VIRGIN GALACTIC HOLDINGS INC.",
+    "DIS": {
+      "isin": "US2546871060",
+      "name": "WALT DISNEY CO/THE",
       "currency": "USD",
       "all_currencies": null,
-      "yahoo_symbol": "SPCE",
-      "yahoo_unmapped": false,
-      "isin": "US92766K4031"
-    },
-    "NKE": {
-      "name": "NIKE INC",
-      "currency": "USD",
-      "all_currencies": null,
-      "yahoo_symbol": "NKE",
-      "yahoo_unmapped": false,
-      "isin": "US6541061031"
-    },
-    "INTC": {
-      "name": "INTEL CORP",
-      "currency": "USD",
-      "all_currencies": null,
-      "yahoo_symbol": "INTC",
-      "yahoo_unmapped": false,
-      "isin": "US4581401001"
-    },
-    "DNP.WA": {
-      "name": "DINO POLSKA SA",
-      "currency": "PLN",
-      "all_currencies": null,
-      "yahoo_symbol": "DNP.WA",
-      "yahoo_unmapped": false,
-      "isin": "PLDINPL00011"
-    },
-    "PXT.TO": {
-      "name": "Parex Resources Inc",
-      "currency": "CAD",
-      "all_currencies": null,
-      "yahoo_symbol": "PXT.TO",
-      "yahoo_unmapped": false,
-      "isin": "CA69946Q1046"
-    },
-    "SEDG": {
-      "name": "SOLAREDGE TECHNOLOGIES INC",
-      "currency": "USD",
-      "all_currencies": null,
-      "yahoo_symbol": "SEDG",
-      "yahoo_unmapped": false,
-      "isin": "US83417M1045"
-    },
-    "PLUG": {
-      "name": "PLUG POWER INC",
-      "currency": "USD",
-      "all_currencies": null,
-      "yahoo_symbol": "PLUG",
-      "yahoo_unmapped": false,
-      "isin": "US72919P2020"
-    },
-    "TDOC": {
-      "name": "TELADOC INC",
-      "currency": "USD",
-      "all_currencies": null,
-      "yahoo_symbol": "TDOC",
-      "yahoo_unmapped": false,
-      "isin": "US87918A1051"
-    },
-    "MC.PA": {
-      "name": "LVMH MOET HENNESSY LOUIS VUITT",
-      "currency": "EUR",
-      "all_currencies": null,
-      "yahoo_symbol": "MC.PA",
-      "yahoo_unmapped": false,
-      "isin": "FR0000121014"
-    },
-    "SMSN.IL": {
-      "name": "SAMSUNG ELECTR-GDR",
-      "currency": "USD",
-      "all_currencies": null,
-      "yahoo_symbol": "SMSN.IL",
-      "yahoo_unmapped": false,
-      "isin": "US7960508882"
-    },
-    "UMT.DE": {
-      "name": "UMT UNITED MOBILITY TECHNOLOGY",
-      "currency": "EUR",
-      "all_currencies": null,
-      "yahoo_symbol": "UMT.DE",
-      "yahoo_unmapped": false,
-      "isin": "DE000A2YN702"
-    },
-    "CELH": {
-      "name": "CELSIUS HOLDINGS INC",
-      "currency": "USD",
-      "all_currencies": null,
-      "yahoo_symbol": "CELH",
-      "yahoo_unmapped": false,
-      "isin": "US15118V2079"
-    },
-    "PKN.WA": {
-      "name": "ORLEN",
-      "currency": "CZK",
-      "all_currencies": null,
-      "yahoo_symbol": "PKN.WA",
-      "yahoo_unmapped": false,
-      "isin": "PLPKN0000018"
-    },
-    "ON": {
-      "name": "ON SEMICONDUCTOR CORP",
-      "currency": "USD",
-      "all_currencies": null,
-      "yahoo_symbol": "ON",
-      "yahoo_unmapped": false,
-      "isin": "US6821891057"
-    },
-    "MSTR": {
-      "name": "MICROSTRATEGY INC",
-      "currency": "USD",
-      "all_currencies": null,
-      "yahoo_symbol": "MSTR",
-      "yahoo_unmapped": false,
-      "isin": "US5949724083"
-    },
-    "AMD": {
-      "name": "ADVANCED MICRO DEVICES INC",
-      "currency": "USD",
-      "all_currencies": null,
-      "yahoo_symbol": "AMD",
-      "yahoo_unmapped": false,
-      "isin": "US0079031078"
-    },
-    "EVO.ST": {
-      "name": "Evolution AB",
-      "currency": "SEK",
-      "all_currencies": null,
-      "yahoo_symbol": "EVO.ST",
-      "yahoo_unmapped": false,
-      "isin": "SE0012673267"
-    },
-    "CVS": {
-      "name": "CVS HEALTH CORP",
-      "currency": "USD",
-      "all_currencies": null,
-      "yahoo_symbol": "CVS",
-      "yahoo_unmapped": false,
-      "isin": "US1266501006"
-    },
-    "AMBP": {
-      "name": "ARDAGH METAL PACKAGING SA",
-      "currency": "USD",
-      "all_currencies": null,
-      "yahoo_symbol": "AMBP",
-      "yahoo_unmapped": false,
-      "isin": "LU2369833749"
-    },
-    "GOOG": {
-      "name": "ALPHABET INC CLASS C",
-      "currency": "USD",
-      "all_currencies": null,
-      "yahoo_symbol": "GOOG",
-      "yahoo_unmapped": false,
-      "isin": "US02079K1079"
+      "yahoo_symbol": "DIS",
+      "yahoo_unmapped": false
     },
     "HUYA": {
+      "isin": "US44852D1081",
       "name": "HUYA INC-ADR",
       "currency": "USD",
       "all_currencies": null,
       "yahoo_symbol": "HUYA",
-      "yahoo_unmapped": false,
-      "isin": "US44852D1081"
+      "yahoo_unmapped": false
+    },
+    "AMBP": {
+      "isin": "LU2369833749",
+      "name": "ARDAGH METAL PACKAGING SA",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "AMBP",
+      "yahoo_unmapped": false
+    },
+    "PRX.AS": {
+      "isin": "NL0013654783",
+      "name": "PROSUS NV",
+      "currency": "EUR",
+      "all_currencies": [
+        "EUR",
+        "GBP"
+      ],
+      "yahoo_symbol": "PRX.AS",
+      "yahoo_unmapped": false
+    },
+    "PLUG": {
+      "isin": "US72919P2020",
+      "name": "PLUG POWER INC",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "PLUG",
+      "yahoo_unmapped": false
+    },
+    "WBD": {
+      "isin": "US9344231041",
+      "name": "WARNER BROS DISCOVERY INC",
+      "currency": "USD",
+      "all_currencies": [
+        "CAD",
+        "USD"
+      ],
+      "yahoo_symbol": "WBD",
+      "yahoo_unmapped": false
+    },
+    "BABA": {
+      "isin": "US01609W1027",
+      "name": "ALIBABA GROUP HOLDING-SP ADR",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "BABA",
+      "yahoo_unmapped": false
+    },
+    "P911.DE": {
+      "isin": "DE000PAG9113",
+      "name": "DR ING HC F PORSCHE AG",
+      "currency": "EUR",
+      "all_currencies": null,
+      "yahoo_symbol": "P911.DE",
+      "yahoo_unmapped": false
+    },
+    "SMSI": {
+      "isin": "US8321544053",
+      "name": "SMITH MICRO SOFTWARE, INC. ORDSHR",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "SMSI",
+      "yahoo_unmapped": false
+    },
+    "SPCE": {
+      "isin": "US92766K4031",
+      "name": "VIRGIN GALACTIC HOLDINGS INC.",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "SPCE",
+      "yahoo_unmapped": false
+    },
+    "NKE": {
+      "isin": "US6541061031",
+      "name": "NIKE INC",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "NKE",
+      "yahoo_unmapped": false
+    },
+    "INTC": {
+      "isin": "US4581401001",
+      "name": "INTEL CORP",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "INTC",
+      "yahoo_unmapped": false
+    },
+    "DNP.WA": {
+      "isin": "PLDINPL00011",
+      "name": "DINO POLSKA SA",
+      "currency": "PLN",
+      "all_currencies": null,
+      "yahoo_symbol": "DNP.WA",
+      "yahoo_unmapped": false
+    },
+    "PXT.TO": {
+      "isin": "CA69946Q1046",
+      "name": "Parex Resources Inc",
+      "currency": "CAD",
+      "all_currencies": null,
+      "yahoo_symbol": "PXT.TO",
+      "yahoo_unmapped": false
+    },
+    "SEDG": {
+      "isin": "US83417M1045",
+      "name": "SOLAREDGE TECHNOLOGIES INC",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "SEDG",
+      "yahoo_unmapped": false
+    },
+    "TDOC": {
+      "isin": "US87918A1051",
+      "name": "TELADOC INC",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "TDOC",
+      "yahoo_unmapped": false
+    },
+    "MC.PA": {
+      "isin": "FR0000121014",
+      "name": "LVMH MOET HENNESSY LOUIS VUITT",
+      "currency": "EUR",
+      "all_currencies": null,
+      "yahoo_symbol": "MC.PA",
+      "yahoo_unmapped": false
+    },
+    "SMSN.IL": {
+      "isin": "US7960508882",
+      "name": "SAMSUNG ELECTR-GDR",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "SMSN.IL",
+      "yahoo_unmapped": false
+    },
+    "UMT.DE": {
+      "isin": "DE000A2YN702",
+      "name": "UMT UNITED MOBILITY TECHNOLOGY",
+      "currency": "EUR",
+      "all_currencies": null,
+      "yahoo_symbol": "UMT.DE",
+      "yahoo_unmapped": false
+    },
+    "CELH": {
+      "isin": "US15118V2079",
+      "name": "CELSIUS HOLDINGS INC",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "CELH",
+      "yahoo_unmapped": false
+    },
+    "PKN.WA": {
+      "isin": "PLPKN0000018",
+      "name": "ORLEN",
+      "currency": "CZK",
+      "all_currencies": null,
+      "yahoo_symbol": "PKN.WA",
+      "yahoo_unmapped": false
+    },
+    "ON": {
+      "isin": "US6821891057",
+      "name": "ON SEMICONDUCTOR CORP",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "ON",
+      "yahoo_unmapped": false
+    },
+    "MSTR": {
+      "isin": "US5949724083",
+      "name": "MICROSTRATEGY INC",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "MSTR",
+      "yahoo_unmapped": false
+    },
+    "AMD": {
+      "isin": "US0079031078",
+      "name": "ADVANCED MICRO DEVICES INC",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "AMD",
+      "yahoo_unmapped": false
+    },
+    "EVO.ST": {
+      "isin": "SE0012673267",
+      "name": "Evolution AB",
+      "currency": "SEK",
+      "all_currencies": null,
+      "yahoo_symbol": "EVO.ST",
+      "yahoo_unmapped": false
+    },
+    "CVS": {
+      "isin": "US1266501006",
+      "name": "CVS HEALTH CORP",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "CVS",
+      "yahoo_unmapped": false
+    },
+    "GOOG": {
+      "isin": "US02079K1079",
+      "name": "ALPHABET INC CLASS C",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "GOOG",
+      "yahoo_unmapped": false
     },
     "KSPI": {
+      "isin": "US48581R2058",
       "name": "JSC KASPI.KZ ADR",
       "currency": "USD",
       "all_currencies": null,
       "yahoo_symbol": "KSPI",
-      "yahoo_unmapped": false,
-      "isin": "US48581R2058"
+      "yahoo_unmapped": false
     },
     "NU": {
+      "isin": "KYG6683N1034",
       "name": "NU HOLDINGS LTD/CAYMAN ISLANDS",
       "currency": "USD",
       "all_currencies": null,
       "yahoo_symbol": "NU",
-      "yahoo_unmapped": false,
-      "isin": "KYG6683N1034"
+      "yahoo_unmapped": false
     },
     "IPO.TO": {
+      "isin": "CA45780T4046",
       "name": "InPlay Oil Corp - ORDSHR",
       "currency": "CAD",
-      "all_currencies": null,
+      "all_currencies": [
+        "CAD",
+        "CZK"
+      ],
       "yahoo_symbol": "IPO.TO",
-      "yahoo_unmapped": false,
-      "isin": "CA45780T4046"
+      "yahoo_unmapped": false
     },
     "UNH": {
+      "isin": "US91324P1021",
       "name": "UNITEDHEALTH GROUP INC",
       "currency": "USD",
       "all_currencies": null,
       "yahoo_symbol": "UNH",
-      "yahoo_unmapped": false,
-      "isin": "US91324P1021"
+      "yahoo_unmapped": false
     },
     "NOV.DE": {
+      "isin": "DK0062498333",
       "name": "NOVO NORDISK A/S - DE REMOTE",
       "currency": "EUR",
       "all_currencies": null,
       "yahoo_symbol": "NOV.DE",
-      "yahoo_unmapped": false,
-      "isin": "DK0062498333"
+      "yahoo_unmapped": false
     },
     "LMT": {
+      "isin": "US5398301094",
       "name": "LOCKHEED MARTIN CORP",
       "currency": "USD",
       "all_currencies": null,
       "yahoo_symbol": "LMT",
-      "yahoo_unmapped": false,
-      "isin": "US5398301094"
+      "yahoo_unmapped": false
     },
     "LNF.TO": {
+      "isin": "CA5266821092",
       "name": "Leon's Furniture Ltd",
       "currency": "CAD",
       "all_currencies": null,
       "yahoo_symbol": "LNF.TO",
-      "yahoo_unmapped": false,
-      "isin": "CA5266821092"
+      "yahoo_unmapped": false
     },
     "URW.AS": {
+      "isin": "FR0013326246",
       "name": "UNIBAIL-RODAMCO-WESTFIELD",
       "currency": "EUR",
       "all_currencies": null,
       "yahoo_symbol": "URW.AS",
-      "yahoo_unmapped": false,
-      "isin": "FR0013326246"
+      "yahoo_unmapped": false
     },
     "KOMB.PR": {
+      "isin": "CZ0008019106",
       "name": "KOMERČNÍ BANKA",
       "currency": "CZK",
-      "all_currencies": null,
+      "all_currencies": [
+        "CZK",
+        "EUR"
+      ],
       "yahoo_symbol": "KOMB.PR",
-      "yahoo_unmapped": false,
-      "isin": "CZ0008019106"
+      "yahoo_unmapped": false
     },
     "PYPL": {
+      "isin": "US70450Y1038",
       "name": "PAYPAL HOLDINGS INC",
       "currency": "USD",
       "all_currencies": null,
       "yahoo_symbol": "PYPL",
-      "yahoo_unmapped": false,
-      "isin": "US70450Y1038"
+      "yahoo_unmapped": false
     },
     "RICK": {
+      "isin": "US74934Q1085",
       "name": "RCI Hospitality Holdings Inc",
       "currency": "USD",
       "all_currencies": null,
       "yahoo_symbol": "RICK",
-      "yahoo_unmapped": false,
-      "isin": "US74934Q1085"
+      "yahoo_unmapped": false
     },
     "ACN": {
+      "isin": "IE00B4BNMY34",
       "name": "ACCENTURE PLC",
       "currency": "USD",
       "all_currencies": null,
       "yahoo_symbol": "ACN",
-      "yahoo_unmapped": false,
-      "isin": "IE00B4BNMY34"
+      "yahoo_unmapped": false
     },
     "FILA.MI": {
+      "isin": "IT0004967292",
       "name": "Fila SpA",
       "currency": "EUR",
       "all_currencies": null,
       "yahoo_symbol": "FILA.MI",
-      "yahoo_unmapped": false,
-      "isin": "IT0004967292"
+      "yahoo_unmapped": false
     },
     "CRST.L": {
+      "isin": "GB00B8VZXT93",
       "name": "CREST NICHOLSON HOLDINGS PLC",
       "currency": "GBP",
-      "all_currencies": null,
+      "all_currencies": [
+        "GBP",
+        "USD"
+      ],
       "yahoo_symbol": "CRST.L",
-      "yahoo_unmapped": false,
-      "isin": "GB00B8VZXT93"
+      "yahoo_unmapped": false
     },
     "DKNG": {
+      "isin": "US26142V1052",
       "name": "DraftKings Inc",
       "currency": "USD",
       "all_currencies": null,
       "yahoo_symbol": "DKNG",
-      "yahoo_unmapped": false,
-      "isin": "US26142V1052"
+      "yahoo_unmapped": false
+    },
+    "META": {
+      "isin": "US30303M1027",
+      "name": "META PLATFORMS INC",
+      "currency": "USD",
+      "all_currencies": null,
+      "yahoo_symbol": "META",
+      "yahoo_unmapped": false
+    },
+    "VNA.DE": {
+      "isin": "DE000A1ML7J1",
+      "name": "VONOVIA SE",
+      "currency": "EUR",
+      "yahoo_symbol": "VNA.DE",
+      "yahoo_unmapped": false
     }
   },
   "transactions": [
+    {
+      "date": "2022-12-30",
+      "settle_date": "2023-01-02",
+      "time": "",
+      "isin": "CA1348083025",
+      "symbol": "CNE.TO",
+      "type": "BUY",
+      "quantity": 552.0,
+      "price": 11.27,
+      "proceeds": -6221.04,
+      "commission": 0,
+      "currency": "CAD",
+      "synthetic_opening": true,
+      "kb_name": "CANACOL ENERGY LTD",
+      "note": "Pre-2023 holding — cost basis odhadnut na tržní cenu 31.3.2023."
+    },
+    {
+      "date": "2022-12-30",
+      "settle_date": "2023-01-02",
+      "time": "",
+      "isin": "CZ0008019106",
+      "symbol": "KOMB.PR",
+      "type": "BUY",
+      "quantity": 157.0,
+      "price": 717.5,
+      "proceeds": -112647.5,
+      "commission": 0,
+      "currency": "CZK",
+      "synthetic_opening": true,
+      "kb_name": "KOMERČNÍ BANKA",
+      "note": "Pre-2023 holding — cost basis odhadnut na tržní cenu 31.3.2023."
+    },
+    {
+      "date": "2022-12-30",
+      "settle_date": "2023-01-02",
+      "time": "",
+      "isin": "NL0013654783",
+      "symbol": "PRX.AS",
+      "type": "BUY",
+      "quantity": 96.0,
+      "price": 71.94,
+      "proceeds": -6906.24,
+      "commission": 0,
+      "currency": "EUR",
+      "synthetic_opening": true,
+      "kb_name": "PROSUS NV",
+      "note": "Pre-2023 holding — cost basis odhadnut na tržní cenu 31.3.2023."
+    },
+    {
+      "date": "2022-12-30",
+      "settle_date": "2023-01-02",
+      "time": "",
+      "isin": "GB00B8VZXT93",
+      "symbol": "CRST.L",
+      "type": "BUY",
+      "quantity": 3223.0,
+      "price": 2.18,
+      "proceeds": -7026.14,
+      "commission": 0,
+      "currency": "GBP",
+      "synthetic_opening": true,
+      "kb_name": "CREST NICHOLSON HOLDINGS PLC",
+      "note": "Pre-2023 holding — cost basis odhadnut na tržní cenu 31.3.2023."
+    },
+    {
+      "date": "2022-12-30",
+      "settle_date": "2023-01-02",
+      "time": "",
+      "isin": "LU2369833749",
+      "symbol": "AMBP",
+      "type": "BUY",
+      "quantity": 857.0,
+      "price": 4.08,
+      "proceeds": -3496.56,
+      "commission": 0,
+      "currency": "USD",
+      "synthetic_opening": true,
+      "kb_name": "ARDAGH METAL PACKAGING SA",
+      "note": "Pre-2023 holding — cost basis odhadnut na tržní cenu 31.3.2023."
+    },
+    {
+      "date": "2022-12-30",
+      "settle_date": "2023-01-02",
+      "time": "",
+      "isin": "US02079K1079",
+      "symbol": "GOOG",
+      "type": "BUY",
+      "quantity": 80.0,
+      "price": 104.0,
+      "proceeds": -8320.0,
+      "commission": 0,
+      "currency": "USD",
+      "synthetic_opening": true,
+      "kb_name": "ALPHABET INC CLASS C",
+      "note": "Pre-2023 holding — cost basis odhadnut na tržní cenu 31.3.2023."
+    },
+    {
+      "date": "2022-12-30",
+      "settle_date": "2023-01-02",
+      "time": "",
+      "isin": "US2546871060",
+      "symbol": "DIS",
+      "type": "BUY",
+      "quantity": 40.0,
+      "price": 100.13,
+      "proceeds": -4005.2,
+      "commission": 0,
+      "currency": "USD",
+      "synthetic_opening": true,
+      "kb_name": "WALT DISNEY CO/THE",
+      "note": "Pre-2023 holding — cost basis odhadnut na tržní cenu 31.3.2023."
+    },
+    {
+      "date": "2022-12-30",
+      "settle_date": "2023-01-02",
+      "time": "",
+      "isin": "US30303M1027",
+      "symbol": "META",
+      "type": "BUY",
+      "quantity": 38.0,
+      "price": 211.94,
+      "proceeds": -8053.72,
+      "commission": 0,
+      "currency": "USD",
+      "synthetic_opening": true,
+      "kb_name": "META PLATFORMS INC",
+      "note": "Pre-2023 holding — cost basis odhadnut na tržní cenu 31.3.2023."
+    },
+    {
+      "date": "2022-12-30",
+      "settle_date": "2023-01-02",
+      "time": "",
+      "isin": "US44852D1081",
+      "symbol": "HUYA",
+      "type": "BUY",
+      "quantity": 1244.0,
+      "price": 3.61,
+      "proceeds": -4490.84,
+      "commission": 0,
+      "currency": "USD",
+      "synthetic_opening": true,
+      "kb_name": "HUYA INC-ADR",
+      "note": "Pre-2023 holding — cost basis odhadnut na tržní cenu 31.3.2023."
+    },
+    {
+      "date": "2022-12-30",
+      "settle_date": "2023-01-02",
+      "time": "",
+      "isin": "US4581401001",
+      "symbol": "INTC",
+      "type": "BUY",
+      "quantity": 151.0,
+      "price": 32.67,
+      "proceeds": -4933.17,
+      "commission": 0,
+      "currency": "USD",
+      "synthetic_opening": true,
+      "kb_name": "INTEL CORP",
+      "note": "Pre-2023 holding — cost basis odhadnut na tržní cenu 31.3.2023."
+    },
+    {
+      "date": "2022-12-30",
+      "settle_date": "2023-01-02",
+      "time": "",
+      "isin": "US8321544053",
+      "symbol": "SMSI",
+      "type": "BUY",
+      "quantity": 1685.0,
+      "price": 1.16,
+      "proceeds": -1954.6,
+      "commission": 0,
+      "currency": "USD",
+      "synthetic_opening": true,
+      "kb_name": "SMITH MICRO SOFTWARE INC",
+      "note": "Pre-2023 holding — cost basis odhadnut na tržní cenu 31.3.2023."
+    },
+    {
+      "date": "2022-12-30",
+      "settle_date": "2023-01-02",
+      "time": "",
+      "isin": "US87918A1051",
+      "symbol": "TDOC",
+      "type": "BUY",
+      "quantity": 154.0,
+      "price": 25.9,
+      "proceeds": -3988.6,
+      "commission": 0,
+      "currency": "USD",
+      "synthetic_opening": true,
+      "kb_name": "TELADOC INC",
+      "note": "Pre-2023 holding — cost basis odhadnut na tržní cenu 31.3.2023."
+    },
+    {
+      "date": "2022-12-30",
+      "settle_date": "2023-01-02",
+      "time": "",
+      "isin": "US91680M1071",
+      "symbol": "UPST",
+      "type": "BUY",
+      "quantity": 118.0,
+      "price": 15.89,
+      "proceeds": -1875.02,
+      "commission": 0,
+      "currency": "USD",
+      "synthetic_opening": true,
+      "kb_name": "UPSTART HOLDINGS INC",
+      "note": "Pre-2023 holding — cost basis odhadnut na tržní cenu 31.3.2023."
+    },
+    {
+      "date": "2022-12-30",
+      "settle_date": "2023-01-02",
+      "time": "",
+      "isin": "US9344231041",
+      "symbol": "WBD",
+      "type": "BUY",
+      "quantity": 791.0,
+      "price": 15.1,
+      "proceeds": -11944.1,
+      "commission": 0,
+      "currency": "USD",
+      "synthetic_opening": true,
+      "kb_name": "WARNER BROS DISCOVERY INC",
+      "note": "Pre-2023 holding — cost basis odhadnut na tržní cenu 31.3.2023."
+    },
+    {
+      "date": "2023-02-22",
+      "settle_date": "2023-02-28",
+      "time": "",
+      "isin": "AU000000YAL0",
+      "symbol": "YAL.AX",
+      "type": "BUY",
+      "quantity": 1128.0,
+      "price": 5.7,
+      "proceeds": -6429.6,
+      "commission": -98.08,
+      "currency": "AUD",
+      "kb_id": "2566849/1372523",
+      "kb_name": "YANCOAL AUSTRALIA LTD"
+    },
+    {
+      "date": "2023-02-23",
+      "settle_date": "2023-02-27",
+      "time": "",
+      "isin": "CA45780T4046",
+      "symbol": "IPO.TO",
+      "type": "BUY",
+      "quantity": 2240.0,
+      "price": 2.67,
+      "proceeds": -5991.33,
+      "commission": -90.99,
+      "currency": "CAD",
+      "kb_id": "2568085/1373504",
+      "kb_name": "INPLAY OIL CORP"
+    },
+    {
+      "date": "2023-03-17",
+      "settle_date": "2023-03-21",
+      "time": "",
+      "isin": "US8321544053",
+      "symbol": "SMSI",
+      "type": "BUY",
+      "quantity": 2139.0,
+      "price": 1.07,
+      "proceeds": -2287.23,
+      "commission": -77.23,
+      "currency": "USD",
+      "kb_id": "2576488/1380888",
+      "kb_name": "SMITH MICRO SOFTWARE INC"
+    },
+    {
+      "date": "2023-03-17",
+      "settle_date": "2023-03-21",
+      "time": "",
+      "isin": "US3994732069",
+      "symbol": "GRPN",
+      "type": "BUY",
+      "quantity": 1114.0,
+      "price": 3.93,
+      "proceeds": -4377.02,
+      "commission": -72.1,
+      "currency": "USD",
+      "kb_id": "2576465/1380890",
+      "kb_name": "GROUPON INC"
+    },
+    {
+      "date": "2023-06-30",
+      "settle_date": "2023-06-30",
+      "time": "",
+      "isin": "AU000000YAL0",
+      "symbol": "YAL.AX",
+      "type": "BUY",
+      "quantity": 1503.0,
+      "price": 4.58,
+      "proceeds": -6883.74,
+      "commission": 0,
+      "currency": "AUD",
+      "synthetic_q2_2023": true,
+      "kb_name": "YANCOAL AUSTRALIA LTD",
+      "note": "Synthetic Q2 2023 (TRN CP report chybí). Cena = market 30.6.2023, skutečná datum a cena obchodu neznámé."
+    },
+    {
+      "date": "2023-06-30",
+      "settle_date": "2023-06-30",
+      "time": "",
+      "isin": "DE000A1ML7J1",
+      "symbol": "VNA.DE",
+      "type": "BUY",
+      "quantity": 242.0,
+      "price": 17.9,
+      "proceeds": -4331.799999999999,
+      "commission": 0,
+      "currency": "EUR",
+      "synthetic_q2_2023": true,
+      "kb_name": "VONOVIA SE",
+      "note": "Synthetic Q2 2023 (TRN CP report chybí). Cena = market 30.6.2023, skutečná datum a cena obchodu neznámé."
+    },
+    {
+      "date": "2023-06-30",
+      "settle_date": "2023-06-30",
+      "time": "",
+      "isin": "DE000A2YN702",
+      "symbol": "UMT.DE",
+      "type": "BUY",
+      "quantity": 1366.0,
+      "price": 2.85,
+      "proceeds": -3893.1,
+      "commission": 0,
+      "currency": "EUR",
+      "synthetic_q2_2023": true,
+      "kb_name": "UMT UNITED MOBILITY TECHNOLOGY",
+      "note": "Synthetic Q2 2023 (TRN CP report chybí). Cena = market 30.6.2023, skutečná datum a cena obchodu neznámé."
+    },
+    {
+      "date": "2023-06-30",
+      "settle_date": "2023-06-30",
+      "time": "",
+      "isin": "FR0013326246",
+      "symbol": "URW.AS",
+      "type": "BUY",
+      "quantity": 99.0,
+      "price": 48.15,
+      "proceeds": -4766.849999999999,
+      "commission": 0,
+      "currency": "EUR",
+      "synthetic_q2_2023": true,
+      "kb_name": "UNIBAIL-RODAMCO-WESTFIELD",
+      "note": "Synthetic Q2 2023 (TRN CP report chybí). Cena = market 30.6.2023, skutečná datum a cena obchodu neznámé."
+    },
+    {
+      "date": "2023-06-30",
+      "settle_date": "2023-06-30",
+      "time": "",
+      "isin": "US1266501006",
+      "symbol": "CVS",
+      "type": "BUY",
+      "quantity": 66.0,
+      "price": 69.13,
+      "proceeds": -4562.58,
+      "commission": 0,
+      "currency": "USD",
+      "synthetic_q2_2023": true,
+      "kb_name": "CVS HEALTH CORP",
+      "note": "Synthetic Q2 2023 (TRN CP report chybí). Cena = market 30.6.2023, skutečná datum a cena obchodu neznámé."
+    },
+    {
+      "date": "2023-06-30",
+      "settle_date": "2023-06-30",
+      "time": "",
+      "isin": "US30303M1027",
+      "symbol": "META",
+      "type": "SELL",
+      "quantity": 38.0,
+      "price": 211.94,
+      "proceeds": 8053.72,
+      "commission": 0,
+      "currency": "USD",
+      "synthetic_q2_2023": true,
+      "kb_name": "META PLATFORMS INC",
+      "note": "Synthetic Q2 2023 (TRN CP report chybí). Cena = market 30.6.2023, skutečná datum a cena obchodu neznámé."
+    },
+    {
+      "date": "2023-06-30",
+      "settle_date": "2023-06-30",
+      "time": "",
+      "isin": "US3994732069",
+      "symbol": "GRPN",
+      "type": "BUY",
+      "quantity": 1382.0,
+      "price": 5.91,
+      "proceeds": -8167.62,
+      "commission": 0,
+      "currency": "USD",
+      "synthetic_q2_2023": true,
+      "kb_name": "GROUPON INC",
+      "note": "Synthetic Q2 2023 (TRN CP report chybí). Cena = market 30.6.2023, skutečná datum a cena obchodu neznámé."
+    },
+    {
+      "date": "2023-07-11",
+      "settle_date": "2023-07-13",
+      "time": "",
+      "isin": "US91680M1071",
+      "symbol": "UPST",
+      "type": "SELL",
+      "quantity": 118.0,
+      "price": 41.2,
+      "proceeds": 4861.6,
+      "commission": -68.92,
+      "currency": "USD",
+      "kb_id": "2628429/1430516",
+      "kb_name": "UPSTART HOLDINGS INC"
+    },
+    {
+      "date": "2023-07-18",
+      "settle_date": "2023-07-20",
+      "time": "",
+      "isin": "US2546871060",
+      "symbol": "DIS",
+      "type": "BUY",
+      "quantity": 56.0,
+      "price": 85.91,
+      "proceeds": -4810.96,
+      "commission": -70.91,
+      "currency": "USD",
+      "kb_id": "2631755/1433272",
+      "kb_name": "WALT DISNEY CO/THE"
+    },
+    {
+      "date": "2023-08-22",
+      "settle_date": "2023-08-24",
+      "time": "",
+      "isin": "US44852D1081",
+      "symbol": "HUYA",
+      "type": "BUY",
+      "quantity": 2035.0,
+      "price": 2.22,
+      "proceeds": -4517.7,
+      "commission": -78.22,
+      "currency": "USD",
+      "kb_id": "2643004/1444584",
+      "kb_name": "HUYA INC-ADR"
+    },
+    {
+      "date": "2023-08-22",
+      "settle_date": "2023-08-24",
+      "time": "",
+      "isin": "LU2369833749",
+      "symbol": "AMBP",
+      "type": "BUY",
+      "quantity": 1263.0,
+      "price": 3.41,
+      "proceeds": -4306.83,
+      "commission": -74.36,
+      "currency": "USD",
+      "kb_id": "2643005/1444586",
+      "kb_name": "ARDAGH METAL PACKAGING SA"
+    },
+    {
+      "date": "2023-08-25",
+      "settle_date": "2023-08-29",
+      "time": "",
+      "isin": "US92766K4031",
+      "symbol": "SPCE",
+      "type": "BUY",
+      "quantity": 1729.0,
+      "price": 2.48,
+      "proceeds": -4285.33,
+      "commission": -75.85,
+      "currency": "USD",
+      "kb_id": "2643924/1445603",
+      "kb_name": "VIRGIN GALACTIC HOLDINGS INC"
+    },
+    {
+      "date": "2023-09-27",
+      "settle_date": "2023-09-29",
+      "time": "",
+      "isin": "US3994732069",
+      "symbol": "GRPN",
+      "type": "SELL",
+      "quantity": 850.0,
+      "price": 13.06,
+      "proceeds": 11100.07,
+      "commission": -77.7,
+      "currency": "USD",
+      "kb_id": "2661741/1462162",
+      "kb_name": "GROUPON INC"
+    },
+    {
+      "date": "2023-10-05",
+      "settle_date": "2023-10-10",
+      "time": "",
+      "isin": "US72919P2020",
+      "symbol": "PLUG",
+      "type": "BUY",
+      "quantity": 676.0,
+      "price": 6.24,
+      "proceeds": -4216.75,
+      "commission": -68.02,
+      "currency": "USD",
+      "kb_id": "2664105/1464972",
+      "kb_name": "PLUG POWER INC"
+    },
+    {
+      "date": "2023-11-08",
+      "settle_date": "2023-11-10",
+      "time": "",
+      "isin": "US9344231041",
+      "symbol": "WBD",
+      "type": "BUY",
+      "quantity": 436.0,
+      "price": 9.81,
+      "proceeds": -4276.07,
+      "commission": -67.04,
+      "currency": "USD",
+      "kb_id": "2676893/1478303",
+      "kb_name": "WARNER BROS DISCOVERY INC"
+    },
+    {
+      "date": "2023-11-08",
+      "settle_date": "2023-11-10",
+      "time": "",
+      "isin": "CA1348083025",
+      "symbol": "CNE.TO",
+      "type": "BUY",
+      "quantity": 954.0,
+      "price": 6.93,
+      "proceeds": -6611.22,
+      "commission": -89.48,
+      "currency": "CAD",
+      "kb_id": "2676794/1478349",
+      "kb_name": "CANACOL ENERGY LTD"
+    },
+    {
+      "date": "2023-12-19",
+      "settle_date": "2023-12-21",
+      "time": "",
+      "isin": "US01609W1027",
+      "symbol": "BABA",
+      "type": "BUY",
+      "quantity": 70.0,
+      "price": 73.99,
+      "proceeds": -5179.3,
+      "commission": -66.7,
+      "currency": "USD",
+      "kb_id": "2697719/1502625",
+      "kb_name": "ALIBABA GROUP HOLDING-SP ADR"
+    },
     {
       "date": "2024-01-16",
       "settle_date": "2024-01-18",
@@ -1926,10 +2537,83 @@
   ],
   "corporate_actions": [
     {
+      "date": "2023-01-25",
+      "type": "received_share",
+      "isin_event": "CA1348083025",
+      "isin_underlying": "CA1348083025",
+      "symbol": "CNE.TO",
+      "quantity": 552.0,
+      "name": "CANACOL ENERGY LTD",
+      "currency": "CAD",
+      "kb_id": "",
+      "note": "KB Vklad CP"
+    },
+    {
+      "date": "2023-01-25",
+      "type": "removed_share",
+      "isin_event": "CA1348082035",
+      "isin_underlying": "CA1348083025",
+      "symbol": "CNE.TO",
+      "quantity": 2760.0,
+      "name": "X-CANACOL ENERGY LTD old",
+      "currency": "CAD",
+      "kb_id": "",
+      "note": "KB Výběr CP"
+    },
+    {
+      "date": "2023-09-18",
+      "type": "received_share",
+      "isin_event": "NL0013654783",
+      "isin_underlying": "NL0013654783",
+      "symbol": "PRX.AS",
+      "quantity": 113.0,
+      "name": "PROSUS NV",
+      "currency": "EUR",
+      "kb_id": "",
+      "note": "KB Vklad CP"
+    },
+    {
+      "date": "2023-11-06",
+      "type": "received_share",
+      "isin_event": "NL0015001RT1",
+      "isin_underlying": "NL0013654783",
+      "symbol": "PRX.AS",
+      "quantity": 209.0,
+      "name": "X-PROSUS NV-RIGHT 02/11/23 EUR",
+      "currency": "EUR",
+      "kb_id": "",
+      "note": "KB Vklad CP"
+    },
+    {
+      "date": "2023-11-28",
+      "type": "received_share",
+      "isin_event": "US399RGT0187",
+      "isin_underlying": "US3994732069",
+      "symbol": "GRPN",
+      "quantity": 1646.0,
+      "name": "GROUPON, INC.-RIGHT-EXDT UNKNW",
+      "currency": "USD",
+      "kb_id": "",
+      "note": "KB Vklad CP"
+    },
+    {
+      "date": "2023-11-28",
+      "type": "removed_share",
+      "isin_event": "NL0015001RT1",
+      "isin_underlying": "NL0013654783",
+      "symbol": "PRX.AS",
+      "quantity": 209.0,
+      "name": "X-PROSUS NV-RIGHT 02/11/23 EUR",
+      "currency": "EUR",
+      "kb_id": "",
+      "note": "KB Výběr CP"
+    },
+    {
       "date": "2024-01-29",
       "type": "removed_share",
       "isin_event": "US399RGT0187",
       "isin_underlying": "US3994732069",
+      "symbol": "GRPN",
       "quantity": 1646.0,
       "name": "X-GROUPON, INC.-RIGHT-EXDT UNKNW",
       "currency": "USD",
@@ -1941,6 +2625,7 @@
       "type": "removed_share",
       "isin_event": "US8321542073",
       "isin_underlying": "US8321544053",
+      "symbol": "SMSI",
       "quantity": 3824.0,
       "name": "X-SMITH MICRO SOFTWARE INC",
       "currency": "USD",
@@ -1952,6 +2637,7 @@
       "type": "received_share",
       "isin_event": "US8321544053",
       "isin_underlying": "US8321544053",
+      "symbol": "SMSI",
       "quantity": 478.0,
       "name": "SMITH MICRO SOFTWARE, INC. ORDSHR",
       "currency": "USD",
@@ -1963,6 +2649,7 @@
       "type": "received_share",
       "isin_event": "DE000A3EX3N6",
       "isin_underlying": "DE000A1ML7J1",
+      "symbol": "VNA.DE",
       "quantity": 242.0,
       "name": "X-VONOVIA SE 09/05/2024 RIGHT",
       "currency": "EUR",
@@ -1974,6 +2661,7 @@
       "type": "removed_share",
       "isin_event": "DE000A3EX3N6",
       "isin_underlying": "DE000A1ML7J1",
+      "symbol": "VNA.DE",
       "quantity": 242.0,
       "name": "X-VONOVIA SE 09/05/2024 RIGHT",
       "currency": "EUR",
@@ -1985,6 +2673,7 @@
       "type": "removed_share",
       "isin_event": "US92766K1060",
       "isin_underlying": "US92766K4031",
+      "symbol": "SPCE",
       "quantity": 1729.0,
       "name": "X-VIRGIN GALACTIC HOLDINGS INC",
       "currency": "USD",
@@ -1996,6 +2685,7 @@
       "type": "received_share",
       "isin_event": "US92766K4031",
       "isin_underlying": "US92766K4031",
+      "symbol": "SPCE",
       "quantity": 86.0,
       "name": "VIRGIN GALACTIC HOLDINGS INC.",
       "currency": "USD",
@@ -2007,6 +2697,7 @@
       "type": "received_share",
       "isin_event": "DE000A3829W0",
       "isin_underlying": "DE000A2YN702",
+      "symbol": "UMT.DE",
       "quantity": 1366.0,
       "name": "X-UMT UNITED MOBILITY TECHNOLOGY -",
       "currency": "EUR",
@@ -2018,6 +2709,7 @@
       "type": "removed_share",
       "isin_event": "DE000A3829W0",
       "isin_underlying": "DE000A2YN702",
+      "symbol": "UMT.DE",
       "quantity": 1366.0,
       "name": "X-UMT UNITED MOBILITY TECHNOLOGY -",
       "currency": "EUR",
@@ -2029,6 +2721,7 @@
       "type": "received_share",
       "isin_event": "NL00150029D8",
       "isin_underlying": "NL0013654783",
+      "symbol": "PRX.AS",
       "quantity": 209.0,
       "name": "X-PROSUS N.V._RIGHT 31/10/2024",
       "currency": "EUR",
@@ -2040,6 +2733,7 @@
       "type": "removed_share",
       "isin_event": "NL00150029D8",
       "isin_underlying": "NL0013654783",
+      "symbol": "PRX.AS",
       "quantity": 209.0,
       "name": "X-PROSUS N.V._RIGHT 31/10/2024",
       "currency": "EUR",
@@ -2051,6 +2745,7 @@
       "type": "removed_share",
       "isin_event": "CA45780T2065",
       "isin_underlying": "CA45780T4046",
+      "symbol": "IPO.TO",
       "quantity": 2240.0,
       "name": "X-INPLAY OIL CORP - OLD",
       "currency": "CAD",
@@ -2062,6 +2757,7 @@
       "type": "received_share",
       "isin_event": "CA45780T4046",
       "isin_underlying": "CA45780T4046",
+      "symbol": "IPO.TO",
       "quantity": 373.0,
       "name": "InPlay Oil Corp - ORDSHR",
       "currency": "CAD",
@@ -2073,6 +2769,7 @@
       "type": "received_share",
       "isin_event": "DE000A40ZU23",
       "isin_underlying": "DE000A1ML7J1",
+      "symbol": "VNA.DE",
       "quantity": 242.0,
       "name": "VONOVIA SE-RIGHT 29/05/25",
       "currency": "EUR",
@@ -2084,6 +2781,7 @@
       "type": "removed_share",
       "isin_event": "DE000A40ZU23",
       "isin_underlying": "DE000A1ML7J1",
+      "symbol": "VNA.DE",
       "quantity": 242.0,
       "name": "VONOVIA SE-RIGHT 29/05/25",
       "currency": "EUR",
@@ -2095,6 +2793,7 @@
       "type": "removed_share",
       "isin_event": "PLDINPL00011",
       "isin_underlying": "PLDINPL00011",
+      "symbol": "DNP.WA",
       "quantity": 59.0,
       "name": "DINO POLSKA SA",
       "currency": "PLN",
@@ -2106,6 +2805,7 @@
       "type": "received_share",
       "isin_event": "PLDINPL00011",
       "isin_underlying": "PLDINPL00011",
+      "symbol": "DNP.WA",
       "quantity": 590.0,
       "name": "DINO POLSKA SA",
       "currency": "PLN",
@@ -2117,6 +2817,7 @@
       "type": "received_share",
       "isin_event": "NL0015002NC4",
       "isin_underlying": "NL0013654783",
+      "symbol": "PRX.AS",
       "quantity": 209.0,
       "name": "X-PROSUS N.V._RIGHT 30/10/2025",
       "currency": "EUR",
@@ -2128,6 +2829,7 @@
       "type": "removed_share",
       "isin_event": "NL0015002NC4",
       "isin_underlying": "NL0013654783",
+      "symbol": "PRX.AS",
       "quantity": 209.0,
       "name": "X-PROSUS N.V._RIGHT 30/10/2025",
       "currency": "EUR",
@@ -2140,8 +2842,9 @@
   "cash_flows": [],
   "cash_balance": {},
   "_notes": [
-    "Initial import 2024-Q1 → 2026-Q1, 124 raw transakcí z 9 TRN CP PDFs.",
-    "Dividendy a cash flows z TRN CASH PDFs zatím nenaimportovány — přijde v další iteraci.",
-    "Yahoo tickery jsou manuální mapování — validace probíhá při živém načtení tickerů."
+    "17 synthetic opening transakcí pro pozice s pre-2023 historií. Cost basis je odhadnut na tržní cenu k 31.3.2023.",
+    "TRN CP 2023 Q2 chybí — Q2 2023 transakce nejsou v importu.",
+    "Dividendy + withholding tax z TRN CASH PDFs zatím neimportovány.",
+    "7 synthetic Q2 2023 transakcí ze STAV PTF rozdílu (TRN CP Q2 2023 chybí)."
   ]
 }
