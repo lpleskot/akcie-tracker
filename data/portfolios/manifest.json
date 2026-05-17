@@ -1,0 +1,18 @@
+{
+  "portfolios": [
+    {
+      "id": "plegi-invest-ibkr",
+      "name": "PLEGI invest IBKR",
+      "broker": "Interactive Brokers",
+      "primary": true,
+      "file": "plegi-invest-ibkr.json"
+    },
+    {
+      "id": "plegi-invest-kb",
+      "name": "PLEGI invest KB",
+      "broker": "Komerční banka",
+      "primary": false,
+      "file": "plegi-invest-kb.json"
+    }
+  ]
+}

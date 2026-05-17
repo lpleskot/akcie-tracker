@@ -6,14 +6,20 @@ import {
   fmtMoney,
 } from "./fifo.js";
 
-const PORTFOLIO_URL = "./data/portfolios/plegi-invest-ibkr.json";
+const MANIFEST_URL = "./data/portfolios/manifest.json";
+const PORTFOLIO_BASE = "./data/portfolios/";
 const FX_URL = "./data/fx_rates.json";
 // Watchlist + alerts jsou teď KV-backed přes Pages Functions
 const WATCHLIST_URL = "/api/watchlist";
 const ALERTS_URL = "/api/alerts";
 const QUOTE_URL = "/api/quote";
 
+// LocalStorage key pro pamatování posledního výběru portfolia
+const LS_PORTFOLIO = "akcie-tracker.portfolio";
+
 const state = {
+  manifest: null,
+  portfolioId: null,
   portfolio: null,
   positions: null,
   quotes: {},
@@ -70,30 +76,31 @@ init().catch((err) => {
 });
 
 async function init() {
-  setStatus("Načítám portfolio…");
+  setStatus("Načítám manifest…");
 
-  // 1) Load portfolio JSON + FX rates + watchlist + alerts (paralelně)
-  const [portfolioRes, fxRes, watchRes, alertsRes] = await Promise.all([
-    fetch(PORTFOLIO_URL, { cache: "no-cache" }),
+  // 1) Load manifest, FX rates, watchlist, alerts paralelně
+  const [manifestRes, fxRes, watchRes, alertsRes] = await Promise.all([
+    fetch(MANIFEST_URL, { cache: "no-cache" }),
     fetch(FX_URL, { cache: "no-cache" }),
     fetch(WATCHLIST_URL, { cache: "no-cache" }),
     fetch(ALERTS_URL, { cache: "no-cache" }),
   ]);
-  if (!portfolioRes.ok) throw new Error(`Portfolio JSON ${portfolioRes.status}`);
-  state.portfolio = await portfolioRes.json();
+  if (!manifestRes.ok) throw new Error(`Manifest ${manifestRes.status}`);
+  state.manifest = await manifestRes.json();
   state.fxRates = fxRes.ok ? await fxRes.json() : { dates: {} };
   state.watchlist = watchRes.ok ? await watchRes.json() : { items: [] };
   state.alerts = alertsRes.ok ? await alertsRes.json() : { rules: [], fired: {} };
 
-  // 2) Compute FIFO positions (vč. corp. actions, dividend a withholding tax)
-  state.positions = computePositions(
-    state.portfolio.transactions,
-    state.portfolio.corporate_actions || [],
-    state.portfolio.dividends || [],
-    state.portfolio.withholding_tax || [],
-  );
+  // 2) Vybrat aktivní portfolio (z localStorage nebo primary)
+  const savedId = localStorage.getItem(LS_PORTFOLIO);
+  const primary = state.manifest.portfolios.find((p) => p.primary);
+  const found = state.manifest.portfolios.find((p) => p.id === savedId);
+  state.portfolioId = found?.id || primary?.id || state.manifest.portfolios[0]?.id;
 
-  // 3) Render header
+  // 3) Load aktivního portfolia
+  await loadActivePortfolio();
+
+  // 4) Setup UI + selector
   renderHeader();
   setupTabs();
   setupRefresh();
@@ -105,9 +112,75 @@ async function init() {
   setupWatchlistModal();
   setupEditWatchModal();
   setupAlertsModal();
+  setupPortfolioSwitcher();
 
-  // 4) Fetch live quotes
+  // 5) Fetch live quotes
   await refreshQuotes();
+}
+
+async function loadActivePortfolio() {
+  const meta = state.manifest.portfolios.find((p) => p.id === state.portfolioId);
+  if (!meta) throw new Error(`Portfolio ${state.portfolioId} v manifestu nenalezeno`);
+  setStatus(`Načítám ${meta.name}…`);
+  const url = `${PORTFOLIO_BASE}${meta.file}`;
+  const res = await fetch(url, { cache: "no-cache" });
+  if (!res.ok) {
+    // Portfolio nemusí ještě existovat (např. KB čeká na import)
+    state.portfolio = makeEmptyPortfolio(meta);
+    state.positions = {};
+    return;
+  }
+  state.portfolio = await res.json();
+  state.positions = computePositions(
+    state.portfolio.transactions || [],
+    state.portfolio.corporate_actions || [],
+    state.portfolio.dividends || [],
+    state.portfolio.withholding_tax || [],
+  );
+}
+
+function makeEmptyPortfolio(meta) {
+  return {
+    id: meta.id,
+    name: meta.name,
+    broker: meta.broker,
+    account: "",
+    instruments: {},
+    transactions: [],
+    corporate_actions: [],
+    dividends: [],
+    withholding_tax: [],
+    cash_flows: [],
+    cash_balance: {},
+    _placeholder: true,
+  };
+}
+
+function setupPortfolioSwitcher() {
+  const list = state.manifest.portfolios || [];
+  if (list.length < 2) return; // jediné portfolio — selector neukazujeme
+
+  const wrap = document.getElementById("portfolio-switcher");
+  const sel = document.getElementById("portfolio-select");
+  if (!sel || !wrap) return;
+  sel.innerHTML = "";
+  for (const p of list) {
+    const o = document.createElement("option");
+    o.value = p.id;
+    o.textContent = p.name;
+    sel.appendChild(o);
+  }
+  sel.value = state.portfolioId;
+  wrap.hidden = false;
+
+  sel.addEventListener("change", async () => {
+    state.portfolioId = sel.value;
+    localStorage.setItem(LS_PORTFOLIO, state.portfolioId);
+    state.quotes = {}; // invalidate
+    await loadActivePortfolio();
+    renderHeader();
+    await refreshQuotes();
+  });
 }
 
 // ---------- Header ----------
@@ -116,10 +189,16 @@ function renderHeader() {
   document.getElementById("portfolio-name").textContent = p.name;
   const parts = [p.broker];
   if (p.account_holder) parts.push(p.account_holder);
-  parts.push(`účet ${p.account}`);
+  if (p.account) parts.push(`účet ${p.account}`);
   if (p.customer_type) parts.push(p.customer_type);
-  parts.push(`${p.transactions.length} transakcí`);
-  parts.push(`období ${p.period_from} – ${p.period_to}`);
+  if (p._placeholder) {
+    parts.push("⏳ data se připravují");
+  } else {
+    parts.push(`${(p.transactions || []).length} transakcí`);
+    if (p.period_from && p.period_to) {
+      parts.push(`období ${p.period_from} – ${p.period_to}`);
+    }
+  }
   document.getElementById("portfolio-meta").textContent = parts.join(" · ");
   document.title = `${p.name} — Akcie tracker`;
 }
