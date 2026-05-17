@@ -381,6 +381,103 @@ button.primary:hover {
   color: #fff;
 }
 
+/* Deník investora — formulář nového zápisu + seznam karet */
+.journal-new {
+  margin: 14px 0 20px 0;
+  padding: 14px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.journal-new textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  resize: vertical;
+  min-height: 70px;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+.journal-new textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+.journal-new-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+.journal-new-actions .small {
+  color: var(--color-negative);
+}
+
+.journal-entry {
+  margin-bottom: 10px;
+  padding: 12px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.journal-entry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  gap: 12px;
+}
+.journal-date {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.journal-entry-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.journal-text {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--color-text);
+  white-space: pre-wrap;        /* zachovat nové řádky z textarea */
+  word-wrap: break-word;
+}
+.journal-edit-text {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  resize: vertical;
+  min-height: 90px;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+.journal-edit-text:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+.journal-entry-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+.journal-entry-actions .small {
+  color: var(--color-negative);
+}
+
 /* Tabulka burzovních suffixů v modalu Přidat watchlist */
 .exchange-help {
   margin-top: 6px;

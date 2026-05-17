@@ -32,6 +32,7 @@
           <button class="tab" data-view="allocation">Alokace</button>
           <button class="tab" data-view="alerts">Alerty</button>
           <button class="tab" data-view="watchlist">Watchlist</button>
+          <button class="tab" data-view="journal">Deník investora</button>
           <button class="tab" data-view="report">Report pro účetní</button>
         </div>
         <button id="btn-refresh" class="btn">Načíst znovu</button>
@@ -233,6 +234,33 @@
           Až bude cron worker nasazený, splněná pravidla automaticky pošlou email a označí se jako „fired" (znovu se nepošlou, dokud manuálně nezapnete „Re-arm").
         </div>
         <div id="alerts-content"></div>
+      </section>
+
+      <section id="view-journal" class="view">
+        <div class="filter-bar">
+          <span class="filter-label">Hledat:</span>
+          <div class="search-wrap">
+            <input
+              type="text"
+              id="journal-search"
+              class="filter-input"
+              placeholder="Hledat ve zápiscích"
+              autocomplete="off"
+            />
+            <button id="journal-search-clear" class="btn-clear" type="button" aria-label="Vymazat" hidden>×</button>
+          </div>
+          <span class="filter-count" id="journal-count"></span>
+        </div>
+
+        <div class="journal-new">
+          <textarea id="journal-new-text" rows="3" maxlength="10000" placeholder="Nový zápis — myšlenky, plány, postřehy k portfoliu…"></textarea>
+          <div class="journal-new-actions">
+            <span class="muted small" id="journal-new-error"></span>
+            <button id="btn-journal-add" class="btn primary" type="button">Přidat zápis</button>
+          </div>
+        </div>
+
+        <div id="journal-list"></div>
       </section>
 
       <section id="view-report" class="view">

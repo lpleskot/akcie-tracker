@@ -13,6 +13,7 @@ const FX_URL = "./data/fx_rates.json";
 const WATCHLIST_URL = "/api/watchlist";
 const ALERTS_URL = "/api/alerts";
 const NOTES_URL = "/api/notes";
+const JOURNAL_URL = "/api/journal";
 const QUOTE_URL = "/api/quote";
 
 // LocalStorage key pro pamatování posledního výběru portfolia
@@ -79,13 +80,14 @@ init().catch((err) => {
 async function init() {
   setStatus("Načítám manifest…");
 
-  // 1) Load manifest, FX rates, watchlist, alerts, notes paralelně
-  const [manifestRes, fxRes, watchRes, alertsRes, notesRes] = await Promise.all([
+  // 1) Load manifest, FX rates, watchlist, alerts, notes, journal paralelně
+  const [manifestRes, fxRes, watchRes, alertsRes, notesRes, journalRes] = await Promise.all([
     fetch(MANIFEST_URL, { cache: "no-cache" }),
     fetch(FX_URL, { cache: "no-cache" }),
     fetch(WATCHLIST_URL, { cache: "no-cache" }),
     fetch(ALERTS_URL, { cache: "no-cache" }),
     fetch(NOTES_URL, { cache: "no-cache" }),
+    fetch(JOURNAL_URL, { cache: "no-cache" }),
   ]);
   if (!manifestRes.ok) throw new Error(`Manifest ${manifestRes.status}`);
   state.manifest = await manifestRes.json();
@@ -94,6 +96,9 @@ async function init() {
   state.alerts = alertsRes.ok ? await alertsRes.json() : { rules: [], fired: {} };
   const notesData = notesRes.ok ? await notesRes.json() : { notes: {} };
   state.notes = notesData.notes || {};
+  state.journal = journalRes.ok ? await journalRes.json() : { entries: [] };
+  state.journalSearch = "";
+  state.journalEditingId = null;
 
   // 2) Vybrat aktivní portfolio (z localStorage nebo primary)
   const savedId = localStorage.getItem(LS_PORTFOLIO);
@@ -116,6 +121,7 @@ async function init() {
   setupWatchlistModal();
   setupEditWatchModal();
   setupAlertsModal();
+  setupJournal();
   setupPortfolioSwitcher();
 
   // 5) Fetch live quotes
@@ -294,6 +300,7 @@ async function refreshQuotes() {
   renderTransactions();
   renderDividends();
   renderReport();
+  renderJournal();
   renderSummary();
 }
 
@@ -752,6 +759,64 @@ document.getElementById("link-exchange-suffixes")?.addEventListener("click", (e)
 
 document.addEventListener("click", async (e) => {
   const t = e.target;
+  // Deník — Upravit / Uložit / Zrušit / Smazat
+  if (t.matches?.("[data-journal-edit]")) {
+    state.journalEditingId = t.dataset.journalEdit;
+    renderJournal();
+    setTimeout(() => {
+      const ta = document.querySelector(`.journal-entry[data-id="${state.journalEditingId}"] .journal-edit-text`);
+      ta?.focus();
+    }, 30);
+    return;
+  }
+  if (t.matches?.("[data-journal-cancel]")) {
+    state.journalEditingId = null;
+    renderJournal();
+    return;
+  }
+  if (t.matches?.("[data-journal-save]")) {
+    const id = t.dataset.journalSave;
+    const card = t.closest(".journal-entry");
+    const text = card.querySelector(".journal-edit-text").value.trim();
+    const errEl = card.querySelector(".journal-edit-error");
+    errEl.textContent = "";
+    if (!text) {
+      errEl.textContent = "Prázdný zápis nelze uložit.";
+      return;
+    }
+    try {
+      const res = await journalUpdate(id, text);
+      const data = await res.json();
+      if (!res.ok) {
+        errEl.textContent = data.error || `HTTP ${res.status}`;
+        return;
+      }
+      const entry = state.journal.entries.find((x) => x.id === id);
+      if (entry) entry.text = data.entry.text;
+      state.journalEditingId = null;
+      renderJournal();
+    } catch (err) {
+      errEl.textContent = `Síťová chyba: ${err.message}`;
+    }
+    return;
+  }
+  if (t.matches?.("[data-journal-delete]")) {
+    const id = t.dataset.journalDelete;
+    if (!confirm("Smazat tento zápis z deníku?")) return;
+    try {
+      const res = await journalDelete(id);
+      if (!res.ok) {
+        alert("Smazání selhalo.");
+        return;
+      }
+      state.journal.entries = state.journal.entries.filter((x) => x.id !== id);
+      if (state.journalEditingId === id) state.journalEditingId = null;
+      renderJournal();
+    } catch (err) {
+      alert(`Síťová chyba: ${err.message}`);
+    }
+    return;
+  }
   // Poznámka — klik na "i" ikonku nebo na button "Poznámka" / "Upravit poznámku"
   if (t.matches?.("[data-note-edit]")) {
     e.stopPropagation();
@@ -1064,6 +1129,170 @@ function evaluateRule(rule) {
   // Setřídit dle největšího propadu
   matches.sort((a, b) => a.changePct - b.changePct);
   return matches;
+}
+
+// ---------- Deník investora ----------
+function setupJournal() {
+  // Vyhledávání
+  const search = document.getElementById("journal-search");
+  const clear = document.getElementById("journal-search-clear");
+  search?.addEventListener("input", (e) => {
+    state.journalSearch = e.target.value;
+    clear.hidden = !e.target.value;
+    renderJournal();
+  });
+  clear?.addEventListener("click", () => {
+    search.value = "";
+    state.journalSearch = "";
+    clear.hidden = true;
+    renderJournal();
+    search.focus();
+  });
+
+  // Přidat zápis
+  document.getElementById("btn-journal-add")?.addEventListener("click", async () => {
+    const ta = document.getElementById("journal-new-text");
+    const errEl = document.getElementById("journal-new-error");
+    errEl.textContent = "";
+    const text = ta.value.trim();
+    if (!text) {
+      errEl.textContent = "Napiš něco — zápis nemůže být prázdný.";
+      return;
+    }
+    try {
+      const res = await fetch(JOURNAL_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "add", text }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        errEl.textContent = data.error || `HTTP ${res.status}`;
+        return;
+      }
+      state.journal.entries.push(data.entry);
+      ta.value = "";
+      renderJournal();
+    } catch (e) {
+      errEl.textContent = `Síťová chyba: ${e.message}`;
+    }
+  });
+
+  // Cmd/Ctrl + Enter v textarea = uložit
+  document.getElementById("journal-new-text")?.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      document.getElementById("btn-journal-add").click();
+    }
+  });
+}
+
+function renderJournal() {
+  const list = document.getElementById("journal-list");
+  const countEl = document.getElementById("journal-count");
+  if (!list) return;
+
+  const entries = (state.journal?.entries || []).slice();
+  // Chronologicky, nejnovější nahoře
+  entries.sort((a, b) => b.date.localeCompare(a.date));
+
+  // Filtr podle hledaného textu
+  const q = state.journalSearch.trim().toLowerCase();
+  const filtered = q
+    ? entries.filter((e) => e.text.toLowerCase().includes(q))
+    : entries;
+
+  if (countEl) {
+    if (entries.length === 0) {
+      countEl.textContent = "";
+    } else if (q && filtered.length !== entries.length) {
+      countEl.textContent = `${filtered.length} z ${entries.length} zápisů`;
+    } else {
+      countEl.textContent = `${entries.length} zápis${entries.length === 1 ? "" : entries.length < 5 ? "y" : "ů"}`;
+    }
+  }
+
+  list.innerHTML = "";
+
+  if (entries.length === 0) {
+    list.innerHTML = `<div class="status">Zatím žádné zápisy. Napiš první nahoře.</div>`;
+    return;
+  }
+  if (filtered.length === 0) {
+    list.innerHTML = `<div class="status">Žádný zápis neodpovídá hledanému textu „${escapeHtml(q)}".</div>`;
+    return;
+  }
+
+  for (const entry of filtered) {
+    const card = document.createElement("div");
+    card.className = "journal-entry";
+    card.dataset.id = entry.id;
+
+    if (state.journalEditingId === entry.id) {
+      // Edit režim — inline textarea
+      card.innerHTML = `
+        <div class="journal-entry-header">
+          <span class="journal-date">${formatJournalDate(entry.date)}</span>
+          <span class="muted small">(úprava)</span>
+        </div>
+        <textarea class="journal-edit-text" rows="4" maxlength="10000">${escapeHtml(entry.text)}</textarea>
+        <div class="journal-entry-actions">
+          <span class="muted small journal-edit-error"></span>
+          <button class="btn" data-journal-cancel="${entry.id}">Zrušit</button>
+          <button class="btn primary" data-journal-save="${entry.id}">Uložit</button>
+        </div>
+      `;
+    } else {
+      // Read režim
+      card.innerHTML = `
+        <div class="journal-entry-header">
+          <span class="journal-date">${formatJournalDate(entry.date)}</span>
+          <div class="journal-entry-buttons">
+            <button class="btn-action" data-journal-edit="${entry.id}">Upravit</button>
+            <button class="btn-icon-x" data-journal-delete="${entry.id}" title="Smazat zápis" aria-label="Smazat">×</button>
+          </div>
+        </div>
+        <div class="journal-text">${escapeHtml(entry.text)}</div>
+      `;
+    }
+    list.appendChild(card);
+  }
+}
+
+function formatJournalDate(iso) {
+  try {
+    const d = new Date(iso);
+    const date = d.toLocaleDateString("cs-CZ", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    const time = d.toLocaleTimeString("cs-CZ", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    return `${date} · ${time}`;
+  } catch {
+    return iso;
+  }
+}
+
+async function journalUpdate(id, text) {
+  const res = await fetch(JOURNAL_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "update", id, text }),
+  });
+  return res;
+}
+
+async function journalDelete(id) {
+  const res = await fetch(JOURNAL_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "delete", id }),
+  });
+  return res;
 }
 
 // ---------- Allocation ----------
@@ -2469,6 +2698,10 @@ function exportCurrentViewXlsx() {
     filenamePart = "alerty";
   } else if (view === "report") {
     return exportReportXlsx();
+  } else if (view === "journal") {
+    aoa = buildJournalAoa();
+    sheetName = "Deník investora";
+    filenamePart = "denik";
   } else {
     alert(`Export pro tab ${view} zatím není podporovaný.`);
     return;
@@ -2655,6 +2888,27 @@ function buildDividendsAoa() {
       r.date, r.symbol, inst.name || "", r.country || "",
       r.gross, r.tax, r.gross + r.tax, r.currency, r.gross_usd + r.tax_usd,
     ];
+  });
+  return [header, ...data];
+}
+
+function buildJournalAoa() {
+  const entries = (state.journal?.entries || []).slice();
+  entries.sort((a, b) => b.date.localeCompare(a.date));
+  const q = (state.journalSearch || "").trim().toLowerCase();
+  const filtered = q
+    ? entries.filter((e) => e.text.toLowerCase().includes(q))
+    : entries;
+  const header = ["Datum", "Čas", "Text"];
+  const data = filtered.map((e) => {
+    const d = new Date(e.date);
+    const date = d.toLocaleDateString("cs-CZ", {
+      day: "2-digit", month: "2-digit", year: "numeric",
+    });
+    const time = d.toLocaleTimeString("cs-CZ", {
+      hour: "2-digit", minute: "2-digit",
+    });
+    return [date, time, e.text];
   });
   return [header, ...data];
 }
