@@ -787,7 +787,10 @@ function renderWatchlist() {
             price != null && r.ref_price
               ? ((price - r.ref_price) / r.ref_price) * 100
               : null;
-          const met = change != null && change <= r.threshold_pct;
+          // "Pokles ≥ X%" znamená cena klesla o X% i více → change ≤ -X.
+          // threshold_pct akceptujeme kladně i záporně, počítáme magnitudu.
+          const dropMagnitude = -Math.abs(r.threshold_pct);
+          const met = change != null && change <= dropMagnitude;
           return `<span class="${met ? "neg" : "muted"}">pokles ≥ ${Math.abs(r.threshold_pct)}% od ${fmtNum(r.ref_price, 2)} (${change != null ? fmtPct(change) : "?"})</span>`;
         }
         return `<span class="muted">${escapeHtml(r.type)}</span>`;
@@ -798,8 +801,10 @@ function renderWatchlist() {
       if (price == null) return false;
       if (r.type === "price_below") return price < r.value;
       if (r.type === "price_above") return price > r.value;
-      if (r.type === "drop_pct" && r.ref_price)
-        return ((price - r.ref_price) / r.ref_price) * 100 <= r.threshold_pct;
+      if (r.type === "drop_pct" && r.ref_price) {
+        const change = ((price - r.ref_price) / r.ref_price) * 100;
+        return change <= -Math.abs(r.threshold_pct);
+      }
       return false;
     });
 
@@ -916,7 +921,7 @@ function evaluateRule(rule) {
       if (quote.price == null) continue;
       const change =
         ((quote.price - pos.avg_open_price) / pos.avg_open_price) * 100;
-      if (change <= rule.threshold_pct) {
+      if (change <= -Math.abs(rule.threshold_pct)) {
         matches.push({
           symbol: sym,
           name: inst.name,
@@ -937,7 +942,7 @@ function evaluateRule(rule) {
       if (quote.price != null) {
         const change =
           ((quote.price - pos.avg_open_price) / pos.avg_open_price) * 100;
-        if (change <= rule.threshold_pct) {
+        if (change <= -Math.abs(rule.threshold_pct)) {
           matches.push({
             symbol: sym,
             name: inst.name,

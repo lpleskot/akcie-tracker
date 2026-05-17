@@ -698,12 +698,23 @@ tbody tr:last-child td {
   border-bottom: none;
 }
 
-td.num,
-th.num {
+td.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
   font-size: 12.5px;
+}
+th.num {
+  text-align: right;
+  /* Záměrně bez monospace a bez 12.5px — hlavička má jednotný
+     sans-serif font 11px jako ostatní th, ať Burza/Měna a
+     Nákupní cena pozice vypadají stejně. */
+}
+/* Vycentrovat header "Nákupní cena pozice" a "Hodnota pozice"
+   pod 2řádkovým textem, lépe vizuálně sedí nad čísly. */
+#tbl-overview th[data-sort-key="cost"],
+#tbl-overview th[data-sort-key="value"] {
+  text-align: center;
 }
 
 td.symbol {
