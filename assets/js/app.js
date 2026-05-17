@@ -12,6 +12,7 @@ const FX_URL = "./data/fx_rates.json";
 // Watchlist + alerts jsou teď KV-backed přes Pages Functions
 const WATCHLIST_URL = "/api/watchlist";
 const ALERTS_URL = "/api/alerts";
+const NOTES_URL = "/api/notes";
 const QUOTE_URL = "/api/quote";
 
 // LocalStorage key pro pamatování posledního výběru portfolia
@@ -78,18 +79,21 @@ init().catch((err) => {
 async function init() {
   setStatus("Načítám manifest…");
 
-  // 1) Load manifest, FX rates, watchlist, alerts paralelně
-  const [manifestRes, fxRes, watchRes, alertsRes] = await Promise.all([
+  // 1) Load manifest, FX rates, watchlist, alerts, notes paralelně
+  const [manifestRes, fxRes, watchRes, alertsRes, notesRes] = await Promise.all([
     fetch(MANIFEST_URL, { cache: "no-cache" }),
     fetch(FX_URL, { cache: "no-cache" }),
     fetch(WATCHLIST_URL, { cache: "no-cache" }),
     fetch(ALERTS_URL, { cache: "no-cache" }),
+    fetch(NOTES_URL, { cache: "no-cache" }),
   ]);
   if (!manifestRes.ok) throw new Error(`Manifest ${manifestRes.status}`);
   state.manifest = await manifestRes.json();
   state.fxRates = fxRes.ok ? await fxRes.json() : { dates: {} };
   state.watchlist = watchRes.ok ? await watchRes.json() : { items: [] };
   state.alerts = alertsRes.ok ? await alertsRes.json() : { rules: [], fired: {} };
+  const notesData = notesRes.ok ? await notesRes.json() : { notes: {} };
+  state.notes = notesData.notes || {};
 
   // 2) Vybrat aktivní portfolio (z localStorage nebo primary)
   const savedId = localStorage.getItem(LS_PORTFOLIO);
@@ -666,6 +670,17 @@ function setupEditWatchModal() {
 // Globální delegovaný handler pro Delete/Re-arm/Edit tlačítka
 document.addEventListener("click", async (e) => {
   const t = e.target;
+  // Poznámka — klik na "i" ikonku nebo na button "Poznámka" / "Upravit poznámku"
+  if (t.matches?.("[data-note-edit]")) {
+    e.stopPropagation();
+    openNoteModal(t.dataset.noteEdit);
+    return;
+  }
+  if (t.matches?.("[data-note-edit-symbol]")) {
+    e.stopPropagation();
+    openNoteModal(t.dataset.noteEditSymbol);
+    return;
+  }
   if (t.matches?.("[data-watch-edit]")) {
     openEditWatch(t.dataset.watchEdit);
     return;
@@ -831,7 +846,7 @@ function renderWatchlist() {
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td class="symbol">${it.symbol}</td>
+      <td class="symbol">${it.symbol}${noteIconHtml(it.symbol)}</td>
       <td>${escapeHtml(it.name || quote.name || "")}</td>
       <td>${ccy}</td>
       <td class="num">${price != null ? fmtNum(price, 2) : '<span class="muted">—</span>'}</td>
@@ -845,6 +860,7 @@ function renderWatchlist() {
         </button>
         ${hasBench ? `<button class="btn-action" data-watch-unmark="${it.id}" title="Zrušit označenou cenu">Zrušit značku</button>` : ""}
         <button class="btn-action" data-watch-edit="${it.id}">Upravit pravidla</button>
+        <button class="btn-action" data-note-edit-symbol="${it.symbol}" title="Přidat nebo upravit poznámku o firmě">Poznámka</button>
         <button class="btn-icon-x" data-watch-delete="${it.id}" title="Smazat z watchlistu" aria-label="Smazat">×</button>
       </td>
     `;
@@ -1218,7 +1234,7 @@ function renderOverview() {
     tr.className = "position";
     tr.dataset.sym = r.sym;
     tr.innerHTML = `
-      <td class="symbol">${r.sym}</td>
+      <td class="symbol">${r.sym}${noteIconHtml(r.sym)}</td>
       <td>${escapeHtml(r.inst.name)}</td>
       <td>${r.inst.exchange}</td>
       <td>${r.inst.currency}</td>
@@ -1286,6 +1302,22 @@ function buildDetailRow(sym) {
   html.push(
     `<h3>${sym} — ${escapeHtml(inst.name)} <span class="muted">· ${inst.exchange} · ${ccy}</span></h3>`,
   );
+
+  // Poznámka o firmě (volitelná, KV-backed přes /api/notes)
+  const note = state.notes?.[sym];
+  html.push(`<div class="detail-section detail-note-section">`);
+  html.push(`<h4>Poznámka</h4>`);
+  if (note) {
+    html.push(`<div class="note-text">${escapeHtml(note)}</div>`);
+    html.push(
+      `<button class="btn-action" data-note-edit-symbol="${sym}" style="margin-top:6px;">Upravit poznámku</button>`,
+    );
+  } else {
+    html.push(
+      `<button class="btn-action" data-note-edit-symbol="${sym}">+ Přidat poznámku</button>`,
+    );
+  }
+  html.push(`</div>`);
 
   // Nákupy
   html.push(`<div class="detail-section">`);
@@ -2677,6 +2709,79 @@ function exportReportXlsx() {
   XLSX.utils.book_append_sheet(wb, ws, "Report");
   const fname = `${state.portfolio.id}-report-${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, fname);
+}
+
+// ---------- Notes ----------
+function noteIconHtml(symbol) {
+  const note = state.notes?.[symbol];
+  if (!note) return "";
+  // Tooltip-safe (žádné " v title) + krátký prefix pro hover náhled
+  const safe = String(note).replace(/"/g, "&quot;");
+  return ` <span class="hint hint-note" data-note-edit="${symbol}" title="${safe}">i</span>`;
+}
+
+async function openNoteModal(symbol) {
+  if (!symbol) return;
+  const inst = state.portfolio?.instruments?.[symbol] || {};
+  const watchItem = (state.watchlist?.items || []).find(
+    (it) => it.symbol === symbol,
+  );
+  const name = inst.name || watchItem?.name || "";
+  const existing = state.notes?.[symbol] || "";
+
+  document.getElementById("note-title").textContent =
+    `Poznámka — ${symbol}${name ? ` (${name})` : ""}`;
+  document.getElementById("note-subtitle").textContent =
+    "Poznámka je sdílená mezi Přehled pozic a Watchlistem.";
+  const ta = document.getElementById("note-text");
+  ta.value = existing;
+  document.getElementById("note-error").textContent = "";
+
+  const btnDelete = document.getElementById("btn-delete-note");
+  btnDelete.hidden = !existing;
+
+  // Save handler — bind každý open znovu kvůli capture symbolu
+  const btnSave = document.getElementById("btn-save-note");
+  const newBtnSave = btnSave.cloneNode(true);
+  btnSave.parentNode.replaceChild(newBtnSave, btnSave);
+  newBtnSave.addEventListener("click", () => saveNote(symbol, ta.value));
+
+  const newBtnDelete = btnDelete.cloneNode(true);
+  btnDelete.parentNode.replaceChild(newBtnDelete, btnDelete);
+  newBtnDelete.hidden = !existing;
+  newBtnDelete.addEventListener("click", () => saveNote(symbol, ""));
+
+  openModal("modal-edit-note");
+  setTimeout(() => ta.focus(), 50);
+}
+
+async function saveNote(symbol, text) {
+  const errEl = document.getElementById("note-error");
+  errEl.textContent = "";
+  try {
+    const res = await fetch(NOTES_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol, text }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || `HTTP ${res.status}`;
+      return;
+    }
+    // Lokálně promítnout
+    if (text.trim() === "") {
+      delete state.notes[symbol];
+    } else {
+      state.notes[symbol] = text.trim();
+    }
+    closeModal("modal-edit-note");
+    // Re-render všeho, co note zobrazuje
+    if (state.positions) renderOverview();
+    renderWatchlist();
+  } catch (e) {
+    errEl.textContent = `Síťová chyba: ${e.message}`;
+  }
 }
 
 // ---------- Helpers ----------

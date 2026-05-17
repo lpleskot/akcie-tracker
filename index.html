@@ -379,6 +379,24 @@
       </div>
     </div>
 
+    <!-- Modal: Poznámka k tickeru -->
+    <div class="modal-overlay" id="modal-edit-note" hidden>
+      <div class="modal">
+        <h3 id="note-title">Poznámka</h3>
+        <div class="muted small" id="note-subtitle"></div>
+        <label style="margin-top:10px;">
+          <span>Krátký popis firmy (max 800 znaků)</span>
+          <textarea id="note-text" rows="6" maxlength="800" placeholder="Co firma dělá, klíčové produkty, sektor, …"></textarea>
+        </label>
+        <div class="modal-error" id="note-error"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn" data-close>Zrušit</button>
+          <button type="button" class="btn" id="btn-delete-note" hidden>Smazat poznámku</button>
+          <button type="button" class="btn primary" id="btn-save-note">Uložit</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal: Přidat alert pravidlo -->
     <div class="modal-overlay" id="modal-add-alert" hidden>
       <div class="modal">

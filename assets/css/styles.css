@@ -714,6 +714,47 @@ th.sortable.sorted.desc::after {
   color: var(--color-accent);
 }
 
+/* Note icon — barevně odlišená "i" u tickeru s poznámkou */
+.hint-note {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  cursor: pointer;
+}
+.hint-note:hover {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+/* Poznámka v rozbaleném detailu */
+.detail-note-section .note-text {
+  font-size: 12.5px;
+  color: var(--color-text);
+  line-height: 1.55;
+  background: #fafaf6;
+  padding: 8px 10px;
+  border-left: 2px solid var(--color-accent);
+  border-radius: 2px;
+  white-space: pre-wrap;
+}
+
+/* Textarea v modal okně poznámky */
+#note-text {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  resize: vertical;
+  min-height: 100px;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+#note-text:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
 tbody tr:nth-child(even) {
   background: var(--color-zebra);
 }
