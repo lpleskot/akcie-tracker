@@ -1754,22 +1754,42 @@ function renderSummary() {
     card("Otevřené pozice", openCount, `${symbols.length} titulů celkem`),
   );
 
-  // === 2) Cash zůstatek USD ===
-  const cashUsd = p.cash_balance?.USD;
-  if (cashUsd != null) {
+  // Najít nejnovější ČNB datum (potřebujeme níže pro cash + agregáty)
+  const fxDatesEarly = state.fxRates?.dates
+    ? Object.keys(state.fxRates.dates).sort()
+    : [];
+  const todayFxDateEarly = fxDatesEarly[fxDatesEarly.length - 1] || null;
+  const fxUsdToCzkEarly = todayFxDateEarly
+    ? getFxToCzk(todayFxDateEarly, "USD")
+    : null;
+
+  // === 2) Cash zůstatek — sumovat všechny měny do CZK ===
+  const cashBalance = p.cash_balance || {};
+  let cashCzkTotal = 0;
+  const cashBreakdown = [];
+  for (const ccy of Object.keys(cashBalance).sort()) {
+    const amt = cashBalance[ccy];
+    if (amt == null) continue;
+    const rate = todayFxDateEarly ? getFxToCzk(todayFxDateEarly, ccy) : null;
+    if (rate != null) {
+      cashCzkTotal += amt * rate;
+      cashBreakdown.push(`${fmtNum(amt, 2)} ${ccy}`);
+    }
+  }
+  if (Object.keys(cashBalance).length > 0) {
+    const subText = cashBreakdown.join(" · ");
     wrap.appendChild(
       cardHtml(
-        `Cash zůstatek · USD`,
-        `<span class="${signClass(cashUsd)}">${fmtNum(cashUsd, 2)}</span>`,
-        "Aktuální cash na účtu",
+        `Cash zůstatek · CZK`,
+        `<span class="${signClass(cashCzkTotal)}">${fmtNum(cashCzkTotal, 0)} Kč</span>`,
+        subText.length > 60 ? `${cashBreakdown.length} měn na účtu` : subText,
       ),
     );
   }
 
-  // Najít nejnovější ČNB datum pro "today's FX"
-  const fxDates = state.fxRates?.dates ? Object.keys(state.fxRates.dates).sort() : [];
-  const todayFxDate = fxDates[fxDates.length - 1] || null;
-  const fxUsdToCzk = todayFxDate ? getFxToCzk(todayFxDate, "USD") : null;
+  // Použít už vytažené FX hodnoty z bloku výše
+  const todayFxDate = todayFxDateEarly;
+  const fxUsdToCzk = fxUsdToCzkEarly;
 
   // Sesbírat data pro agregaci
   let currentValueUsd = 0;
@@ -1804,7 +1824,10 @@ function renderSummary() {
     dividendsTaxUsd += pos.withholding_usd || 0;
   }
 
-  const totalAssetsUsd = currentValueUsd + (cashUsd || 0);
+  // Cash USD ekv = total cash CZK / USD/CZK
+  const cashUsdAll =
+    fxUsdToCzk && cashCzkTotal ? cashCzkTotal / fxUsdToCzk : 0;
+  const totalAssetsUsd = currentValueUsd + cashUsdAll;
   const totalDeposits = p.total_deposits_usd || 0;
   const totalReturnUsd =
     totalDeposits > 0 ? totalAssetsUsd - totalDeposits : 0;

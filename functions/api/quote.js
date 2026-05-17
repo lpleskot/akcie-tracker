@@ -94,20 +94,32 @@ async function fetchOne(symbol) {
   }
 
   const m = result.meta;
+  // Normalizace minor units: některé burzy (London LSE, Johannesburg)
+  // vrací cenu v centech / pencích / agorech. Yahoo to označuje "GBp",
+  // "GBX", "ZAc". Převedeme na hlavní jednotku.
+  const MINOR_UNITS = { GBp: "GBP", GBX: "GBP", ZAc: "ZAR", ILA: "ILS" };
+  let currency = m.currency;
+  const scale = MINOR_UNITS[currency] ? 100 : 1;
+  if (MINOR_UNITS[currency]) currency = MINOR_UNITS[currency];
+
   return {
     symbol: m.symbol,
     name: m.longName || m.shortName || null,
-    currency: m.currency,
+    currency,
     exchange: m.fullExchangeName || m.exchangeName,
-    price: m.regularMarketPrice,
-    previous_close: m.chartPreviousClose,
-    day_high: m.regularMarketDayHigh,
-    day_low: m.regularMarketDayLow,
-    fifty_two_week_high: m.fiftyTwoWeekHigh,
-    fifty_two_week_low: m.fiftyTwoWeekLow,
+    price: m.regularMarketPrice != null ? m.regularMarketPrice / scale : null,
+    previous_close:
+      m.chartPreviousClose != null ? m.chartPreviousClose / scale : null,
+    day_high: m.regularMarketDayHigh != null ? m.regularMarketDayHigh / scale : null,
+    day_low: m.regularMarketDayLow != null ? m.regularMarketDayLow / scale : null,
+    fifty_two_week_high:
+      m.fiftyTwoWeekHigh != null ? m.fiftyTwoWeekHigh / scale : null,
+    fifty_two_week_low:
+      m.fiftyTwoWeekLow != null ? m.fiftyTwoWeekLow / scale : null,
     market_time: m.regularMarketTime
       ? new Date(m.regularMarketTime * 1000).toISOString()
       : null,
+    raw_currency: m.currency, // pro debug — původní Yahoo currency code
   };
 }
 
