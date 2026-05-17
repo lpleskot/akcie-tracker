@@ -313,11 +313,36 @@
             />
           </label>
           <p class="muted small">
-            Pro neamerické burzy přidejte příponu: <code>.PR</code> Praha,
-            <code>.ST</code> Stockholm, <code>.PA</code> Paříž,
-            <code>.DE</code> Xetra, <code>.TO</code> Toronto, <code>.L</code> Londýn,
-            <code>.HK</code> Hong Kong, <code>.T</code> Tokio
+            US burzy (NYSE / NASDAQ) bez přípony. Pro ostatní přidejte suffix —
+            <a href="#" id="link-exchange-suffixes">zobrazit kompletní tabulku</a>.
           </p>
+          <div id="exchange-suffixes-help" class="exchange-help" hidden>
+            <table>
+              <thead>
+                <tr><th>Burza</th><th>Suffix</th><th>Příklad</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>TSX (Toronto, CA)</td><td><code>.TO</code></td><td><code>TOI.TO</code> Topicus</td></tr>
+                <tr><td>TSXV / CVE (Toronto Venture)</td><td><code>.V</code></td><td><code>XYZ.V</code></td></tr>
+                <tr><td>SWX (Curych, CH)</td><td><code>.SW</code></td><td><code>NESN.SW</code> Nestlé</td></tr>
+                <tr><td>LSE (Londýn, GB)</td><td><code>.L</code></td><td><code>CRST.L</code></td></tr>
+                <tr><td>XETRA (Frankfurt, DE)</td><td><code>.DE</code></td><td><code>SAP.DE</code></td></tr>
+                <tr><td>Euronext Paris (FR)</td><td><code>.PA</code></td><td><code>MC.PA</code> LVMH</td></tr>
+                <tr><td>Euronext Amsterdam (NL)</td><td><code>.AS</code></td><td><code>ASML.AS</code></td></tr>
+                <tr><td>ASX (Sydney, AU)</td><td><code>.AX</code></td><td><code>YAL.AX</code></td></tr>
+                <tr><td>BMV (Mexico City)</td><td><code>.MX</code></td><td><code>BIMBOA.MX</code></td></tr>
+                <tr><td>TSE (Tokio, JP)</td><td><code>.T</code></td><td><code>7203.T</code> Toyota</td></tr>
+                <tr><td>BCPP (Praha, ČR)</td><td><code>.PR</code></td><td><code>CEZ.PR</code></td></tr>
+                <tr><td>BME (Madrid, ES)</td><td><code>.MC</code></td><td><code>SAN.MC</code></td></tr>
+                <tr><td>BIT (Milán, IT)</td><td><code>.MI</code></td><td><code>RACE.MI</code></td></tr>
+                <tr><td>OMX Stockholm (SE)</td><td><code>.ST</code></td><td><code>VOLV-B.ST</code></td></tr>
+                <tr><td>HKEX (Hong Kong)</td><td><code>.HK</code></td><td><code>0700.HK</code></td></tr>
+              </tbody>
+            </table>
+            <p class="muted small" style="margin-top:6px;">
+              Pokud si nejsi jistý, otevři <a href="https://finance.yahoo.com/" target="_blank" rel="noopener">finance.yahoo.com</a> a najdi firmu — uvidíš přesný Yahoo ticker včetně přípony.
+            </p>
+          </div>
 
           <label class="checkbox-row">
             <input type="checkbox" id="rule-enable-watch" />

@@ -381,6 +381,115 @@ button.primary:hover {
   color: #fff;
 }
 
+/* Tabulka burzovních suffixů v modalu Přidat watchlist */
+.exchange-help {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: #fafaf6;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.exchange-help table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.exchange-help th,
+.exchange-help td {
+  padding: 3px 8px 3px 0;
+  text-align: left;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.exchange-help th {
+  font-weight: 600;
+  color: var(--color-text-muted);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--color-border);
+  position: static;       /* zruší sticky z th defaultu */
+}
+.exchange-help code {
+  background: #ecece6;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11.5px;
+}
+
+/* Akční menu (⋯) v tabulkách — kompaktní jeden trigger,
+   rozbalovací položky pod ním. */
+.action-menu {
+  position: relative;
+  display: inline-block;
+}
+.action-menu-toggle {
+  min-width: 30px;
+  padding: 4px 10px;
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 1px;
+}
+.action-menu-items {
+  position: fixed;            /* fixed, aby nebylo oříznuté .table-wrap overflow */
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  min-width: 180px;
+  white-space: nowrap;
+}
+.action-menu-items[hidden] {
+  display: none;
+}
+.action-menu-items li {
+  margin: 0;
+  padding: 0;
+}
+.action-menu-items li.separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--color-border);
+}
+.action-menu-items button {
+  display: block;
+  width: 100%;
+  padding: 7px 14px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.action-menu-items button:hover {
+  background: #f0f0eb;
+  color: var(--color-accent);
+}
+.action-menu-items button:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+.action-menu-items button.danger {
+  color: var(--color-negative);
+}
+.action-menu-items button.danger:hover {
+  background: var(--color-negative);
+  color: #fff;
+}
+
 /* Smazat (× ikonka) — kompaktní červené tlačítko bez textu */
 .btn-icon-x {
   display: inline-flex;

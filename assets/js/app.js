@@ -337,6 +337,11 @@ function setupWatchlistModal() {
       const f = document.getElementById("form-add-watch");
       if (f) f.reset();
       document.getElementById("watch-error").textContent = "";
+      // Skrýt nápovědnou tabulku burz, dokud na ni uživatel neklikne
+      const help = document.getElementById("exchange-suffixes-help");
+      const helpLink = document.getElementById("link-exchange-suffixes");
+      if (help) help.hidden = true;
+      if (helpLink) helpLink.textContent = "zobrazit kompletní tabulku";
       openModal("modal-add-watch");
     });
   setupModalClose("modal-add-watch");
@@ -668,6 +673,83 @@ function setupEditWatchModal() {
 }
 
 // Globální delegovaný handler pro Delete/Re-arm/Edit tlačítka
+// Akční menu (⋯) — fixed-position dropdown, ať nemůže být oříznuto
+// .table-wrap overflow: auto.
+function positionActionMenu(toggle, menu) {
+  const rect = toggle.getBoundingClientRect();
+  // Dočasně zobrazit, aby šlo změřit rozměry
+  menu.style.visibility = "hidden";
+  menu.hidden = false;
+  const menuRect = menu.getBoundingClientRect();
+  menu.hidden = true;
+  menu.style.visibility = "";
+
+  // Defaultně pod toggle, zarovnáno k pravému okraji
+  let top = rect.bottom + 4;
+  let left = rect.right - menuRect.width;
+  // Pokud by přesahovalo dolní okraj viewportu, otevři nad
+  if (top + menuRect.height > window.innerHeight - 8) {
+    top = rect.top - menuRect.height - 4;
+  }
+  if (left < 8) left = 8;
+  menu.style.top = `${top}px`;
+  menu.style.left = `${left}px`;
+}
+
+document.addEventListener("click", (e) => {
+  const toggle = e.target.closest?.(".action-menu-toggle");
+  // Zavřít všechna otevřená menu kromě toho, na které se klikne
+  document.querySelectorAll(".action-menu-items").forEach((m) => {
+    if (toggle && m === toggle.parentElement.querySelector(".action-menu-items")) {
+      return;
+    }
+    m.hidden = true;
+    const t = m.parentElement?.querySelector?.(".action-menu-toggle");
+    if (t) t.setAttribute("aria-expanded", "false");
+  });
+  if (toggle) {
+    const menu = toggle.parentElement.querySelector(".action-menu-items");
+    const willOpen = menu.hidden;
+    if (willOpen) {
+      positionActionMenu(toggle, menu);
+      menu.hidden = false;
+    } else {
+      menu.hidden = true;
+    }
+    toggle.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    e.stopPropagation();
+  }
+});
+// Zavřít menu při scrollu nebo resize (jinak by zůstalo "viset" v původní pozici)
+window.addEventListener("scroll", () => {
+  document.querySelectorAll(".action-menu-items").forEach((m) => (m.hidden = true));
+}, true);
+window.addEventListener("resize", () => {
+  document.querySelectorAll(".action-menu-items").forEach((m) => (m.hidden = true));
+});
+// Klik na položku v menu → zavřít menu (akce se vykoná v existujícím delegovaném handleru)
+document.addEventListener("click", (e) => {
+  const item = e.target.closest?.(".action-menu-items button");
+  if (item) {
+    const menu = item.closest(".action-menu-items");
+    if (menu) menu.hidden = true;
+    const toggle = menu?.parentElement.querySelector(".action-menu-toggle");
+    if (toggle) toggle.setAttribute("aria-expanded", "false");
+  }
+});
+
+// Zobrazit/skrýt tabulku burzovních suffixů pod inputem ve Watchlist Add
+document.getElementById("link-exchange-suffixes")?.addEventListener("click", (e) => {
+  e.preventDefault();
+  const help = document.getElementById("exchange-suffixes-help");
+  if (!help) return;
+  const willShow = help.hidden;
+  help.hidden = !willShow;
+  e.target.textContent = willShow
+    ? "skrýt tabulku"
+    : "zobrazit kompletní tabulku";
+});
+
 document.addEventListener("click", async (e) => {
   const t = e.target;
   // Poznámka — klik na "i" ikonku nebo na button "Poznámka" / "Upravit poznámku"
@@ -855,13 +937,17 @@ function renderWatchlist() {
       <td>${rulesHtml || '<span class="muted">žádné pravidlo</span>'}</td>
       <td>${anyMet ? '<span class="badge sell">SPLNĚNO</span>' : '<span class="muted">armed</span>'}</td>
       <td>
-        <button class="btn-action" data-watch-mark="${it.id}" data-current-price="${price ?? ''}" title="Uloží aktuální cenu jako referenční bod, ke kterému se bude počítat změna" ${markDisabled}>
-          ${markLabel}
-        </button>
-        ${hasBench ? `<button class="btn-action" data-watch-unmark="${it.id}" title="Zrušit označenou cenu">Zrušit značku</button>` : ""}
-        <button class="btn-action" data-watch-edit="${it.id}">Upravit pravidla</button>
-        <button class="btn-action" data-note-edit-symbol="${it.symbol}" title="Přidat nebo upravit poznámku o firmě">Poznámka</button>
-        <button class="btn-icon-x" data-watch-delete="${it.id}" title="Smazat z watchlistu" aria-label="Smazat">×</button>
+        <div class="action-menu">
+          <button class="btn-action action-menu-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Zobrazit akce">⋯</button>
+          <ul class="action-menu-items" role="menu" hidden>
+            <li><button type="button" role="menuitem" data-watch-mark="${it.id}" data-current-price="${price ?? ''}" ${markDisabled}>${markLabel}</button></li>
+            ${hasBench ? `<li><button type="button" role="menuitem" data-watch-unmark="${it.id}">Zrušit značku</button></li>` : ""}
+            <li><button type="button" role="menuitem" data-watch-edit="${it.id}">Upravit pravidla</button></li>
+            <li><button type="button" role="menuitem" data-note-edit-symbol="${it.symbol}">Poznámka</button></li>
+            <li class="separator"></li>
+            <li><button type="button" role="menuitem" class="danger" data-watch-delete="${it.id}">Smazat z watchlistu</button></li>
+          </ul>
+        </div>
       </td>
     `;
     tbody.appendChild(tr);
