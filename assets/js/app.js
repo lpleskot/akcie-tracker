@@ -383,7 +383,9 @@ function setupWatchlistModal() {
         const rule = { type, armed: true };
         if (type === "drop_pct") {
           rule.ref_price = parseFloat(fd.get("rule_ref_price"));
-          rule.threshold_pct = parseFloat(fd.get("rule_threshold"));
+          const rawThreshold = parseFloat(fd.get("rule_threshold"));
+          // Normalizace: pokles ukládáme vždy záporně (např. -5 = pokles o 5 %).
+          rule.threshold_pct = -Math.abs(rawThreshold);
           if (isNaN(rule.ref_price) || isNaN(rule.threshold_pct)) {
             showWatchError("Vyplň referenční cenu i pokles %");
             return;
@@ -626,7 +628,9 @@ function setupEditWatchModal() {
       const r = { type, armed: true };
       if (type === "drop_pct") {
         r.ref_price = parseFloat(row.querySelector(".rule-ref").value);
-        r.threshold_pct = parseFloat(row.querySelector(".rule-threshold").value);
+        const rawThreshold = parseFloat(row.querySelector(".rule-threshold").value);
+        // Normalizace: pokles ukládáme vždy záporně.
+        r.threshold_pct = -Math.abs(rawThreshold);
         if (isNaN(r.ref_price) || isNaN(r.threshold_pct)) {
           document.getElementById("edit-watch-error").textContent =
             "Vyplň referenční cenu i pokles % u všech drop_pct pravidel.";
@@ -841,7 +845,7 @@ function renderWatchlist() {
         </button>
         ${hasBench ? `<button class="btn-action" data-watch-unmark="${it.id}" title="Zrušit označenou cenu">Zrušit značku</button>` : ""}
         <button class="btn-action" data-watch-edit="${it.id}">Upravit pravidla</button>
-        <button class="btn-action danger" data-watch-delete="${it.id}">Smazat</button>
+        <button class="btn-icon-x" data-watch-delete="${it.id}" title="Smazat z watchlistu" aria-label="Smazat">×</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -1471,10 +1475,24 @@ function buildDetailRow(sym) {
     ]);
     const sameCcy = divCcys.size <= 1 && (divCcys.size === 0 || divCcys.has(ccy));
 
+    // FX přepočet do CZK (pro zobrazení Total Return i v Kč)
+    const fxDates = state.fxRates?.dates
+      ? Object.keys(state.fxRates.dates).sort()
+      : [];
+    const todayFxDate = fxDates[fxDates.length - 1] || null;
+    const fxLocalToCzk = todayFxDate ? getFxToCzk(todayFxDate, ccy) : null;
+    const willShowTotalReturn = hasDividends && sameCcy;
+    const capitalCzk =
+      fxLocalToCzk != null ? capitalPnl * fxLocalToCzk : null;
+    const capitalCzkSuffix =
+      !willShowTotalReturn && capitalCzk != null
+        ? ` <span class="muted">≈ ${fmtNum(capitalCzk, 0)} Kč</span>`
+        : "";
+
     html.push(`<div class="detail-section summary">`);
     html.push(`<div>`);
     html.push(
-      `<div>Kapitálová Z/Z: <span class="${signClass(capitalPnl)}"><strong>${fmtNum(capitalPnl, 2)} ${ccy}</strong> (${fmtPct(capitalPct)})</span></div>`,
+      `<div>Kapitálová Z/Z: <span class="${signClass(capitalPnl)}"><strong>${fmtNum(capitalPnl, 2)} ${ccy}</strong> (${fmtPct(capitalPct)})</span>${capitalCzkSuffix}</div>`,
     );
     if (hasDividends && sameCcy) {
       const totalReturn = capitalPnl + pos.net_dividend_local;
@@ -1482,11 +1500,17 @@ function buildDetailRow(sym) {
         pos.total_invested > 0
           ? (totalReturn / pos.total_invested) * 100
           : 0;
+      const totalReturnCzk =
+        fxLocalToCzk != null ? totalReturn * fxLocalToCzk : null;
+      const czkSuffix =
+        totalReturnCzk != null
+          ? ` <span class="muted">≈ ${fmtNum(totalReturnCzk, 0)} Kč</span>`
+          : "";
       html.push(
         `<div>+ Čistý dividendový výnos: <span class="${signClass(pos.net_dividend_local)}"><strong>${fmtNum(pos.net_dividend_local, 2)} ${ccy}</strong></span></div>`,
       );
       html.push(
-        `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--color-border);">= <strong>TOTAL RETURN</strong>: <span class="${signClass(totalReturn)}"><strong>${fmtNum(totalReturn, 2)} ${ccy}</strong> (${fmtPct(totalReturnPct)})</span></div>`,
+        `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--color-border);">= <strong>TOTAL RETURN</strong>: <span class="${signClass(totalReturn)}"><strong>${fmtNum(totalReturn, 2)} ${ccy}</strong> (${fmtPct(totalReturnPct)})</span>${czkSuffix}</div>`,
       );
     } else if (hasDividends) {
       const divCcy = [...divCcys][0];

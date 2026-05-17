@@ -381,6 +381,32 @@ button.primary:hover {
   color: #fff;
 }
 
+/* Smazat (× ikonka) — kompaktní červené tlačítko bez textu */
+.btn-icon-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: 4px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-negative);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.12s ease;
+}
+.btn-icon-x:hover {
+  background: var(--color-negative);
+  border-color: var(--color-negative);
+  color: #fff;
+}
+
 .benchmark-tooltip {
   font-size: 10.5px;
   color: var(--color-text-muted);
@@ -770,17 +796,33 @@ tr.position.expanded td {
   padding: 18px 24px 20px;
   border-left: 3px solid var(--color-accent);
   font-size: 13px;
+  /* 2-sloupcový grid pro lepší využití šířky na desktopu */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 36px;
+  row-gap: 14px;
 }
 .detail-card h3 {
-  margin: 0 0 16px 0;
+  margin: 0 0 6px 0;
   font-size: 14px;
   font-weight: 600;
+  grid-column: 1 / -1;          /* nadpis přes obě sloupce */
 }
 .detail-section {
-  margin-bottom: 14px;
+  margin-bottom: 0;             /* gap řeší grid */
 }
 .detail-section:last-child {
   margin-bottom: 0;
+}
+/* Summary box vždy přes celou šířku detailu */
+.detail-section.summary {
+  grid-column: 1 / -1;
+}
+@media (max-width: 1100px) {
+  /* Na úzkém viewportu jen 1 sloupec */
+  .detail-card {
+    grid-template-columns: 1fr;
+  }
 }
 .detail-section h4 {
   margin: 0 0 6px 0;
