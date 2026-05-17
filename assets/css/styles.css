@@ -600,6 +600,9 @@ td {
   padding: 9px 12px;
   text-align: left;
   border-bottom: 1px solid var(--color-border);
+}
+
+td {
   white-space: nowrap;
 }
 
@@ -614,6 +617,9 @@ th {
   top: 0;
   z-index: 1;
   user-select: none;
+  white-space: normal;          /* dlouhý header se může zalomit na 2 řádky */
+  vertical-align: bottom;
+  line-height: 1.25;
 }
 
 th.sortable {
