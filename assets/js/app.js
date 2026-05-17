@@ -103,6 +103,7 @@ async function init() {
   setupReportFilter();
   setupOverviewSearch();
   setupWatchlistModal();
+  setupEditWatchModal();
   setupAlertsModal();
 
   // 4) Fetch live quotes
@@ -143,8 +144,8 @@ function setupRefresh() {
   document.getElementById("btn-refresh").addEventListener("click", () => {
     refreshQuotes().catch((err) => showError(err.message));
   });
-  document.getElementById("btn-export-csv").addEventListener("click", () => {
-    exportTransactionsCsv();
+  document.getElementById("btn-export-xlsx").addEventListener("click", () => {
+    exportCurrentViewXlsx();
   });
 }
 
@@ -464,9 +465,128 @@ async function reloadAlerts() {
   }
 }
 
-// Globální delegovaný handler pro Delete/Re-arm tlačítka
+// ---------- Edit Watchlist Modal ----------
+let editingWatchId = null;
+
+function openEditWatch(id) {
+  const item = (state.watchlist?.items || []).find((x) => x.id === id);
+  if (!item) return;
+  editingWatchId = id;
+
+  document.getElementById("edit-watch-title").textContent =
+    `Upravit pravidla — ${item.symbol}`;
+  document.getElementById("edit-watch-subtitle").textContent =
+    `${item.name || ""} · ${item.currency || ""}`;
+  document.getElementById("edit-watch-error").textContent = "";
+
+  const container = document.getElementById("edit-watch-rules");
+  container.innerHTML = "";
+  for (const rule of item.rules || []) {
+    container.appendChild(buildRuleRow(rule));
+  }
+  if ((item.rules || []).length === 0) {
+    container.innerHTML =
+      '<div class="muted small" style="margin: 8px 0 4px;">Žádné pravidlo. Přidejte níže.</div>';
+  }
+
+  openModal("modal-edit-watch");
+}
+
+function buildRuleRow(rule = {}) {
+  const row = document.createElement("div");
+  row.className = "rule-row";
+  row.innerHTML = `
+    <select class="rule-type">
+      <option value="price_below" ${rule.type === "price_below" ? "selected" : ""}>Cena pod X</option>
+      <option value="price_above" ${rule.type === "price_above" ? "selected" : ""}>Cena nad X</option>
+      <option value="drop_pct" ${rule.type === "drop_pct" ? "selected" : ""}>Pokles % od ref. ceny</option>
+    </select>
+    <input class="rule-value" type="number" step="0.0001" placeholder="hodnota" value="${rule.value ?? ""}" />
+    <input class="rule-ref" type="number" step="0.0001" placeholder="ref cena" value="${rule.ref_price ?? ""}" />
+    <input class="rule-threshold" type="number" step="0.1" placeholder="pokles %" value="${rule.threshold_pct ?? ""}" />
+    <button type="button" class="btn-clear rule-remove" title="Odebrat pravidlo">×</button>
+  `;
+  // Toggle visibility per type
+  const typeSel = row.querySelector(".rule-type");
+  const valueInp = row.querySelector(".rule-value");
+  const refInp = row.querySelector(".rule-ref");
+  const thrInp = row.querySelector(".rule-threshold");
+  function sync() {
+    if (typeSel.value === "drop_pct") {
+      valueInp.style.display = "none";
+      refInp.style.display = "";
+      thrInp.style.display = "";
+    } else {
+      valueInp.style.display = "";
+      refInp.style.display = "none";
+      thrInp.style.display = "none";
+    }
+  }
+  typeSel.addEventListener("change", sync);
+  sync();
+  row.querySelector(".rule-remove").addEventListener("click", () => {
+    row.remove();
+  });
+  return row;
+}
+
+function setupEditWatchModal() {
+  setupModalClose("modal-edit-watch");
+  document.getElementById("btn-add-rule-row")?.addEventListener("click", () => {
+    const c = document.getElementById("edit-watch-rules");
+    // pokud tam je "Žádné pravidlo" hint, smazat
+    if (c.querySelector(".muted")) c.innerHTML = "";
+    c.appendChild(buildRuleRow());
+  });
+  document.getElementById("btn-save-watch")?.addEventListener("click", async () => {
+    if (!editingWatchId) return;
+    const rows = document.querySelectorAll("#edit-watch-rules .rule-row");
+    const rules = [];
+    for (const row of rows) {
+      const type = row.querySelector(".rule-type").value;
+      const r = { type, armed: true };
+      if (type === "drop_pct") {
+        r.ref_price = parseFloat(row.querySelector(".rule-ref").value);
+        r.threshold_pct = parseFloat(row.querySelector(".rule-threshold").value);
+        if (isNaN(r.ref_price) || isNaN(r.threshold_pct)) {
+          document.getElementById("edit-watch-error").textContent =
+            "Vyplň referenční cenu i pokles % u všech drop_pct pravidel.";
+          return;
+        }
+      } else {
+        r.value = parseFloat(row.querySelector(".rule-value").value);
+        if (isNaN(r.value)) {
+          document.getElementById("edit-watch-error").textContent =
+            "Vyplň hodnotu u všech cena_pod/cena_nad pravidel.";
+          return;
+        }
+      }
+      rules.push(r);
+    }
+    const res = await fetch(WATCHLIST_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "update", id: editingWatchId, rules }),
+    });
+    if (res.ok) {
+      closeModal("modal-edit-watch");
+      editingWatchId = null;
+      await reloadWatchlist();
+    } else {
+      const d = await res.json();
+      document.getElementById("edit-watch-error").textContent =
+        d.error || `HTTP ${res.status}`;
+    }
+  });
+}
+
+// Globální delegovaný handler pro Delete/Re-arm/Edit tlačítka
 document.addEventListener("click", async (e) => {
   const t = e.target;
+  if (t.matches?.("[data-watch-edit]")) {
+    openEditWatch(t.dataset.watchEdit);
+    return;
+  }
   if (t.matches?.("[data-watch-delete]")) {
     const id = t.dataset.watchDelete;
     if (!confirm("Smazat ticker z watchlistu?")) return;
@@ -577,7 +697,10 @@ function renderWatchlist() {
       <td class="num">${price != null ? fmtNum(price, 2) : '<span class="muted">—</span>'}</td>
       <td>${rulesHtml || '<span class="muted">žádné pravidlo</span>'}</td>
       <td>${anyMet ? '<span class="badge sell">SPLNĚNO</span>' : '<span class="muted">armed</span>'}</td>
-      <td><button class="btn-link" data-watch-delete="${it.id}">Smazat</button></td>
+      <td>
+        <button class="btn-link" data-watch-edit="${it.id}">Upravit</button>
+        <button class="btn-link" data-watch-delete="${it.id}">Smazat</button>
+      </td>
     `;
     tbody.appendChild(tr);
   }
@@ -1924,63 +2047,366 @@ function renderReport() {
   summary.innerHTML = sumHtml;
 }
 
-// ---------- CSV export ----------
-function exportTransactionsCsv() {
-  const rows = [
+// ---------- XLSX export — current view ----------
+function exportCurrentViewXlsx() {
+  if (typeof XLSX === "undefined") {
+    alert("XLSX knihovna se nenačetla. Hard refresh (Cmd+Shift+R) a zkuste znovu.");
+    return;
+  }
+  const view = state.view;
+  let aoa = []; // array of arrays
+  let sheetName = view;
+  let filenamePart = view;
+
+  if (view === "overview") {
+    aoa = buildOverviewAoa();
+    sheetName = "Přehled pozic";
+    filenamePart = "prehled-pozic";
+  } else if (view === "allocation") {
+    aoa = buildAllocationAoa();
+    sheetName = "Alokace";
+    filenamePart = "alokace";
+  } else if (view === "transactions") {
+    aoa = buildTransactionsAoa();
+    sheetName = "Transakce";
+    filenamePart = "transakce";
+  } else if (view === "dividends") {
+    aoa = buildDividendsAoa();
+    sheetName = "Dividendy";
+    filenamePart = "dividendy";
+  } else if (view === "watchlist") {
+    aoa = buildWatchlistAoa();
+    sheetName = "Watchlist";
+    filenamePart = "watchlist";
+  } else if (view === "alerts") {
+    aoa = buildAlertsAoa();
+    sheetName = "Alerty";
+    filenamePart = "alerty";
+  } else if (view === "report") {
+    return exportReportXlsx();
+  } else {
+    alert(`Export pro tab ${view} zatím není podporovaný.`);
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  const filename = `${state.portfolio.id}-${filenamePart}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
+function getFilteredOverviewRows() {
+  const rows = [];
+  const q = state.searches.overview;
+  for (const sym of Object.keys(state.portfolio.instruments)) {
+    const inst = state.portfolio.instruments[sym];
+    const pos = state.positions[sym];
+    if (!pos || pos.net_qty === 0) continue;
+    if (q) {
+      const h = `${sym} ${inst.name}`.toLowerCase();
+      if (!h.includes(q)) continue;
+    }
+    const quote = state.quotes[inst.yahoo_symbol] || {};
+    const currentPrice = quote.price;
+    const hasPrice = currentPrice != null && !quote.error;
+    const u = unrealizedPnl(pos, currentPrice);
+    const totalPnl = pos.realized_pnl + u.value;
+    const totalPct =
+      pos.total_invested > 0 ? (totalPnl / pos.total_invested) * 100 : 0;
+    rows.push({
+      sym, inst, pos, currentPrice, hasPrice,
+      marketValue: u.market_value, totalPnl, totalPct,
+    });
+  }
+  return rows;
+}
+
+function buildOverviewAoa() {
+  const rows = getFilteredOverviewRows();
+  const header = [
+    "Symbol", "Název", "Burza", "Měna",
+    "Kusů", "Ø nákup", "Aktuální", "Nákupní cena pozice",
+    "Hodnota pozice", "Zisk/Ztráta", "%",
+  ];
+  const data = rows.map((r) => [
+    r.sym, r.inst.name, r.inst.exchange, r.inst.currency,
+    r.pos.net_qty, r.pos.avg_open_price,
+    r.hasPrice ? r.currentPrice : null,
+    r.pos.cost_basis,
+    r.hasPrice ? r.marketValue : null,
+    r.hasPrice ? r.totalPnl : null,
+    r.hasPrice ? r.totalPct : null,
+  ]);
+  return [header, ...data];
+}
+
+function buildAllocationAoa() {
+  // Reuse computation logic — but we need full rows incl. weights, sorted.
+  // Voláme renderAllocation by side effect? Lepší přímo počítat.
+  const fxDates = state.fxRates?.dates ? Object.keys(state.fxRates.dates).sort() : [];
+  const todayFxDate = fxDates[fxDates.length - 1] || null;
+  const fxUsdToCzk = todayFxDate ? getFxToCzk(todayFxDate, "USD") : null;
+  const all = [];
+  let sumV = 0, sumI = 0;
+  for (const sym of Object.keys(state.portfolio.instruments)) {
+    const pos = state.positions[sym];
+    if (!pos || pos.net_qty === 0) continue;
+    const inst = state.portfolio.instruments[sym];
+    const ccyToCzk = todayFxDate ? getFxToCzk(todayFxDate, inst.currency) : null;
+    if (ccyToCzk == null || fxUsdToCzk == null) continue;
+    const quote = state.quotes[inst.yahoo_symbol] || {};
+    const valLocal = quote.price != null ? pos.net_qty * quote.price : null;
+    const valUsd = valLocal != null ? (valLocal * ccyToCzk) / fxUsdToCzk : null;
+    const invUsd = (pos.total_invested * ccyToCzk) / fxUsdToCzk;
+    if (valUsd != null) sumV += valUsd;
+    sumI += invUsd;
+    all.push({ sym, inst, valUsd, invUsd });
+  }
+  for (const r of all) {
+    r.wV = sumV > 0 && r.valUsd != null ? (r.valUsd / sumV) * 100 : null;
+    r.wI = sumI > 0 ? (r.invUsd / sumI) * 100 : 0;
+    r.delta = r.wV != null ? r.wV - r.wI : null;
+  }
+  const q = state.searches.allocation;
+  const filtered = q
+    ? all.filter((r) => `${r.sym} ${r.inst.name}`.toLowerCase().includes(q))
+    : all;
+  filtered.sort((a, b) => (b.wV ?? 0) - (a.wV ?? 0));
+  const header = [
+    "Symbol", "Název", "Měna",
+    "Hodnota teď (USD)", "Váha teď %",
+    "Vloženo (USD)", "Váha podle vkladu %",
+    "Δ p.b.",
+  ];
+  const data = filtered.map((r) => [
+    r.sym, r.inst.name, r.inst.currency,
+    r.valUsd, r.wV,
+    r.invUsd, r.wI,
+    r.delta,
+  ]);
+  return [header, ...data];
+}
+
+function buildTransactionsAoa() {
+  const { from, to } = state.txFilter;
+  const search = state.searches.transactions;
+  let txs = state.portfolio.transactions.filter((t) => {
+    if (from && t.date < from) return false;
+    if (to && t.date > to) return false;
+    if (search) {
+      const inst = state.portfolio.instruments[t.symbol];
+      const h = `${t.symbol} ${inst?.name || ""}`.toLowerCase();
+      if (!h.includes(search)) return false;
+    }
+    return true;
+  });
+  txs = txs.sort((a, b) =>
+    `${b.date} ${b.time || ""}`.localeCompare(`${a.date} ${a.time || ""}`),
+  );
+  const header = [
+    "Datum", "Čas", "Symbol", "Název", "ISIN", "Burza", "Měna",
+    "Typ", "Množství", "Cena", "Hodnota", "Komise",
+  ];
+  const data = txs.map((t) => {
+    const inst = state.portfolio.instruments[t.symbol] || {};
+    return [
+      t.date, t.time, t.symbol, inst.name, inst.isin, inst.exchange, inst.currency,
+      t.type, Math.abs(t.quantity), t.price, t.proceeds, t.commission,
+    ];
+  });
+  return [header, ...data];
+}
+
+function buildDividendsAoa() {
+  // Replicate render grouping
+  const events = new Map();
+  for (const d of state.portfolio.dividends || []) {
+    const k = `${d.symbol}|${d.date}`;
+    if (!events.has(k)) {
+      events.set(k, {
+        symbol: d.symbol, date: d.date, currency: d.currency,
+        gross: 0, tax: 0, country: null,
+        gross_usd: 0, tax_usd: 0, per_share: d.per_share,
+      });
+    }
+    const e = events.get(k);
+    e.gross += d.amount;
+    e.gross_usd += d.amount_usd || 0;
+  }
+  for (const t of state.portfolio.withholding_tax || []) {
+    const k = `${t.symbol}|${t.date}`;
+    if (!events.has(k)) {
+      events.set(k, {
+        symbol: t.symbol, date: t.date, currency: t.currency,
+        gross: 0, tax: 0, country: t.country,
+        gross_usd: 0, tax_usd: 0,
+      });
+    }
+    const e = events.get(k);
+    e.tax += t.amount;
+    e.tax_usd += t.amount_usd || 0;
+    e.country = e.country || t.country;
+  }
+  let arr = [...events.values()].sort((a, b) => b.date.localeCompare(a.date));
+  const q = state.searches.dividends;
+  if (q) {
+    arr = arr.filter((r) => {
+      const inst = state.portfolio.instruments[r.symbol] || {};
+      const h = `${r.symbol} ${inst.name || ""}`.toLowerCase();
+      return h.includes(q);
+    });
+  }
+  const header = [
+    "Datum", "Symbol", "Název", "Země zdroje",
+    "Hrubá", "Daň u zdroje", "Net", "Měna", "Net USD ekv.",
+  ];
+  const data = arr.map((r) => {
+    const inst = state.portfolio.instruments[r.symbol] || {};
+    return [
+      r.date, r.symbol, inst.name || "", r.country || "",
+      r.gross, r.tax, r.gross + r.tax, r.currency, r.gross_usd + r.tax_usd,
+    ];
+  });
+  return [header, ...data];
+}
+
+function buildWatchlistAoa() {
+  const items = state.watchlist?.items || [];
+  const q = state.searches.watchlist;
+  const filtered = q
+    ? items.filter((it) => `${it.symbol} ${it.name || ""}`.toLowerCase().includes(q))
+    : items;
+  const header = [
+    "Symbol", "Název", "Měna", "Aktuální", "Pravidla", "Stav",
+  ];
+  const data = filtered.map((it) => {
+    const quote = state.quotes[it.yahoo_symbol] || {};
+    const rules = (it.rules || []).map((r) => {
+      if (r.type === "price_below") return `cena < ${r.value}`;
+      if (r.type === "price_above") return `cena > ${r.value}`;
+      if (r.type === "drop_pct")
+        return `pokles ≥ ${Math.abs(r.threshold_pct)}% od ${r.ref_price}`;
+      return r.type;
+    }).join(" · ");
+    return [
+      it.symbol, it.name || "", quote.currency || "",
+      quote.price ?? null, rules || "(bez pravidla)",
+      it.rules?.length > 0 ? "armed" : "no rule",
+    ];
+  });
+  return [header, ...data];
+}
+
+function buildAlertsAoa() {
+  const rules = state.alerts?.rules || [];
+  const header = [
+    "Pravidlo", "Typ", "Threshold %", "Symbol (pokud specific)", "Armed",
+  ];
+  const data = rules.map((r) => [
+    r.description || r.id,
+    r.type,
+    r.threshold_pct ?? null,
+    r.symbol || "",
+    r.armed ? "yes" : "no",
+  ]);
+  return [header, ...data];
+}
+
+function exportReportXlsx() {
+  // Report má strukturu blok per prodej. Vyexportujeme jako jeden flat list.
+  const { from, to } = state.reportFilter;
+  const fxDates = state.fxRates?.dates ? Object.keys(state.fxRates.dates).sort() : [];
+  const eventsMap = new Map();
+  for (const sym in state.positions) {
+    const pos = state.positions[sym];
+    for (const cl of pos.closed_lots || []) {
+      if (cl.orphan) continue;
+      if (from && cl.sell_date < from) continue;
+      if (to && cl.sell_date > to) continue;
+      const key = `${sym}|${cl.sell_date}`;
+      let ev = eventsMap.get(key);
+      if (!ev) {
+        ev = {
+          symbol: sym,
+          sell_date: cl.sell_date,
+          currency: state.portfolio.instruments[sym].currency,
+          name: state.portfolio.instruments[sym].name,
+          buys: [],
+          sell_qty: 0,
+          sell_net_total: 0,
+          sell_price: cl.sell_price,
+        };
+        eventsMap.set(key, ev);
+      }
+      ev.buys.push({
+        date: cl.buy_date,
+        qty: cl.qty,
+        total: cl.qty * cl.buy_cost_per_unit,
+      });
+      ev.sell_qty += cl.qty;
+      ev.sell_net_total += cl.qty * cl.sell_net_per_unit;
+    }
+  }
+  const events = [...eventsMap.values()].sort((a, b) =>
+    a.sell_date.localeCompare(b.sell_date),
+  );
+
+  const aoa = [
     [
-      "Datum",
-      "Čas",
-      "Symbol",
-      "Název",
-      "ISIN",
-      "Burza",
-      "Měna",
-      "Typ",
-      "Množství",
-      "Cena",
-      "Hodnota",
-      "Komise",
+      "Symbol", "Název", "Měna", "Typ", "Datum", "Kusů",
+      "Cena celkem (orig.)", "Kurz ČNB", "Cena celkem v Kč",
     ],
   ];
-  for (const t of state.portfolio.transactions) {
-    const inst = state.portfolio.instruments[t.symbol];
-    rows.push([
-      t.date,
-      t.time,
-      t.symbol,
-      inst.name,
-      inst.isin,
-      inst.exchange,
-      inst.currency,
-      t.type,
-      Math.abs(t.quantity),
-      t.price,
-      t.proceeds,
-      t.commission,
+  let grandCost = 0, grandSell = 0;
+  for (const ev of events) {
+    // Slučit nákupy stejných dat
+    const byDate = new Map();
+    for (const b of ev.buys) {
+      if (!byDate.has(b.date)) byDate.set(b.date, { date: b.date, qty: 0, total: 0 });
+      const e = byDate.get(b.date);
+      e.qty += b.qty;
+      e.total += b.total;
+    }
+    const buys = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+    let costCzk = 0;
+    for (const b of buys) {
+      const fx = getFxToCzk(b.date, ev.currency);
+      const czk = fx != null ? b.total * fx : null;
+      if (czk != null) costCzk += czk;
+      aoa.push([
+        ev.symbol, ev.name, ev.currency, "Nákup",
+        b.date, b.qty, b.total, fx, czk,
+      ]);
+    }
+    const sellFx = getFxToCzk(ev.sell_date, ev.currency);
+    const sellCzk = sellFx != null ? ev.sell_net_total * sellFx : null;
+    aoa.push([
+      ev.symbol, ev.name, ev.currency, "Prodej",
+      ev.sell_date, ev.sell_qty, ev.sell_net_total, sellFx, sellCzk,
     ]);
+    aoa.push([
+      ev.symbol, ev.name, ev.currency, "── Sumář",
+      "", "", "",
+      `Nákup: ${fmtNum(costCzk, 2)} CZK · Zisk: ${fmtNum((sellCzk ?? 0) - costCzk, 2)} CZK`,
+      (sellCzk ?? 0) - costCzk,
+    ]);
+    aoa.push([]); // prázdný řádek mezi prodejními bloky
+    grandCost += costCzk;
+    grandSell += sellCzk ?? 0;
   }
-  const csv = rows
-    .map((r) =>
-      r
-        .map((v) => {
-          const s = String(v ?? "");
-          return s.includes(",") || s.includes('"') || s.includes("\n")
-            ? `"${s.replace(/"/g, '""')}"`
-            : s;
-        })
-        .join(","),
-    )
-    .join("\n");
+  if (events.length > 0) {
+    aoa.push([]);
+    aoa.push(["GRAND TOTAL", "", "", "", "", "", "Nákup CZK", grandCost, ""]);
+    aoa.push(["", "", "", "", "", "", "Prodej CZK", grandSell, ""]);
+    aoa.push(["", "", "", "", "", "", "Zisk/Ztráta CZK", grandSell - grandCost, ""]);
+  }
 
-  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${state.portfolio.id}-transakce-${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  XLSX.utils.book_append_sheet(wb, ws, "Report");
+  const fname = `${state.portfolio.id}-report-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, fname);
 }
 
 // ---------- Helpers ----------

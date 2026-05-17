@@ -31,7 +31,7 @@
           <button class="tab" data-view="report">Report pro účetní</button>
         </div>
         <button id="btn-refresh" class="btn">Načíst znovu</button>
-        <button id="btn-export-csv" class="btn">Export CSV</button>
+        <button id="btn-export-xlsx" class="btn">Export XLSX</button>
       </div>
 
       <section id="view-overview" class="view active">
@@ -353,6 +353,24 @@
       </div>
     </div>
 
+    <!-- Modal: Upravit ticker ve watchlistu -->
+    <div class="modal-overlay" id="modal-edit-watch" hidden>
+      <div class="modal">
+        <h3 id="edit-watch-title">Upravit pravidla</h3>
+        <div class="muted small" id="edit-watch-subtitle"></div>
+
+        <div id="edit-watch-rules"></div>
+
+        <button type="button" class="btn-link" id="btn-add-rule-row" style="margin-top: 8px;">+ Přidat další pravidlo</button>
+
+        <div class="modal-error" id="edit-watch-error"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn" data-close>Zrušit</button>
+          <button type="button" class="btn primary" id="btn-save-watch">Uložit</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal: Přidat alert pravidlo -->
     <div class="modal-overlay" id="modal-add-alert" hidden>
       <div class="modal">
@@ -398,6 +416,7 @@
       </div>
     </div>
 
+    <script src="/assets/js/vendor/xlsx.mini.min.js"></script>
     <script type="module" src="/assets/js/app.js"></script>
   </body>
 </html>

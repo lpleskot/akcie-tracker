@@ -350,6 +350,29 @@ button.primary:hover {
   color: var(--color-text);
 }
 
+/* Rule rows v edit modalu */
+.rule-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 1fr 1fr auto;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  background: #fafaf8;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+.rule-row select,
+.rule-row input {
+  padding: 5px 8px !important;
+  font-size: 12px !important;
+}
+.rule-row .rule-remove {
+  position: static;
+  transform: none;
+  font-size: 14px;
+}
+
 /* Checkbox row v modalu */
 .checkbox-row {
   display: flex !important;
