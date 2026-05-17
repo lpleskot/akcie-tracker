@@ -619,7 +619,17 @@ th {
   user-select: none;
   white-space: normal;          /* dlouhý header se může zalomit na 2 řádky */
   vertical-align: bottom;
-  line-height: 1.25;
+  line-height: 1.35;
+}
+
+/* Wrapper okolo textu headeru — drží stejný font/velikost napříč sloupci
+   a umožňuje umístit .hint ikonku, aniž by zvyšovala výšku řádku. */
+.th-label {
+  display: inline-block;
+  position: relative;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
 }
 
 th.sortable {
@@ -645,9 +655,9 @@ th.sortable.sorted.desc::after {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 13px;
-  height: 13px;
-  margin-left: 6px;
+  width: 11px;
+  height: 11px;
+  margin-left: 5px;
   border-radius: 50%;
   border: 1px solid #c4c4be;
   background: transparent;
@@ -655,12 +665,12 @@ th.sortable.sorted.desc::after {
   font-family: Georgia, "Times New Roman", serif;
   font-style: italic;
   font-weight: 700;
-  font-size: 9px;
+  font-size: 8px;
   text-transform: none;
   letter-spacing: 0;
   line-height: 1;
   cursor: help;
-  vertical-align: middle;
+  vertical-align: -1px;          /* nepřetlačí výšku řádku */
   transition: all 0.12s ease;
 }
 .hint:hover {
