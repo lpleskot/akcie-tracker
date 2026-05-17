@@ -319,6 +319,57 @@ button.primary:hover {
 .btn-link:hover {
   text-decoration: underline;
 }
+
+/* Search input s krížkem uvnitř */
+.search-wrap {
+  position: relative;
+  display: inline-block;
+}
+.search-wrap > .filter-input {
+  padding-right: 26px;
+  min-width: 240px;
+}
+.btn-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  padding: 2px 6px;
+  border-radius: 50%;
+  transition: all 0.12s ease;
+  font-family: inherit;
+}
+.btn-clear:hover {
+  background: var(--color-border);
+  color: var(--color-text);
+}
+
+/* Checkbox row v modalu */
+.checkbox-row {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  margin-bottom: 12px !important;
+}
+.checkbox-row input[type="checkbox"] {
+  width: auto !important;
+  margin: 2px 0 0 0;
+  cursor: pointer;
+}
+.checkbox-row > span {
+  font-size: 13px;
+  color: var(--color-text);
+  font-weight: 400 !important;
+  text-transform: none !important;
+  margin-bottom: 0 !important;
+}
 .filter-count {
   margin-left: auto;
   font-size: 12px;

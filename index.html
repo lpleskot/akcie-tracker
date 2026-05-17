@@ -37,15 +37,16 @@
       <section id="view-overview" class="view active">
         <div class="filter-bar">
           <span class="filter-label">Hledat:</span>
-          <input
-            type="text"
-            id="overview-search"
-            class="filter-input"
-            placeholder="Ticker nebo název (např. ADBE, adobe, novo…)"
-            style="min-width: 280px;"
-            autocomplete="off"
-          />
-          <button id="overview-search-clear" class="btn-link" type="button">Vymazat</button>
+          <div class="search-wrap">
+            <input
+              type="text"
+              id="overview-search"
+              class="filter-input"
+              placeholder="Ticker nebo název (např. ADBE, adobe, novo…)"
+              autocomplete="off"
+            />
+            <button id="overview-search-clear" class="btn-clear" type="button" aria-label="Vymazat hledání" hidden>×</button>
+          </div>
           <span class="filter-count" id="overview-count"></span>
         </div>
         <div class="table-wrap">
@@ -84,14 +85,26 @@
 
       <section id="view-transactions" class="view">
         <div class="filter-bar">
+          <span class="filter-label">Hledat:</span>
+          <div class="search-wrap">
+            <input
+              type="text"
+              id="transactions-search"
+              class="filter-input"
+              placeholder="Ticker nebo název"
+              autocomplete="off"
+            />
+            <button id="transactions-search-clear" class="btn-clear" type="button" aria-label="Vymazat" hidden>×</button>
+          </div>
+          <span class="filter-divider">·</span>
           <span class="filter-label">Rok:</span>
           <div class="filter-chips" id="year-chips"></div>
           <span class="filter-divider">·</span>
-          <span class="filter-label">Vlastní rozsah:</span>
+          <span class="filter-label">Od–Do:</span>
           <input type="date" id="filter-from" class="filter-input" />
           <span class="filter-dash">–</span>
           <input type="date" id="filter-to" class="filter-input" />
-          <button id="filter-clear" class="btn-link" type="button">Vymazat filtr</button>
+          <button id="filter-clear" class="btn-link" type="button">Vymazat datum</button>
           <span class="filter-count" id="filter-count"></span>
         </div>
         <div class="table-wrap">
@@ -117,6 +130,20 @@
       </section>
 
       <section id="view-allocation" class="view">
+        <div class="filter-bar">
+          <span class="filter-label">Hledat:</span>
+          <div class="search-wrap">
+            <input
+              type="text"
+              id="allocation-search"
+              class="filter-input"
+              placeholder="Ticker nebo název"
+              autocomplete="off"
+            />
+            <button id="allocation-search-clear" class="btn-clear" type="button" aria-label="Vymazat" hidden>×</button>
+          </div>
+          <span class="filter-count" id="allocation-count"></span>
+        </div>
         <div class="report-intro muted">
           Váha každé pozice v portfoliu ve dvou pohledech: podle <strong>aktuální tržní hodnoty</strong>
           a podle <strong>celkové vložené investice</strong> (vč. již prodaných lotů).
@@ -147,7 +174,17 @@
 
       <section id="view-watchlist" class="view">
         <div class="filter-bar">
-          <span class="filter-label">Watchlist:</span>
+          <span class="filter-label">Hledat:</span>
+          <div class="search-wrap">
+            <input
+              type="text"
+              id="watchlist-search"
+              class="filter-input"
+              placeholder="Ticker nebo název"
+              autocomplete="off"
+            />
+            <button id="watchlist-search-clear" class="btn-clear" type="button" aria-label="Vymazat" hidden>×</button>
+          </div>
           <span class="filter-count" id="watchlist-count"></span>
           <button id="btn-add-watch" class="btn primary">+ Přidat ticker</button>
         </div>
@@ -212,6 +249,20 @@
       </section>
 
       <section id="view-dividends" class="view">
+        <div class="filter-bar">
+          <span class="filter-label">Hledat:</span>
+          <div class="search-wrap">
+            <input
+              type="text"
+              id="dividends-search"
+              class="filter-input"
+              placeholder="Ticker nebo název"
+              autocomplete="off"
+            />
+            <button id="dividends-search-clear" class="btn-clear" type="button" aria-label="Vymazat" hidden>×</button>
+          </div>
+          <span class="filter-count" id="dividends-count"></span>
+        </div>
         <div class="table-wrap">
           <table id="tbl-dividends">
             <thead>
@@ -260,33 +311,38 @@
             <code>.HK</code> Hong Kong, <code>.T</code> Tokio
           </p>
 
-          <h4>Pravidlo</h4>
-          <label>
-            <span>Typ</span>
-            <select name="rule_type" id="rule-type-watch">
-              <option value="price_below">Cena pod X</option>
-              <option value="price_above">Cena nad X</option>
-              <option value="drop_pct">Pokles % od referenční ceny</option>
-            </select>
+          <label class="checkbox-row">
+            <input type="checkbox" id="rule-enable-watch" />
+            <span>Přidat hned i cenové pravidlo <span class="muted small">(volitelné — můžete přidat později)</span></span>
           </label>
-          <label id="rule-value-wrap">
-            <span>Hodnota</span>
-            <input
-              type="number"
-              name="rule_value"
-              step="0.0001"
-              required
-              placeholder="např. 200.00"
-            />
-          </label>
-          <label id="rule-ref-wrap" hidden>
-            <span>Referenční cena (od které počítat pokles)</span>
-            <input type="number" name="rule_ref_price" step="0.0001" placeholder="cena při přidání" />
-          </label>
-          <label id="rule-threshold-wrap" hidden>
-            <span>Pokles % (záporná hodnota, např. -15)</span>
-            <input type="number" name="rule_threshold" step="0.1" placeholder="-15" />
-          </label>
+
+          <div id="rule-fields-watch" hidden>
+            <label>
+              <span>Typ pravidla</span>
+              <select name="rule_type" id="rule-type-watch">
+                <option value="price_below">Cena pod X</option>
+                <option value="price_above">Cena nad X</option>
+                <option value="drop_pct">Pokles % od referenční ceny</option>
+              </select>
+            </label>
+            <label id="rule-value-wrap">
+              <span>Hodnota</span>
+              <input
+                type="number"
+                name="rule_value"
+                step="0.0001"
+                placeholder="např. 200.00"
+              />
+            </label>
+            <label id="rule-ref-wrap" hidden>
+              <span>Referenční cena (od které počítat pokles)</span>
+              <input type="number" name="rule_ref_price" step="0.0001" placeholder="cena při přidání" />
+            </label>
+            <label id="rule-threshold-wrap" hidden>
+              <span>Pokles % (záporná hodnota, např. -15)</span>
+              <input type="number" name="rule_threshold" step="0.1" placeholder="-15" />
+            </label>
+          </div>
 
           <div class="modal-error" id="watch-error"></div>
           <div class="modal-actions">

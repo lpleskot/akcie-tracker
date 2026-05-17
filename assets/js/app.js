@@ -22,8 +22,32 @@ const state = {
   sort: { key: "sym", dir: "asc" },
   txFilter: { from: null, to: null },
   reportFilter: { from: null, to: null },
-  overviewSearch: "",
+  searches: {
+    overview: "",
+    allocation: "",
+    watchlist: "",
+    transactions: "",
+    dividends: "",
+  },
 };
+
+// Reusable search input setup — toggle × button + onChange callback
+function setupSearchInput(inputId, clearId, stateKey, onChange) {
+  const inp = document.getElementById(inputId);
+  const clr = document.getElementById(clearId);
+  if (!inp || !clr) return;
+  function update() {
+    state.searches[stateKey] = inp.value.trim().toLowerCase();
+    clr.hidden = inp.value.length === 0;
+    onChange();
+  }
+  inp.addEventListener("input", update);
+  clr.addEventListener("click", () => {
+    inp.value = "";
+    update();
+    inp.focus();
+  });
+}
 
 const sortGetters = {
   sym: (r) => r.sym,
@@ -233,6 +257,13 @@ function setupWatchlistModal() {
     });
   setupModalClose("modal-add-watch");
 
+  // Checkbox toggle — pravidlo volitelné
+  const enableRule = document.getElementById("rule-enable-watch");
+  const ruleFields = document.getElementById("rule-fields-watch");
+  enableRule?.addEventListener("change", () => {
+    ruleFields.hidden = !enableRule.checked;
+  });
+
   // Toggle vstupů podle typu pravidla
   const typeSel = document.getElementById("rule-type-watch");
   const valueWrap = document.getElementById("rule-value-wrap");
@@ -260,22 +291,33 @@ function setupWatchlistModal() {
       e.preventDefault();
       const fd = new FormData(e.target);
       const symbol = fd.get("symbol").trim();
-      const type = fd.get("rule_type");
-      const rule = { type, armed: true };
-      if (type === "drop_pct") {
-        rule.ref_price = parseFloat(fd.get("rule_ref_price"));
-        rule.threshold_pct = parseFloat(fd.get("rule_threshold"));
-        if (isNaN(rule.ref_price) || isNaN(rule.threshold_pct)) {
-          showWatchError("Vyplň referenční cenu i pokles %");
-          return;
-        }
-      } else {
-        rule.value = parseFloat(fd.get("rule_value"));
-        if (isNaN(rule.value)) {
-          showWatchError("Vyplň hodnotu");
-          return;
-        }
+      if (!symbol) {
+        showWatchError("Vyplň ticker");
+        return;
       }
+
+      const rules = [];
+      // Pravidlo se přidá jen pokud uživatel zaškrtl checkbox
+      if (enableRule?.checked) {
+        const type = fd.get("rule_type");
+        const rule = { type, armed: true };
+        if (type === "drop_pct") {
+          rule.ref_price = parseFloat(fd.get("rule_ref_price"));
+          rule.threshold_pct = parseFloat(fd.get("rule_threshold"));
+          if (isNaN(rule.ref_price) || isNaN(rule.threshold_pct)) {
+            showWatchError("Vyplň referenční cenu i pokles %");
+            return;
+          }
+        } else {
+          rule.value = parseFloat(fd.get("rule_value"));
+          if (isNaN(rule.value)) {
+            showWatchError("Vyplň hodnotu pravidla (nebo odškrtni checkbox)");
+            return;
+          }
+        }
+        rules.push(rule);
+      }
+
       try {
         const res = await fetch(WATCHLIST_URL, {
           method: "POST",
@@ -284,7 +326,7 @@ function setupWatchlistModal() {
             action: "add",
             symbol,
             yahoo_symbol: symbol,
-            rules: [rule],
+            rules,
           }),
         });
         const data = await res.json();
@@ -458,7 +500,14 @@ document.addEventListener("click", async (e) => {
 
 // ---------- Watchlist ----------
 function renderWatchlist() {
-  const items = state.watchlist?.items || [];
+  const allItems = state.watchlist?.items || [];
+  const q = state.searches.watchlist;
+  const items = q
+    ? allItems.filter((it) => {
+        const h = `${it.symbol} ${it.name || ""}`.toLowerCase();
+        return h.includes(q);
+      })
+    : allItems;
   const count = document.getElementById("watchlist-count");
   const empty = document.getElementById("watchlist-empty");
   const wrap = document.getElementById("watchlist-wrap");
@@ -466,12 +515,15 @@ function renderWatchlist() {
   if (!tbody) return;
 
   if (count) {
-    count.textContent =
-      items.length === 0
-        ? "prázdný"
-        : `${items.length} ticker${items.length === 1 ? "" : items.length < 5 ? "y" : "ů"}`;
+    if (allItems.length === 0) {
+      count.textContent = "prázdný";
+    } else if (items.length === allItems.length) {
+      count.textContent = `${allItems.length} ticker${allItems.length === 1 ? "" : allItems.length < 5 ? "y" : "ů"}`;
+    } else {
+      count.textContent = `${items.length} z ${allItems.length}`;
+    }
   }
-  if (items.length === 0) {
+  if (allItems.length === 0) {
     if (empty) empty.style.display = "block";
     if (wrap) wrap.style.display = "none";
     return;
@@ -658,8 +710,8 @@ function renderAllocation() {
   const todayFxDate = fxDates[fxDates.length - 1] || null;
   const fxUsdToCzk = todayFxDate ? getFxToCzk(todayFxDate, "USD") : null;
 
-  // Sebrat řádky: pro každou OTEVŘENOU pozici spočítat current value USD + invested USD
-  const rows = [];
+  // Spočítat váhy z CELÉHO portfolia (váha musí být relativní k portfoliu, ne k filtru)
+  const allRows = [];
   let sumValueUsd = 0;
   let sumInvestedUsd = 0;
   for (const sym of Object.keys(state.portfolio.instruments)) {
@@ -677,7 +729,7 @@ function renderAllocation() {
     const investedUsd = (pos.total_invested * ccyToCzk) / fxUsdToCzk;
     if (valueUsd != null) sumValueUsd += valueUsd;
     sumInvestedUsd += investedUsd;
-    rows.push({
+    allRows.push({
       sym,
       inst,
       pos,
@@ -686,9 +738,25 @@ function renderAllocation() {
       investedUsd,
     });
   }
+  // Aplikovat search filter pro display (váhy zůstávají z plného portfolia)
+  const q = state.searches.allocation;
+  const rows = q
+    ? allRows.filter((r) => {
+        const h = `${r.sym} ${r.inst.name}`.toLowerCase();
+        return h.includes(q);
+      })
+    : allRows;
+  // Counter
+  const allocCount = document.getElementById("allocation-count");
+  if (allocCount) {
+    allocCount.textContent =
+      rows.length === allRows.length
+        ? `${allRows.length} pozic`
+        : `${rows.length} z ${allRows.length} pozic`;
+  }
 
-  // Dopočítat váhy
-  for (const r of rows) {
+  // Dopočítat váhy NA allRows (relativní k plnému portfoliu)
+  for (const r of allRows) {
     r.weightValue =
       sumValueUsd > 0 && r.valueUsd != null
         ? (r.valueUsd / sumValueUsd) * 100
@@ -699,12 +767,12 @@ function renderAllocation() {
       r.weightValue != null ? r.weightValue - r.weightInvested : null;
   }
 
-  // Setřídit podle aktuální váhy desc
+  // Setřídit FILTROVANÉ řádky podle aktuální váhy desc
   rows.sort((a, b) => (b.weightValue ?? 0) - (a.weightValue ?? 0));
 
-  // Maximální hodnota pro normalizaci bar widths
+  // Maximální hodnota pro normalizaci bar widths — z plného portfolia
   const maxWeight = Math.max(
-    ...rows.map((r) => Math.max(r.weightValue ?? 0, r.weightInvested ?? 0)),
+    ...allRows.map((r) => Math.max(r.weightValue ?? 0, r.weightInvested ?? 0)),
     1,
   );
 
@@ -728,7 +796,7 @@ function renderAllocation() {
   if (tfoot) {
     tfoot.innerHTML = `
       <tr>
-        <td colspan="3">Celkem (${rows.length} otevřených pozic)</td>
+        <td colspan="3">Celkem portfolio (${allRows.length} pozic)</td>
         <td class="num"><strong>${fmtNum(sumValueUsd, 0)}</strong></td>
         <td class="num"><strong>100,00 %</strong></td>
         <td></td>
@@ -756,17 +824,36 @@ function getFxToCzk(date, currency) {
 
 // ---------- Overview ----------
 function setupOverviewSearch() {
-  const inp = document.getElementById("overview-search");
-  inp.addEventListener("input", () => {
-    state.overviewSearch = inp.value.trim().toLowerCase();
-    renderOverview();
-  });
-  document.getElementById("overview-search-clear").addEventListener("click", () => {
-    inp.value = "";
-    state.overviewSearch = "";
-    renderOverview();
-    inp.focus();
-  });
+  setupSearchInput(
+    "overview-search",
+    "overview-search-clear",
+    "overview",
+    renderOverview,
+  );
+  setupSearchInput(
+    "allocation-search",
+    "allocation-search-clear",
+    "allocation",
+    renderAllocation,
+  );
+  setupSearchInput(
+    "watchlist-search",
+    "watchlist-search-clear",
+    "watchlist",
+    renderWatchlist,
+  );
+  setupSearchInput(
+    "transactions-search",
+    "transactions-search-clear",
+    "transactions",
+    renderTransactions,
+  );
+  setupSearchInput(
+    "dividends-search",
+    "dividends-search-clear",
+    "dividends",
+    renderDividends,
+  );
 }
 
 function renderOverview() {
@@ -775,7 +862,7 @@ function renderOverview() {
 
   // 1) Sesbírat řádky s vypočtenými hodnotami
   const rows = [];
-  const searchQuery = state.overviewSearch;
+  const searchQuery = state.searches.overview;
   for (const sym of Object.keys(state.portfolio.instruments)) {
     const inst = state.portfolio.instruments[sym];
     const pos = state.positions[sym];
@@ -1233,9 +1320,15 @@ function renderTransactions() {
   tbody.innerHTML = "";
 
   const { from, to } = state.txFilter;
+  const search = state.searches.transactions;
   let txs = state.portfolio.transactions.filter((t) => {
     if (from && t.date < from) return false;
     if (to && t.date > to) return false;
+    if (search) {
+      const inst = state.portfolio.instruments[t.symbol];
+      const h = `${t.symbol} ${inst?.name || ""}`.toLowerCase();
+      if (!h.includes(search)) return false;
+    }
     return true;
   });
 
@@ -1325,9 +1418,26 @@ function renderDividends() {
   }
 
   // Nejnovější nahoře
-  const rows = [...events.values()].sort((a, b) =>
+  const allRows = [...events.values()].sort((a, b) =>
     b.date.localeCompare(a.date),
   );
+  // Search filter
+  const q = state.searches.dividends;
+  const rows = q
+    ? allRows.filter((r) => {
+        const inst = state.portfolio.instruments[r.symbol] || {};
+        const h = `${r.symbol} ${inst.name || ""}`.toLowerCase();
+        return h.includes(q);
+      })
+    : allRows;
+  // Counter
+  const divCount = document.getElementById("dividends-count");
+  if (divCount) {
+    divCount.textContent =
+      rows.length === allRows.length
+        ? `${allRows.length} výplat`
+        : `${rows.length} z ${allRows.length}`;
+  }
 
   let totalGrossUsd = 0;
   let totalTaxUsd = 0;
