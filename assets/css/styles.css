@@ -556,6 +556,16 @@ tfoot td {
 .report-event .missing-fx {
   color: var(--color-negative);
 }
+/* Barevné odlišení slov "nákup" (zeleně) a "prodej" (červeně)
+   ve sloupci Pozn. — pomáhá rychle vizuálně rozlišit směr. */
+.report-event td.report-buy {
+  color: var(--color-positive);
+  font-weight: 600;
+}
+.report-event td.report-sell {
+  color: var(--color-negative);
+  font-weight: 600;
+}
 #report-summary {
   margin-top: 14px;
   padding: 14px 18px;

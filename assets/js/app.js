@@ -2218,7 +2218,12 @@ function renderReport() {
         </thead>
         <tbody>
     `;
+    // Mezisoučty nákupů — kusy a foreign total
+    let totalBuyQty = 0;
+    let totalBuyForeign = 0;
     for (const b of buys) {
+      totalBuyQty += b.qty;
+      totalBuyForeign += b.total;
       html += `
         <tr class="buy">
           <td>${b.date}</td>
@@ -2226,13 +2231,16 @@ function renderReport() {
           <td class="num">${fmtNum(b.total, 2)}</td>
           <td class="num">${b.fx != null ? fmtNum(b.fx, 4) : '<span class="missing-fx">chybí kurz</span>'}</td>
           <td class="num">${b.czk != null ? fmtNum(b.czk, 2) : '<span class="missing-fx">—</span>'}</td>
-          <td class="muted">nákup</td>
+          <td class="report-buy">nákup</td>
         </tr>
       `;
     }
     html += `
       <tr class="subtotal">
-        <td colspan="4" class="label" style="text-align:right;">Celkem nákup (CZK):</td>
+        <td class="label">Celkem nákup:</td>
+        <td class="num"><strong>${fmtNum(totalBuyQty, 0)}</strong></td>
+        <td class="num"><strong>${fmtNum(totalBuyForeign, 2)}</strong></td>
+        <td></td>
         <td class="num"><strong>${allFxFound ? fmtNum(costCzk, 2) : '<span class="missing-fx">—</span>'}</strong></td>
         <td></td>
       </tr>
@@ -2242,7 +2250,7 @@ function renderReport() {
         <td class="num">${fmtNum(ev.sell_net_total, 2)}</td>
         <td class="num">${sellFx != null ? fmtNum(sellFx, 4) : '<span class="missing-fx">chybí kurz</span>'}</td>
         <td class="num">${sellCzk != null ? fmtNum(sellCzk, 2) : '<span class="missing-fx">—</span>'}</td>
-        <td class="muted">prodej</td>
+        <td class="report-sell">prodej</td>
       </tr>
       <tr class="totals">
         <td colspan="4" class="label" style="text-align:right;">${profitCzk >= 0 ? "Zisk" : "Ztráta"} v Kč:</td>
