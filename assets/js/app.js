@@ -1795,14 +1795,11 @@ function renderSummary() {
   }
   if (Object.keys(cashBalance).length > 0) {
     const subText = cashBreakdown.join(" · ");
-    // Zmenšit font, když je měn hodně, ať se dlaždice nezvětšuje.
-    const compactClass =
-      cashBreakdown.length >= 4 || subText.length > 60 ? " sub-compact" : "";
     wrap.appendChild(
       cardHtml(
         `Cash zůstatek · CZK`,
         `<span class="${signClass(cashCzkTotal)}">${fmtNum(cashCzkTotal, 0)} Kč</span>`,
-        `<span class="cash-breakdown${compactClass}">${subText}</span>`,
+        subText,
       ),
     );
   }
@@ -1818,6 +1815,7 @@ function renderSummary() {
   let dividendsGrossUsd = 0;
   let dividendsTaxUsd = 0;
   let allPricesAvailable = true;
+  const missingPriceSymbols = [];
 
   for (const sym of symbols) {
     const inst = p.instruments[sym];
@@ -1838,6 +1836,7 @@ function renderSummary() {
       capitalPnlUsd += ((mvLocal - pos.cost_basis) * fxToCzk) / usdRate;
     } else if (pos.net_qty > 0) {
       allPricesAvailable = false;
+      missingPriceSymbols.push(sym);
     }
     netDividendsUsd += pos.net_dividend_usd || 0;
     dividendsGrossUsd += pos.dividends_usd || 0;
@@ -1880,7 +1879,7 @@ function renderSummary() {
       portfolioCzk != null ? `${fmtNum(currentValueUsd, 0)} USD ekv.` : "";
     const missingPricesNote = allPricesAvailable
       ? ""
-      : `<br><span class="muted">některé ceny chybí</span>`;
+      : `<br><span class="muted">chybí cena: ${missingPriceSymbols.join(", ")}</span>`;
     portfolioValueCard.innerHTML = `
       <div class="label">Hodnota portfolia · CZK</div>
       <div class="value">${mainLine}</div>
@@ -1898,7 +1897,7 @@ function renderSummary() {
     cardHtml(
       `Celkový výnos`,
       `<span class="${signClass(totalReturnPct)}">${fmtPct(totalReturnPct)}</span>`,
-      `${absLine}<br>od ${inception} (${Math.round(daysSince)} dní)`,
+      `${absLine}<br>od založení ${inception} (${Math.round(daysSince)} dní)`,
     ),
   );
 
@@ -1907,7 +1906,7 @@ function renderSummary() {
     cardHtml(
       `P.a. (anualizováno)`,
       `<span class="${signClass(paPct)}">${fmtPct(paPct)}</span>`,
-      `průměrný roční výnos<br>${yearsSince.toFixed(2)} let od inception`,
+      `průměrný roční výnos<br>${yearsSince.toFixed(2)} let od založení`,
     ),
   );
 
@@ -1965,9 +1964,9 @@ function renderSummary() {
   if (p.ytd_mark_to_market_usd != null && p.ytd_mark_to_market_usd !== 0) {
     ytdSourceNote = `snapshot ${p.broker} k ${p.statement_period_end || "?"}`;
   } else if (hasYtdRealized) {
-    ytdSourceNote = `realiz. prodeje + div. + úroky 2026 (otevřené pozice nejsou v M2M, údaj neúplný)`;
+    ytdSourceNote = `realiz. prodeje + div. + úroky 2026 (nezahrnuje změnu tržní hodnoty otevřených pozic)`;
   } else {
-    ytdSourceNote = `pouze div. + úroky 2026 (neúplné — chybí M2M snapshot)`;
+    ytdSourceNote = `pouze div. + úroky 2026 (nezahrnuje změnu tržní hodnoty otevřených pozic)`;
   }
   wrap.appendChild(
     cardHtml(

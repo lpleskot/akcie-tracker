@@ -181,16 +181,6 @@ button.primary:hover {
   margin-top: 4px;
   line-height: 1.45;
 }
-/* Cash breakdown — výpis měn. Když je jich hodně (KB), zmenšit font,
-   aby se dlaždice nezvětšovala na výšku. */
-.cash-breakdown {
-  word-spacing: 0;
-}
-.sub-compact {
-  display: inline-block;
-  font-size: 10.5px;
-  line-height: 1.35;
-}
 
 /* ------- Modal ------- */
 .modal-overlay {
@@ -618,7 +608,7 @@ td {
 
 th {
   background: #fafaf8;
-  font-weight: 600;
+  font-weight: 500;                /* lehčí, sjednocený vizuál celé hlavičky */
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -627,7 +617,7 @@ th {
   top: 0;
   z-index: 1;
   user-select: none;
-  white-space: normal;          /* dlouhý header se může zalomit na 2 řádky */
+  white-space: normal;             /* dlouhý header se může zalomit na 2 řádky */
   vertical-align: bottom;
   line-height: 1.35;
 }
