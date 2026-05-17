@@ -39,7 +39,41 @@ export async function onRequestPost({ env, request }) {
   if (body.action === "update") {
     return handleUpdate(env, data, body);
   }
+  if (body.action === "set_benchmark") {
+    return handleSetBenchmark(env, data, body);
+  }
+  if (body.action === "clear_benchmark") {
+    return handleClearBenchmark(env, data, body);
+  }
   return json({ error: "Unknown action" }, 400);
+}
+
+async function handleSetBenchmark(env, data, body) {
+  const id = body.id;
+  if (!id) return json({ error: "Missing id" }, 400);
+  const item = data.items.find((x) => x.id === id);
+  if (!item) return json({ error: "Item not found" }, 404);
+  const price = parseFloat(body.price);
+  if (isNaN(price) || price <= 0) {
+    return json({ error: "Invalid price" }, 400);
+  }
+  item.benchmark = {
+    price,
+    date: body.date || new Date().toISOString().slice(0, 10),
+    currency: body.currency || item.currency || null,
+  };
+  await env.AKCIE_TRACKER_KV.put(KV_KEY, JSON.stringify(data));
+  return json({ ok: true, item });
+}
+
+async function handleClearBenchmark(env, data, body) {
+  const id = body.id;
+  if (!id) return json({ error: "Missing id" }, 400);
+  const item = data.items.find((x) => x.id === id);
+  if (!item) return json({ error: "Item not found" }, 404);
+  delete item.benchmark;
+  await env.AKCIE_TRACKER_KV.put(KV_KEY, JSON.stringify(data));
+  return json({ ok: true, item });
 }
 
 async function handleAdd(env, data, body) {

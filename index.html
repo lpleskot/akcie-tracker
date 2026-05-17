@@ -193,11 +193,13 @@
           <button id="btn-add-watch" class="btn primary">+ Přidat ticker</button>
         </div>
         <div class="report-intro muted">
-          Sledované tickery, které ještě nedržíte v portfoliu. Aktuální cena + nastavená pravidla (cena pod / nad X, pokles % od referenční ceny).
-          Až bude backend hotový, přidávání bude přes formulář; zatím se watchlist edituje v <code>data/watchlist.json</code>.
+          Sledované tickery, které ještě nedržíte v portfoliu. Můžete si k nim
+          nastavit cenová pravidla (cena pod / nad X, pokles % od referenční ceny)
+          a aktuální cenu označit jako benchmark — pak vidíte, jak se ticker
+          pohnul od chvíle, kdy jste ho začal sledovat.
         </div>
         <div id="watchlist-empty" class="status" style="display:none">
-          Žádné tickery zatím ve watchlistu. Až bude backend připravený, přidáte ticker přes tlačítko nahoře.
+          Žádné tickery zatím ve watchlistu. Přidejte první přes tlačítko <strong>+ Přidat ticker</strong> nahoře.
         </div>
         <div class="table-wrap" id="watchlist-wrap" style="display:none">
           <table id="tbl-watchlist">
@@ -207,6 +209,8 @@
                 <th>Název</th>
                 <th>Měna</th>
                 <th class="num">Aktuální</th>
+                <th class="num">Benchmark</th>
+                <th class="num">Změna od označení</th>
                 <th>Pravidla</th>
                 <th>Stav</th>
                 <th>Akce</th>

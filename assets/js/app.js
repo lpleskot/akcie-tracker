@@ -676,6 +676,41 @@ document.addEventListener("click", async (e) => {
     });
     if (res.ok) await reloadWatchlist();
   }
+  if (t.matches?.("[data-watch-mark]")) {
+    const id = t.dataset.watchMark;
+    const price = parseFloat(t.dataset.currentPrice);
+    if (isNaN(price) || price <= 0) {
+      alert("Aktuální cena není k dispozici, nelze označit.");
+      return;
+    }
+    const item = (state.watchlist?.items || []).find((x) => x.id === id);
+    const isUpdate = item?.benchmark?.price != null;
+    if (isUpdate && !confirm(
+      `Přepsat dosavadní benchmark ${fmtNum(item.benchmark.price, 2)} (${item.benchmark.date}) na aktuální ${fmtNum(price, 2)}?`,
+    )) return;
+    const res = await fetch(WATCHLIST_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "set_benchmark",
+        id,
+        price,
+        date: new Date().toISOString().slice(0, 10),
+        currency: item?.currency || null,
+      }),
+    });
+    if (res.ok) await reloadWatchlist();
+  }
+  if (t.matches?.("[data-watch-unmark]")) {
+    const id = t.dataset.watchUnmark;
+    if (!confirm("Zrušit označenou referenční cenu?")) return;
+    const res = await fetch(WATCHLIST_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "clear_benchmark", id }),
+    });
+    if (res.ok) await reloadWatchlist();
+  }
   if (t.matches?.("[data-alert-delete]")) {
     const id = t.dataset.alertDelete;
     if (!confirm("Smazat alert pravidlo?")) return;
@@ -768,17 +803,40 @@ function renderWatchlist() {
       return false;
     });
 
+    // Benchmark display
+    let benchmarkCell = '<span class="muted">—</span>';
+    let deltaCell = '<span class="muted">—</span>';
+    if (it.benchmark && it.benchmark.price != null) {
+      benchmarkCell = `${fmtNum(it.benchmark.price, 2)}<br><span class="benchmark-tooltip">${it.benchmark.date}</span>`;
+      if (price != null) {
+        const delta = price - it.benchmark.price;
+        const deltaPct = (delta / it.benchmark.price) * 100;
+        deltaCell = `<span class="${signClass(delta)}">${fmtNum(delta, 2)} ${ccy}</span><br><span class="${signClass(delta)} benchmark-tooltip">${fmtPct(deltaPct)}</span>`;
+      }
+    }
+
+    // Action button label — "Označit cenu" / "Aktualizovat" / "Zrušit"
+    const hasBench = !!(it.benchmark && it.benchmark.price != null);
+    const markLabel = hasBench ? "Aktualizovat značku" : "Označit cenu";
+    const markDisabled = price == null ? "disabled" : "";
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td class="symbol">${it.symbol}</td>
       <td>${escapeHtml(it.name || quote.name || "")}</td>
       <td>${ccy}</td>
       <td class="num">${price != null ? fmtNum(price, 2) : '<span class="muted">—</span>'}</td>
+      <td class="num">${benchmarkCell}</td>
+      <td class="num">${deltaCell}</td>
       <td>${rulesHtml || '<span class="muted">žádné pravidlo</span>'}</td>
       <td>${anyMet ? '<span class="badge sell">SPLNĚNO</span>' : '<span class="muted">armed</span>'}</td>
       <td>
-        <button class="btn-link" data-watch-edit="${it.id}">Upravit</button>
-        <button class="btn-link" data-watch-delete="${it.id}">Smazat</button>
+        <button class="btn-action" data-watch-mark="${it.id}" data-current-price="${price ?? ''}" title="Uloží aktuální cenu jako referenční bod, ke kterému se bude počítat změna" ${markDisabled}>
+          ${markLabel}
+        </button>
+        ${hasBench ? `<button class="btn-action" data-watch-unmark="${it.id}" title="Zrušit označenou cenu">Zrušit značku</button>` : ""}
+        <button class="btn-action" data-watch-edit="${it.id}">Upravit pravidla</button>
+        <button class="btn-action danger" data-watch-delete="${it.id}">Smazat</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -816,8 +874,8 @@ function renderAlerts() {
         <span>${header}</span>
         <span>
           ${armedBadge}
-          <button class="btn-link" data-alert-rearm="${rule.id}" title="Smaže fired stav — pravidlo bude znovu odpalovat při příští kontrole">Re-arm</button>
-          <button class="btn-link" data-alert-delete="${rule.id}">Smazat</button>
+          <button class="btn-action" data-alert-rearm="${rule.id}" title="Smaže fired stav — pravidlo bude znovu odpalovat při příští kontrole">Re-arm</button>
+          <button class="btn-action danger" data-alert-delete="${rule.id}">Smazat</button>
         </span>
       </div>
     `;
