@@ -181,6 +181,16 @@ button.primary:hover {
   margin-top: 4px;
   line-height: 1.45;
 }
+/* Cash breakdown — výpis měn. Když je jich hodně (KB), zmenšit font,
+   aby se dlaždice nezvětšovala na výšku. */
+.cash-breakdown {
+  word-spacing: 0;
+}
+.sub-compact {
+  display: inline-block;
+  font-size: 10.5px;
+  line-height: 1.35;
+}
 
 /* ------- Modal ------- */
 .modal-overlay {

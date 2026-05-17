@@ -1765,13 +1765,11 @@ function renderSummary() {
   const wrap = document.getElementById("summary-cards");
   wrap.innerHTML = "";
 
-  // === 1) Otevřené pozice ===
-  const openCount = symbols.filter(
-    (s) => state.positions[s] && state.positions[s].net_qty > 0,
-  ).length;
-  wrap.appendChild(
-    card("Otevřené pozice", openCount, `${symbols.length} titulů celkem`),
-  );
+  // === 1) Hodnota portfolia (CZK, USD v závorce) — placeholder, doplníme
+  //         hned jak budeme mít spočítaný currentValueUsd a fxUsdToCzk ===
+  const portfolioValueCard = document.createElement("div");
+  portfolioValueCard.className = "summary-card";
+  wrap.appendChild(portfolioValueCard);
 
   // Najít nejnovější ČNB datum (potřebujeme níže pro cash + agregáty)
   const fxDatesEarly = state.fxRates?.dates
@@ -1797,11 +1795,14 @@ function renderSummary() {
   }
   if (Object.keys(cashBalance).length > 0) {
     const subText = cashBreakdown.join(" · ");
+    // Zmenšit font, když je měn hodně, ať se dlaždice nezvětšuje.
+    const compactClass =
+      cashBreakdown.length >= 4 || subText.length > 60 ? " sub-compact" : "";
     wrap.appendChild(
       cardHtml(
         `Cash zůstatek · CZK`,
         `<span class="${signClass(cashCzkTotal)}">${fmtNum(cashCzkTotal, 0)} Kč</span>`,
-        subText.length > 60 ? `${cashBreakdown.length} měn na účtu` : subText,
+        `<span class="cash-breakdown${compactClass}">${subText}</span>`,
       ),
     );
   }
@@ -1866,6 +1867,26 @@ function renderSummary() {
     yearsSince > 0
       ? (Math.pow(1 + totalReturnPct / 100, 1 / yearsSince) - 1) * 100
       : 0;
+
+  // === Doplnit Hodnotu portfolia (1. dlaždice — placeholder výše) ===
+  // Primární údaj = aktuální hodnota držených pozic v CZK, v závorce USD ekv.
+  {
+    const portfolioCzk = fxUsdToCzk ? currentValueUsd * fxUsdToCzk : null;
+    const mainLine =
+      portfolioCzk != null
+        ? `${fmtNum(portfolioCzk, 0)} Kč`
+        : `${fmtNum(currentValueUsd, 0)} USD`;
+    const subLine =
+      portfolioCzk != null ? `${fmtNum(currentValueUsd, 0)} USD ekv.` : "";
+    const missingPricesNote = allPricesAvailable
+      ? ""
+      : `<br><span class="muted">některé ceny chybí</span>`;
+    portfolioValueCard.innerHTML = `
+      <div class="label">Hodnota portfolia · CZK</div>
+      <div class="value">${mainLine}</div>
+      <div class="sub">${subLine}${missingPricesNote}</div>
+    `;
+  }
 
   // === 3) Total Return % od inception (primary = %, sub = absolutní hodnoty) ===
   const totalReturnCzk = fxUsdToCzk ? totalReturnUsd * fxUsdToCzk : null;
