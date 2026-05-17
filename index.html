@@ -23,7 +23,8 @@
       <div class="toolbar">
         <div class="tabs">
           <button class="tab active" data-view="overview">Přehled pozic</button>
-          <button class="tab" data-view="transactions">Transakce (účetní)</button>
+          <button class="tab" data-view="transactions">Transakce</button>
+          <button class="tab" data-view="dividends">Dividendy</button>
         </div>
         <button id="btn-refresh" class="btn">Načíst znovu</button>
         <button id="btn-export-csv" class="btn">Export CSV</button>
@@ -65,6 +66,17 @@
       </section>
 
       <section id="view-transactions" class="view">
+        <div class="filter-bar">
+          <span class="filter-label">Rok:</span>
+          <div class="filter-chips" id="year-chips"></div>
+          <span class="filter-divider">·</span>
+          <span class="filter-label">Vlastní rozsah:</span>
+          <input type="date" id="filter-from" class="filter-input" />
+          <span class="filter-dash">–</span>
+          <input type="date" id="filter-to" class="filter-input" />
+          <button id="filter-clear" class="btn-link" type="button">Vymazat filtr</button>
+          <span class="filter-count" id="filter-count"></span>
+        </div>
         <div class="table-wrap">
           <table id="tbl-transactions">
             <thead>
@@ -83,6 +95,28 @@
               </tr>
             </thead>
             <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="view-dividends" class="view">
+        <div class="table-wrap">
+          <table id="tbl-dividends">
+            <thead>
+              <tr>
+                <th>Datum</th>
+                <th>Symbol</th>
+                <th>Název</th>
+                <th>Země zdroje</th>
+                <th class="num">Hrubá</th>
+                <th class="num">Daň u zdroje</th>
+                <th class="num">Net</th>
+                <th>Měna</th>
+                <th class="num">Net USD ekv.</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot id="tfoot-dividends"></tfoot>
           </table>
         </div>
       </section>

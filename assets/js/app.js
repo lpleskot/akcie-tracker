@@ -15,6 +15,7 @@ const state = {
   quotes: {},
   view: "overview",
   sort: { key: "sym", dir: "asc" },
+  txFilter: { from: null, to: null }, // ISO date strings, null = bez omezení
 };
 
 const sortGetters = {
@@ -59,6 +60,7 @@ async function init() {
   setupRefresh();
   setupSort();
   setupExpand();
+  setupTxFilter();
 
   // 4) Fetch live quotes
   await refreshQuotes();
@@ -139,6 +141,7 @@ async function refreshQuotes() {
   setStatus(null);
   renderOverview();
   renderTransactions();
+  renderDividends();
   renderSummary();
 }
 
@@ -502,11 +505,114 @@ function buildDetailRow(sym) {
 }
 
 // ---------- Transactions ----------
+function setupTxFilter() {
+  // Vygenerovat roky chipy z dostupných dat (vč. dividend)
+  const years = new Set();
+  for (const t of state.portfolio.transactions) {
+    years.add(t.date.slice(0, 4));
+  }
+  for (const d of state.portfolio.dividends || []) {
+    years.add(d.date.slice(0, 4));
+  }
+  const sortedYears = [...years].sort().reverse();
+
+  const wrap = document.getElementById("year-chips");
+  wrap.innerHTML = "";
+  // "Vše"
+  const chipAll = document.createElement("button");
+  chipAll.className = "filter-chip active";
+  chipAll.dataset.year = "all";
+  chipAll.textContent = "Vše";
+  wrap.appendChild(chipAll);
+  for (const y of sortedYears) {
+    const c = document.createElement("button");
+    c.className = "filter-chip";
+    c.dataset.year = y;
+    c.textContent = y;
+    wrap.appendChild(c);
+  }
+
+  // Click na chip
+  wrap.addEventListener("click", (e) => {
+    const btn = e.target.closest(".filter-chip");
+    if (!btn) return;
+    const y = btn.dataset.year;
+    if (y === "all") {
+      state.txFilter.from = null;
+      state.txFilter.to = null;
+    } else {
+      state.txFilter.from = `${y}-01-01`;
+      state.txFilter.to = `${y}-12-31`;
+    }
+    document.getElementById("filter-from").value = state.txFilter.from || "";
+    document.getElementById("filter-to").value = state.txFilter.to || "";
+    updateChipsActive();
+    renderTransactions();
+  });
+
+  // Date inputs override
+  const fromInp = document.getElementById("filter-from");
+  const toInp = document.getElementById("filter-to");
+  fromInp.addEventListener("change", () => {
+    state.txFilter.from = fromInp.value || null;
+    updateChipsActive();
+    renderTransactions();
+  });
+  toInp.addEventListener("change", () => {
+    state.txFilter.to = toInp.value || null;
+    updateChipsActive();
+    renderTransactions();
+  });
+  document.getElementById("filter-clear").addEventListener("click", () => {
+    state.txFilter.from = null;
+    state.txFilter.to = null;
+    fromInp.value = "";
+    toInp.value = "";
+    updateChipsActive();
+    renderTransactions();
+  });
+}
+
+function updateChipsActive() {
+  const { from, to } = state.txFilter;
+  document.querySelectorAll("#year-chips .filter-chip").forEach((c) => {
+    const y = c.dataset.year;
+    let active = false;
+    if (y === "all" && !from && !to) {
+      active = true;
+    } else if (y !== "all" && from === `${y}-01-01` && to === `${y}-12-31`) {
+      active = true;
+    }
+    c.classList.toggle("active", active);
+  });
+}
+
 function renderTransactions() {
   const tbody = document.querySelector("#tbl-transactions tbody");
   tbody.innerHTML = "";
 
-  const txs = [...state.portfolio.transactions];
+  const { from, to } = state.txFilter;
+  let txs = state.portfolio.transactions.filter((t) => {
+    if (from && t.date < from) return false;
+    if (to && t.date > to) return false;
+    return true;
+  });
+
+  // Nejnovější nahoře
+  txs = txs.sort((a, b) =>
+    `${b.date} ${b.time || ""}`.localeCompare(`${a.date} ${a.time || ""}`),
+  );
+
+  // Counter
+  const total = state.portfolio.transactions.length;
+  const countEl = document.getElementById("filter-count");
+  if (countEl) {
+    countEl.textContent =
+      txs.length === total
+        ? `${total} transakcí`
+        : `${txs.length} z ${total} transakcí`;
+  }
+
   for (const t of txs) {
     const inst = state.portfolio.instruments[t.symbol];
     const tr = document.createElement("tr");
@@ -524,6 +630,101 @@ function renderTransactions() {
       <td>${inst.currency}</td>
     `;
     tbody.appendChild(tr);
+  }
+}
+
+// ---------- Dividends ----------
+function renderDividends() {
+  const tbody = document.querySelector("#tbl-dividends tbody");
+  const tfoot = document.getElementById("tfoot-dividends");
+  tbody.innerHTML = "";
+  if (tfoot) tfoot.innerHTML = "";
+
+  // Sloučit dividends + withholding tax podle (symbol, date) — IBKR posílá oboje
+  // v ten samý den ke stejné akci
+  const events = new Map();
+  for (const d of state.portfolio.dividends || []) {
+    const key = `${d.symbol}|${d.date}`;
+    if (!events.has(key)) {
+      events.set(key, {
+        symbol: d.symbol,
+        date: d.date,
+        currency: d.currency,
+        gross: 0,
+        tax: 0,
+        country: null,
+        gross_usd: 0,
+        tax_usd: 0,
+        per_share: d.per_share,
+      });
+    }
+    const e = events.get(key);
+    e.gross += d.amount;
+    e.gross_usd += d.amount_usd || 0;
+  }
+  for (const t of state.portfolio.withholding_tax || []) {
+    const key = `${t.symbol}|${t.date}`;
+    if (!events.has(key)) {
+      events.set(key, {
+        symbol: t.symbol,
+        date: t.date,
+        currency: t.currency,
+        gross: 0,
+        tax: 0,
+        country: t.country,
+        gross_usd: 0,
+        tax_usd: 0,
+        per_share: null,
+      });
+    }
+    const e = events.get(key);
+    e.tax += t.amount;
+    e.tax_usd += t.amount_usd || 0;
+    e.country = e.country || t.country;
+  }
+
+  // Nejnovější nahoře
+  const rows = [...events.values()].sort((a, b) =>
+    b.date.localeCompare(a.date),
+  );
+
+  let totalGrossUsd = 0;
+  let totalTaxUsd = 0;
+  for (const r of rows) {
+    const inst = state.portfolio.instruments[r.symbol] || {};
+    const net = r.gross + r.tax;
+    const netUsd = r.gross_usd + r.tax_usd;
+    totalGrossUsd += r.gross_usd;
+    totalTaxUsd += r.tax_usd;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="num">${r.date}</td>
+      <td class="symbol">${r.symbol}</td>
+      <td>${escapeHtml(inst.name || "")}</td>
+      <td>${r.country || '<span class="muted">—</span>'}</td>
+      <td class="num pos">${fmtNum(r.gross, 2)}</td>
+      <td class="num ${r.tax !== 0 ? "neg" : "muted"}">${r.tax !== 0 ? fmtNum(r.tax, 2) : "—"}</td>
+      <td class="num pos"><strong>${fmtNum(net, 2)}</strong></td>
+      <td>${r.currency}</td>
+      <td class="num">${fmtNum(netUsd, 2)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  // Total v patce
+  if (tfoot && rows.length > 0) {
+    const totalNetUsd = totalGrossUsd + totalTaxUsd;
+    tfoot.innerHTML = `
+      <tr>
+        <td colspan="4">Celkem (USD ekvivalent)</td>
+        <td class="num pos">${fmtNum(totalGrossUsd, 2)}</td>
+        <td class="num neg">${fmtNum(totalTaxUsd, 2)}</td>
+        <td class="num pos"><strong>${fmtNum(totalNetUsd, 2)}</strong></td>
+        <td>USD</td>
+        <td class="num"><strong>${fmtNum(totalNetUsd, 2)}</strong></td>
+      </tr>
+    `;
   }
 }
 

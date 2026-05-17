@@ -161,6 +161,88 @@ button.primary:hover {
   margin-top: 2px;
 }
 
+/* ------- Filter bar ------- */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.filter-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+.filter-chips {
+  display: inline-flex;
+  gap: 4px;
+}
+.filter-chip {
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--color-text);
+  font-family: inherit;
+  transition: all 0.12s ease;
+}
+.filter-chip:hover {
+  border-color: #c4c4be;
+  background: #fafaf8;
+}
+.filter-chip.active {
+  background: var(--color-text);
+  color: #fff;
+  border-color: var(--color-text);
+}
+.filter-divider {
+  color: var(--color-border);
+  margin: 0 4px;
+}
+.filter-input {
+  padding: 5px 8px;
+  font-size: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  font-family: inherit;
+  color: var(--color-text);
+}
+.filter-dash {
+  color: var(--color-text-muted);
+}
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 6px;
+  font-family: inherit;
+}
+.btn-link:hover {
+  text-decoration: underline;
+}
+.filter-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+tfoot td {
+  background: #fafaf8;
+  font-weight: 600;
+  border-top: 2px solid var(--color-border);
+}
+
 /* ------- Tables ------- */
 .table-wrap {
   background: var(--color-surface);
