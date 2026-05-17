@@ -32,6 +32,19 @@
       </div>
 
       <section id="view-overview" class="view active">
+        <div class="filter-bar">
+          <span class="filter-label">Hledat:</span>
+          <input
+            type="text"
+            id="overview-search"
+            class="filter-input"
+            placeholder="Ticker nebo název (např. ADBE, adobe, novo…)"
+            style="min-width: 280px;"
+            autocomplete="off"
+          />
+          <button id="overview-search-clear" class="btn-link" type="button">Vymazat</button>
+          <span class="filter-count" id="overview-count"></span>
+        </div>
         <div class="table-wrap">
           <table id="tbl-overview">
             <thead>

@@ -1049,5 +1049,14 @@
     "cash_usd": 3008.46751585,
     "stock_usd": 201155.3145268,
     "total_usd": 204163.78204265
-  }
+  },
+  "inception_date": "2025-11-24",
+  "statement_period_end": "2026-05-15",
+  "twr_pct": -9.025659178,
+  "mtd_mark_to_market_usd": 36.0965,
+  "ytd_mark_to_market_usd": -199.0841,
+  "realized_mtd_usd": 0.0,
+  "realized_ytd_usd": -13324.4571,
+  "total_deposits_usd": 208730.0,
+  "total_interest_usd": 142.5
 }
