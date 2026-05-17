@@ -243,6 +243,86 @@ tfoot td {
   border-top: 2px solid var(--color-border);
 }
 
+/* ------- Report pro účetní ------- */
+.report-intro {
+  margin-bottom: 12px;
+  font-size: 12.5px;
+}
+.report-event {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.report-event-header {
+  padding: 10px 14px;
+  background: #fafaf8;
+  border-bottom: 1px solid var(--color-border);
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.report-event-header .muted {
+  font-weight: 400;
+  font-size: 12px;
+}
+.report-event table {
+  font-size: 12.5px;
+}
+.report-event tr.buy td {
+  border-bottom: 1px dotted var(--color-border);
+}
+.report-event tr.subtotal td {
+  background: #f5f5f1;
+  font-weight: 600;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+.report-event tr.sell td {
+  background: #fcf7f0;
+  font-weight: 600;
+}
+.report-event tr.totals td {
+  background: #ecece6;
+  font-weight: 700;
+  border-top: 2px solid var(--color-text);
+}
+.report-event tr.totals .label {
+  text-align: right;
+}
+.report-event .missing-fx {
+  color: var(--color-negative);
+}
+#report-summary {
+  margin-top: 14px;
+  padding: 14px 18px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+#report-summary .total-label {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+#report-summary .total-value {
+  font-size: 17px;
+  font-weight: 700;
+}
+
 /* ------- Tables ------- */
 .table-wrap {
   background: var(--color-surface);

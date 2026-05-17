@@ -25,6 +25,7 @@
           <button class="tab active" data-view="overview">Přehled pozic</button>
           <button class="tab" data-view="transactions">Transakce</button>
           <button class="tab" data-view="dividends">Dividendy</button>
+          <button class="tab" data-view="report">Report pro účetní</button>
         </div>
         <button id="btn-refresh" class="btn">Načíst znovu</button>
         <button id="btn-export-csv" class="btn">Export CSV</button>
@@ -97,6 +98,27 @@
             <tbody></tbody>
           </table>
         </div>
+      </section>
+
+      <section id="view-report" class="view">
+        <div class="filter-bar">
+          <span class="filter-label">Rok prodeje:</span>
+          <div class="filter-chips" id="report-year-chips"></div>
+          <span class="filter-divider">·</span>
+          <span class="filter-label">Vlastní rozsah:</span>
+          <input type="date" id="report-from" class="filter-input" />
+          <span class="filter-dash">–</span>
+          <input type="date" id="report-to" class="filter-input" />
+          <button id="report-clear" class="btn-link" type="button">Vymazat filtr</button>
+          <span class="filter-count" id="report-count"></span>
+        </div>
+        <div class="report-intro muted">
+          Podklad pro daňové přiznání podle FIFO. Pro každý realizovaný prodej se uvádějí
+          dohledané nákupní loty a přepočet na CZK kurzem ČNB k datu transakce.
+          Účetní zajímají pouze tituly, kde v daném roce došlo k prodeji.
+        </div>
+        <div id="report-content"></div>
+        <div id="report-summary"></div>
       </section>
 
       <section id="view-dividends" class="view">

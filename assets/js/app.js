@@ -7,15 +7,18 @@ import {
 } from "./fifo.js";
 
 const PORTFOLIO_URL = "./data/portfolios/plegi-invest-ibkr.json";
+const FX_URL = "./data/fx_rates.json";
 const QUOTE_URL = "/api/quote";
 
 const state = {
   portfolio: null,
   positions: null,
   quotes: {},
+  fxRates: null,
   view: "overview",
   sort: { key: "sym", dir: "asc" },
-  txFilter: { from: null, to: null }, // ISO date strings, null = bez omezení
+  txFilter: { from: null, to: null },
+  reportFilter: { from: null, to: null },
 };
 
 const sortGetters = {
@@ -41,10 +44,19 @@ init().catch((err) => {
 async function init() {
   setStatus("Načítám portfolio…");
 
-  // 1) Load portfolio JSON
-  const res = await fetch(PORTFOLIO_URL, { cache: "no-cache" });
-  if (!res.ok) throw new Error(`Portfolio JSON ${res.status}`);
-  state.portfolio = await res.json();
+  // 1) Load portfolio JSON + FX rates (paralelně)
+  const [portfolioRes, fxRes] = await Promise.all([
+    fetch(PORTFOLIO_URL, { cache: "no-cache" }),
+    fetch(FX_URL, { cache: "no-cache" }),
+  ]);
+  if (!portfolioRes.ok) throw new Error(`Portfolio JSON ${portfolioRes.status}`);
+  state.portfolio = await portfolioRes.json();
+  if (fxRes.ok) {
+    state.fxRates = await fxRes.json();
+  } else {
+    console.warn("FX rates nedostupné — report v CZK nebude přesný");
+    state.fxRates = { dates: {} };
+  }
 
   // 2) Compute FIFO positions (vč. corp. actions, dividend a withholding tax)
   state.positions = computePositions(
@@ -61,6 +73,7 @@ async function init() {
   setupSort();
   setupExpand();
   setupTxFilter();
+  setupReportFilter();
 
   // 4) Fetch live quotes
   await refreshQuotes();
@@ -142,7 +155,21 @@ async function refreshQuotes() {
   renderOverview();
   renderTransactions();
   renderDividends();
+  renderReport();
   renderSummary();
+}
+
+// ---------- FX rate lookup ----------
+function getFxToCzk(date, currency) {
+  if (currency === "CZK") return 1;
+  const fx = state.fxRates;
+  if (!fx || !fx.dates) return null;
+  const day = fx.dates[date];
+  if (!day || !day.rates) return null;
+  const r = day.rates[currency];
+  if (!r) return null;
+  // rate je za `amount` jednotek měny
+  return r.rate / r.amount;
 }
 
 // ---------- Overview ----------
@@ -833,6 +860,276 @@ function cardHtml(label, valueHtml, sub = "") {
     ${sub ? `<div class="sub">${escapeHtml(sub)}</div>` : ""}
   `;
   return d;
+}
+
+// ---------- Report pro účetní ----------
+function setupReportFilter() {
+  // Roky chipy — jen roky, kdy došlo k SELL
+  const years = new Set();
+  for (const sym in state.positions) {
+    for (const cl of state.positions[sym].closed_lots || []) {
+      if (!cl.orphan && cl.sell_date) years.add(cl.sell_date.slice(0, 4));
+    }
+  }
+  const sortedYears = [...years].sort().reverse();
+
+  const wrap = document.getElementById("report-year-chips");
+  wrap.innerHTML = "";
+  // Default "Vše" je preselected, ale typicky účetní vybere konkrétní rok.
+  // Pokud existuje jen jeden rok, předvybereme ho.
+  const chipAll = document.createElement("button");
+  chipAll.className = "filter-chip" + (sortedYears.length !== 1 ? " active" : "");
+  chipAll.dataset.year = "all";
+  chipAll.textContent = "Vše";
+  wrap.appendChild(chipAll);
+  for (const y of sortedYears) {
+    const c = document.createElement("button");
+    c.className = "filter-chip" + (sortedYears.length === 1 ? " active" : "");
+    c.dataset.year = y;
+    c.textContent = y;
+    wrap.appendChild(c);
+  }
+  // Pokud existuje jen jeden rok, předvybrat ho
+  if (sortedYears.length === 1) {
+    state.reportFilter.from = `${sortedYears[0]}-01-01`;
+    state.reportFilter.to = `${sortedYears[0]}-12-31`;
+  }
+
+  wrap.addEventListener("click", (e) => {
+    const btn = e.target.closest(".filter-chip");
+    if (!btn) return;
+    const y = btn.dataset.year;
+    if (y === "all") {
+      state.reportFilter.from = null;
+      state.reportFilter.to = null;
+    } else {
+      state.reportFilter.from = `${y}-01-01`;
+      state.reportFilter.to = `${y}-12-31`;
+    }
+    document.getElementById("report-from").value = state.reportFilter.from || "";
+    document.getElementById("report-to").value = state.reportFilter.to || "";
+    updateReportChipsActive();
+    renderReport();
+  });
+
+  const fromInp = document.getElementById("report-from");
+  const toInp = document.getElementById("report-to");
+  fromInp.value = state.reportFilter.from || "";
+  toInp.value = state.reportFilter.to || "";
+  fromInp.addEventListener("change", () => {
+    state.reportFilter.from = fromInp.value || null;
+    updateReportChipsActive();
+    renderReport();
+  });
+  toInp.addEventListener("change", () => {
+    state.reportFilter.to = toInp.value || null;
+    updateReportChipsActive();
+    renderReport();
+  });
+  document.getElementById("report-clear").addEventListener("click", () => {
+    state.reportFilter.from = null;
+    state.reportFilter.to = null;
+    fromInp.value = "";
+    toInp.value = "";
+    updateReportChipsActive();
+    renderReport();
+  });
+}
+
+function updateReportChipsActive() {
+  const { from, to } = state.reportFilter;
+  document.querySelectorAll("#report-year-chips .filter-chip").forEach((c) => {
+    const y = c.dataset.year;
+    let active = false;
+    if (y === "all" && !from && !to) {
+      active = true;
+    } else if (y !== "all" && from === `${y}-01-01` && to === `${y}-12-31`) {
+      active = true;
+    }
+    c.classList.toggle("active", active);
+  });
+}
+
+function renderReport() {
+  const container = document.getElementById("report-content");
+  const summary = document.getElementById("report-summary");
+  const countEl = document.getElementById("report-count");
+  container.innerHTML = "";
+  summary.innerHTML = "";
+
+  // Sesbírat všechny prodejní eventy v daném období
+  // Klíč = symbol + sell_date (IBKR někdy dělí 1 prodej na víc closed lotů)
+  const { from, to } = state.reportFilter;
+  const eventsMap = new Map();
+  for (const sym in state.positions) {
+    const pos = state.positions[sym];
+    for (const cl of pos.closed_lots || []) {
+      if (cl.orphan) continue;
+      const sd = cl.sell_date;
+      if (from && sd < from) continue;
+      if (to && sd > to) continue;
+      const key = `${sym}|${sd}`;
+      let ev = eventsMap.get(key);
+      if (!ev) {
+        ev = {
+          symbol: sym,
+          sell_date: sd,
+          currency: state.portfolio.instruments[sym].currency,
+          name: state.portfolio.instruments[sym].name,
+          buys: [],
+          sell_qty: 0,
+          sell_net_total: 0,
+          sell_price: cl.sell_price,
+        };
+        eventsMap.set(key, ev);
+      }
+      ev.buys.push({
+        date: cl.buy_date,
+        qty: cl.qty,
+        cost_per_unit: cl.buy_cost_per_unit,
+        total: cl.qty * cl.buy_cost_per_unit,
+      });
+      ev.sell_qty += cl.qty;
+      ev.sell_net_total += cl.qty * cl.sell_net_per_unit;
+    }
+  }
+
+  const events = [...eventsMap.values()].sort((a, b) =>
+    a.sell_date.localeCompare(b.sell_date),
+  );
+
+  if (countEl) {
+    countEl.textContent =
+      events.length === 0
+        ? "Žádný prodej v období"
+        : `${events.length} prodej${events.length === 1 ? "" : events.length < 5 ? "e" : "ů"}`;
+  }
+
+  if (events.length === 0) {
+    container.innerHTML = `<div class="status">V daném období neproběhl žádný prodej. Zkuste vybrat jiný rok nebo "Vše".</div>`;
+    return;
+  }
+
+  let grandCostCzk = 0;
+  let grandSellCzk = 0;
+  let grandProfitCzk = 0;
+  let anyMissingFx = false;
+
+  for (const ev of events) {
+    // Slučit duplicitní buy lots (stejné datum) — IBKR někdy dělí intra-day
+    const buysByDate = new Map();
+    for (const b of ev.buys) {
+      if (!buysByDate.has(b.date)) {
+        buysByDate.set(b.date, { date: b.date, qty: 0, total: 0 });
+      }
+      const e = buysByDate.get(b.date);
+      e.qty += b.qty;
+      e.total += b.total;
+    }
+    const buys = [...buysByDate.values()].sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
+
+    // FX přepočet
+    let costCzk = 0;
+    let allFxFound = true;
+    for (const b of buys) {
+      const fx = getFxToCzk(b.date, ev.currency);
+      b.fx = fx;
+      b.czk = fx != null ? b.total * fx : null;
+      if (fx == null) allFxFound = false;
+      else costCzk += b.czk;
+    }
+    const sellFx = getFxToCzk(ev.sell_date, ev.currency);
+    const sellCzk = sellFx != null ? ev.sell_net_total * sellFx : null;
+    if (sellFx == null) allFxFound = false;
+    const profitCzk = sellCzk != null ? sellCzk - costCzk : null;
+
+    if (!allFxFound) anyMissingFx = true;
+    if (sellCzk != null) {
+      grandCostCzk += costCzk;
+      grandSellCzk += sellCzk;
+      grandProfitCzk += profitCzk;
+    }
+
+    // Build HTML
+    const card = document.createElement("div");
+    card.className = "report-event";
+    let html = `
+      <div class="report-event-header">
+        <span><strong>${ev.symbol}</strong> — ${escapeHtml(ev.name)} <span class="muted">· ${ev.currency}</span></span>
+        <span class="muted">Prodej ${ev.sell_date} · ${fmtNum(ev.sell_qty, 0)} ks @ ${fmtNum(ev.sell_price, 4)}</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Datum</th>
+            <th class="num">Kusů</th>
+            <th class="num">Cena celkem (${ev.currency})</th>
+            <th class="num">Kurz ČNB CZK/${ev.currency}</th>
+            <th class="num">Cena celkem v Kč</th>
+            <th>Pozn.</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+    for (const b of buys) {
+      html += `
+        <tr class="buy">
+          <td>${b.date}</td>
+          <td class="num">${fmtNum(b.qty, 0)}</td>
+          <td class="num">${fmtNum(b.total, 2)}</td>
+          <td class="num">${b.fx != null ? fmtNum(b.fx, 4) : '<span class="missing-fx">chybí kurz</span>'}</td>
+          <td class="num">${b.czk != null ? fmtNum(b.czk, 2) : '<span class="missing-fx">—</span>'}</td>
+          <td class="muted">nákup</td>
+        </tr>
+      `;
+    }
+    html += `
+      <tr class="subtotal">
+        <td colspan="4" class="label" style="text-align:right;">Celkem nákup (CZK):</td>
+        <td class="num"><strong>${allFxFound ? fmtNum(costCzk, 2) : '<span class="missing-fx">—</span>'}</strong></td>
+        <td></td>
+      </tr>
+      <tr class="sell">
+        <td>${ev.sell_date}</td>
+        <td class="num">${fmtNum(ev.sell_qty, 0)}</td>
+        <td class="num">${fmtNum(ev.sell_net_total, 2)}</td>
+        <td class="num">${sellFx != null ? fmtNum(sellFx, 4) : '<span class="missing-fx">chybí kurz</span>'}</td>
+        <td class="num">${sellCzk != null ? fmtNum(sellCzk, 2) : '<span class="missing-fx">—</span>'}</td>
+        <td class="muted">prodej</td>
+      </tr>
+      <tr class="totals">
+        <td colspan="4" class="label" style="text-align:right;">${profitCzk >= 0 ? "Zisk" : "Ztráta"} v Kč:</td>
+        <td class="num ${signClass(profitCzk)}"><strong>${profitCzk != null ? fmtNum(profitCzk, 2) : '<span class="missing-fx">—</span>'}</strong></td>
+        <td></td>
+      </tr>
+      </tbody>
+      </table>
+    `;
+    card.innerHTML = html;
+    container.appendChild(card);
+  }
+
+  // Souhrn pod kartami
+  let sumHtml = `
+    <div>
+      <div class="total-label">Celkem nákup (CZK)</div>
+      <div class="total-value">${fmtNum(grandCostCzk, 2)}</div>
+    </div>
+    <div>
+      <div class="total-label">Celkem prodej (CZK)</div>
+      <div class="total-value">${fmtNum(grandSellCzk, 2)}</div>
+    </div>
+    <div>
+      <div class="total-label">${grandProfitCzk >= 0 ? "Zisk z prodejů" : "Ztráta z prodejů"} (CZK)</div>
+      <div class="total-value ${signClass(grandProfitCzk)}">${fmtNum(grandProfitCzk, 2)}</div>
+    </div>
+  `;
+  if (anyMissingFx) {
+    sumHtml += `<div class="muted" style="flex-basis:100%;">⚠️ Některé kurzy ČNB chybí — souhrn nemusí být úplný.</div>`;
+  }
+  summary.innerHTML = sumHtml;
 }
 
 // ---------- CSV export ----------
