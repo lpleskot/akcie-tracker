@@ -155,10 +155,109 @@ async function refreshQuotes() {
 
   setStatus(null);
   renderOverview();
+  renderAllocation();
   renderTransactions();
   renderDividends();
   renderReport();
   renderSummary();
+}
+
+// ---------- Allocation ----------
+function renderAllocation() {
+  const tbody = document.querySelector("#tbl-allocation tbody");
+  const tfoot = document.getElementById("tfoot-allocation");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  if (tfoot) tfoot.innerHTML = "";
+
+  // Najít nejnovější ČNB datum
+  const fxDates = state.fxRates?.dates
+    ? Object.keys(state.fxRates.dates).sort()
+    : [];
+  const todayFxDate = fxDates[fxDates.length - 1] || null;
+  const fxUsdToCzk = todayFxDate ? getFxToCzk(todayFxDate, "USD") : null;
+
+  // Sebrat řádky: pro každou OTEVŘENOU pozici spočítat current value USD + invested USD
+  const rows = [];
+  let sumValueUsd = 0;
+  let sumInvestedUsd = 0;
+  for (const sym of Object.keys(state.portfolio.instruments)) {
+    const pos = state.positions[sym];
+    if (!pos || pos.net_qty === 0) continue;
+    const inst = state.portfolio.instruments[sym];
+    const ccy = inst.currency;
+    const ccyToCzk = todayFxDate ? getFxToCzk(todayFxDate, ccy) : null;
+    if (ccyToCzk == null || fxUsdToCzk == null) continue;
+    const quote = state.quotes[inst.yahoo_symbol] || {};
+    const valueLocal =
+      quote.price != null ? pos.net_qty * quote.price : null;
+    const valueUsd =
+      valueLocal != null ? (valueLocal * ccyToCzk) / fxUsdToCzk : null;
+    const investedUsd = (pos.total_invested * ccyToCzk) / fxUsdToCzk;
+    if (valueUsd != null) sumValueUsd += valueUsd;
+    sumInvestedUsd += investedUsd;
+    rows.push({
+      sym,
+      inst,
+      pos,
+      valueLocal,
+      valueUsd,
+      investedUsd,
+    });
+  }
+
+  // Dopočítat váhy
+  for (const r of rows) {
+    r.weightValue =
+      sumValueUsd > 0 && r.valueUsd != null
+        ? (r.valueUsd / sumValueUsd) * 100
+        : null;
+    r.weightInvested =
+      sumInvestedUsd > 0 ? (r.investedUsd / sumInvestedUsd) * 100 : 0;
+    r.delta =
+      r.weightValue != null ? r.weightValue - r.weightInvested : null;
+  }
+
+  // Setřídit podle aktuální váhy desc
+  rows.sort((a, b) => (b.weightValue ?? 0) - (a.weightValue ?? 0));
+
+  // Maximální hodnota pro normalizaci bar widths
+  const maxWeight = Math.max(
+    ...rows.map((r) => Math.max(r.weightValue ?? 0, r.weightInvested ?? 0)),
+    1,
+  );
+
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="symbol">${r.sym}</td>
+      <td>${escapeHtml(r.inst.name)}</td>
+      <td>${r.inst.currency}</td>
+      <td class="num">${r.valueUsd != null ? fmtNum(r.valueUsd, 0) : '<span class="muted">—</span>'}</td>
+      <td class="num"><strong>${r.weightValue != null ? fmtPct(r.weightValue, 2) : '<span class="muted">—</span>'}</strong></td>
+      <td><div class="alloc-bar-wrap"><div class="alloc-bar-fill" style="width: ${r.weightValue != null ? Math.min(100, (r.weightValue / maxWeight) * 100) : 0}%"></div></div></td>
+      <td class="num">${fmtNum(r.investedUsd, 0)}</td>
+      <td class="num"><strong>${fmtPct(r.weightInvested, 2)}</strong></td>
+      <td><div class="alloc-bar-wrap"><div class="alloc-bar-fill cost" style="width: ${Math.min(100, (r.weightInvested / maxWeight) * 100)}%"></div></div></td>
+      <td class="num ${signClass(r.delta)}">${r.delta != null ? fmtPct(r.delta, 2) : '<span class="muted">—</span>'}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  if (tfoot) {
+    tfoot.innerHTML = `
+      <tr>
+        <td colspan="3">Celkem (${rows.length} otevřených pozic)</td>
+        <td class="num"><strong>${fmtNum(sumValueUsd, 0)}</strong></td>
+        <td class="num"><strong>100,00 %</strong></td>
+        <td></td>
+        <td class="num"><strong>${fmtNum(sumInvestedUsd, 0)}</strong></td>
+        <td class="num"><strong>100,00 %</strong></td>
+        <td></td>
+        <td></td>
+      </tr>
+    `;
+  }
 }
 
 // ---------- FX rate lookup ----------
@@ -195,20 +294,20 @@ function renderOverview() {
 
   // 1) Sesbírat řádky s vypočtenými hodnotami
   const rows = [];
-  const q = state.overviewSearch;
+  const searchQuery = state.overviewSearch;
   for (const sym of Object.keys(state.portfolio.instruments)) {
     const inst = state.portfolio.instruments[sym];
     const pos = state.positions[sym];
     if (!pos || pos.net_qty === 0) continue;
     // Search filter
-    if (q) {
+    if (searchQuery) {
       const haystack = `${sym} ${inst.name}`.toLowerCase();
-      if (!haystack.includes(q)) continue;
+      if (!haystack.includes(searchQuery)) continue;
     }
 
-    const q = state.quotes[inst.yahoo_symbol] || {};
-    const currentPrice = q.price;
-    const hasPrice = currentPrice != null && !q.error;
+    const quote = state.quotes[inst.yahoo_symbol] || {};
+    const currentPrice = quote.price;
+    const hasPrice = currentPrice != null && !quote.error;
     const u = unrealizedPnl(pos, currentPrice);
     const totalPnl = pos.realized_pnl + u.value;
     const totalPct =
@@ -875,11 +974,16 @@ function renderSummary() {
       ? (Math.pow(1 + totalReturnPct / 100, 1 / yearsSince) - 1) * 100
       : 0;
 
-  // === 3) Total Return % od inception ===
+  // === 3) Total Return % od inception (s absolutními čísly v sub) ===
+  const totalReturnCzk = fxUsdToCzk ? totalReturnUsd * fxUsdToCzk : null;
+  const absLine =
+    totalReturnCzk != null
+      ? `${fmtNum(totalReturnUsd, 0)} USD ≈ ${fmtNum(totalReturnCzk, 0)} Kč`
+      : `${fmtNum(totalReturnUsd, 0)} USD`;
   wrap.appendChild(
     cardHtml(
       `Celkový výnos`,
-      `<span class="${signClass(totalReturnPct)}">${fmtPct(totalReturnPct)}</span>`,
+      `<span class="${signClass(totalReturnPct)}">${fmtPct(totalReturnPct)}</span> <span class="muted">${absLine}</span>`,
       `od ${inception} (${Math.round(daysSince)} dní)`,
     ),
   );
@@ -929,20 +1033,7 @@ function renderSummary() {
     ),
   );
 
-  // === 6) Aggregovaný Z/Z v CZK ===
-  if (fxUsdToCzk != null) {
-    const totalPlCzk = totalReturnUsd * fxUsdToCzk;
-    wrap.appendChild(
-      cardHtml(
-        `Zisk/Ztráta · CZK`,
-        `<span class="${signClass(totalPlCzk)}">${fmtNum(totalPlCzk, 0)} Kč</span>`,
-        `přepočet kurzem ČNB ${fmtNum(fxUsdToCzk, 3)} USD/CZK k ${todayFxDate}` +
-          (allPricesAvailable ? "" : " · pozor: některé ceny chybí"),
-      ),
-    );
-  }
-
-  // === 7) Aggregované dividendy v CZK ===
+  // === 6) Aggregované dividendy v CZK ===
   if (fxUsdToCzk != null) {
     const netDivCzk = netDividendsUsd * fxUsdToCzk;
     const grossDivCzk = dividendsGrossUsd * fxUsdToCzk;
@@ -950,7 +1041,7 @@ function renderSummary() {
     wrap.appendChild(
       cardHtml(
         `Dividendy (po dani) · CZK`,
-        `<span class="${signClass(netDivCzk)}">${fmtNum(netDivCzk, 0)} Kč</span>`,
+        `<span class="${signClass(netDivCzk)}">${fmtNum(netDivCzk, 0)} Kč</span> <span class="muted">${fmtNum(netDividendsUsd, 0)} USD</span>`,
         `hrubé ${fmtNum(grossDivCzk, 0)} · daň ${fmtNum(taxDivCzk, 0)} Kč`,
       ),
     );

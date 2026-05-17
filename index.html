@@ -23,6 +23,7 @@
       <div class="toolbar">
         <div class="tabs">
           <button class="tab active" data-view="overview">Přehled pozic</button>
+          <button class="tab" data-view="allocation">Alokace</button>
           <button class="tab" data-view="transactions">Transakce</button>
           <button class="tab" data-view="dividends">Dividendy</button>
           <button class="tab" data-view="report">Report pro účetní</button>
@@ -109,6 +110,35 @@
               </tr>
             </thead>
             <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="view-allocation" class="view">
+        <div class="report-intro muted">
+          Váha každé pozice v portfoliu ve dvou pohledech: podle <strong>aktuální tržní hodnoty</strong>
+          a podle <strong>celkové vložené investice</strong> (vč. již prodaných lotů).
+          Rozdíl ukazuje, jak se relativní pozice posunula díky růstu/poklesu trhu.
+          Všechno převedeno do USD aktuálním kurzem ČNB pro porovnání napříč měnami.
+        </div>
+        <div class="table-wrap">
+          <table id="tbl-allocation">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Název</th>
+                <th>Měna</th>
+                <th class="num">Hodnota teď (USD)</th>
+                <th class="num">Váha teď %</th>
+                <th></th>
+                <th class="num">Vloženo (USD)</th>
+                <th class="num">Váha podle vkladu %</th>
+                <th></th>
+                <th class="num">Δ p.b.</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot id="tfoot-allocation"></tfoot>
           </table>
         </div>
       </section>
