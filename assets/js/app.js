@@ -1137,7 +1137,23 @@ function renderOverview() {
     const currentPrice = quote.price;
     const hasPrice = currentPrice != null && !quote.error;
     const u = unrealizedPnl(pos, currentPrice);
-    const totalPnl = pos.realized_pnl + u.value;
+
+    // Kapitálová Z/Z = realizovaná + nerealizovaná (jen kapitálové pohyby)
+    const capitalPnl = pos.realized_pnl + u.value;
+
+    // Total Return = kapitálová Z/Z + čistý dividendový výnos
+    // (jen pokud je dividenda ve stejné měně jako pozice; NOV: EUR pozice, DKK
+    // dividendy → nesčítáme, zobrazí se jen kapitálová Z/Z s indikátorem)
+    const divCcys = new Set([
+      ...(pos.dividend_records || []).map((dRec) => dRec.currency),
+      ...(pos.withholding_records || []).map((t) => t.currency),
+    ]);
+    const divSameCcy =
+      divCcys.size === 0 ||
+      (divCcys.size === 1 && divCcys.has(inst.currency));
+    const totalPnl = divSameCcy
+      ? capitalPnl + (pos.net_dividend_local || 0)
+      : capitalPnl;
     const totalPct =
       pos.total_invested > 0 ? (totalPnl / pos.total_invested) * 100 : 0;
 
@@ -1148,8 +1164,11 @@ function renderOverview() {
       currentPrice,
       hasPrice,
       marketValue: u.market_value,
+      capitalPnl,
       totalPnl,
       totalPct,
+      divSameCcy,
+      hasDividends: divCcys.size > 0,
     });
   }
 
@@ -1199,7 +1218,7 @@ function renderOverview() {
       <td class="num">${r.hasPrice ? fmtNum(r.currentPrice, 2) : '<span class="muted">—</span>'}</td>
       <td class="num">${fmtNum(r.pos.cost_basis, 2)}</td>
       <td class="num">${r.hasPrice ? fmtNum(r.marketValue, 2) : '<span class="muted">—</span>'}</td>
-      <td class="num clickable ${signClass(r.totalPnl)}" data-action="expand" title="Klikněte pro detailní rozpad výpočtu">${r.hasPrice ? fmtNum(r.totalPnl, 2) + ' <span class="caret">▾</span>' : '<span class="muted">—</span>'}</td>
+      <td class="num clickable ${signClass(r.totalPnl)}" data-action="expand" title="${r.hasDividends && !r.divSameCcy ? 'Pozor: dividendy v jiné měně než pozice — Total Return není sečteno. Vidíte jen kapitálovou Z/Z. Klikněte pro detail.' : 'Total Return = kapitálová Z/Z + čistý dividendový výnos. Klikněte pro detail.'}">${r.hasPrice ? fmtNum(r.totalPnl, 2) + (r.hasDividends && r.divSameCcy ? ' <span class="benchmark-tooltip">＋div</span>' : '') + ' <span class="caret">▾</span>' : '<span class="muted">—</span>'}</td>
       <td class="num ${signClass(r.totalPct)}">${r.hasPrice ? fmtPct(r.totalPct) : '<span class="muted">—</span>'}</td>
     `;
     tbody.appendChild(tr);
@@ -2317,8 +2336,9 @@ function buildOverviewAoa() {
   const rows = getFilteredOverviewRows();
   const header = [
     "Symbol", "Název", "Burza", "Měna",
-    "Kusů", "Ø nákup", "Aktuální", "Nákupní cena pozice",
-    "Hodnota pozice", "Zisk/Ztráta", "%",
+    "Kusů", "Ø nákup/ks", "Aktuální", "Nák. cena pozice",
+    "Hodnota pozice", "Kapitál. Z/Z", "Net dividendy",
+    "Zisk/Ztráta (Total Return)", "%",
   ];
   const data = rows.map((r) => [
     r.sym, r.inst.name, r.inst.exchange, r.inst.currency,
@@ -2326,6 +2346,8 @@ function buildOverviewAoa() {
     r.hasPrice ? r.currentPrice : null,
     r.pos.cost_basis,
     r.hasPrice ? r.marketValue : null,
+    r.hasPrice ? r.capitalPnl : null,
+    r.divSameCcy ? r.pos.net_dividend_local || 0 : null,
     r.hasPrice ? r.totalPnl : null,
     r.hasPrice ? r.totalPct : null,
   ]);
