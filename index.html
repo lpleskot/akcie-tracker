@@ -231,7 +231,9 @@
         <div class="report-intro muted">
           Pravidla pro automatické alerty na <strong>vámi držené pozice</strong>.
           Náhled „Aktuálně splňuje" ukazuje, které tickery by právě teď spustily alert.
-          Až bude cron worker nasazený, splněná pravidla automaticky pošlou email a označí se jako „fired" (znovu se nepošlou, dokud manuálně nezapnete „Re-arm").
+          Cron worker běží <strong>denně v 16:00 CET</strong> (15:00 UTC).
+          Splněná pravidla pošlou email a označí se jako „fired" — znovu se nepošlou,
+          dokud kliknete na tlačítko <strong>Re-arm</strong> u daného pravidla.
         </div>
         <div id="alerts-content"></div>
       </section>
