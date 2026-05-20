@@ -19,7 +19,7 @@ FLEX_QUERY_ID = "1514926"
 PORTFOLIO_ID = "plegi-invest-ibkr"
 # DRY_RUN = "true" zapíše do logu, ale neuloží do KV.
 # Po ověření přepneme na "false" (nebo proměnnou smažeme).
-DRY_RUN = "true"
+DRY_RUN = "false"
 
 # Secrets — nastaví se přes:
 #   wrangler secret put FLEX_TOKEN
