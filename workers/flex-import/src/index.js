@@ -18,7 +18,11 @@
 
 const FLEX_BASE = "https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService";
 const KV_OVERLAY_PREFIX = "portfolio-overlay:";
-const USER_AGENT = "akcie-tracker-flex-import/1.0";
+// IBKR má WAF pravidla, která odmítají "bot-like" User-Agent z CF edge IP
+// (vrací HTTP 530). Browser-style UA prochází — osvědčeno i v /api/quote pro Yahoo.
+const USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 export default {
   async scheduled(event, env, ctx) {
@@ -97,19 +101,8 @@ async function fetchFlexStatement(token, queryId) {
   if (!token) throw new Error("FLEX_TOKEN secret není nastaven");
   if (!queryId) throw new Error("FLEX_QUERY_ID není nastaveno");
 
-  // 1) SendRequest → ReferenceCode
-  const sendUrl = `${FLEX_BASE}.SendRequest?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=3`;
-  const sendRes = await fetch(sendUrl, { headers: { "User-Agent": USER_AGENT } });
-  if (!sendRes.ok) {
-    throw new Error(`SendRequest HTTP ${sendRes.status}`);
-  }
-  const sendXml = await sendRes.text();
-  const status = matchTag(sendXml, "Status");
-  const refCode = matchTag(sendXml, "ReferenceCode");
-  const errorMsg = matchTag(sendXml, "ErrorMessage");
-  if (status !== "Success" || !refCode) {
-    throw new Error(`SendRequest selhal: status=${status}, error=${errorMsg || "?"}`);
-  }
+  // 1) SendRequest → ReferenceCode  (s retry pro 530 a "try again shortly")
+  const refCode = await sendRequestWithRetry(token, queryId);
   console.log(`🔑 ReferenceCode: ${refCode}`);
 
   // 2) GetStatement — s retry pokud Status=InProgress
@@ -145,6 +138,68 @@ async function fetchFlexStatement(token, queryId) {
     throw new Error(`Neočekávaný response: ${xml.slice(0, 200)}`);
   }
   throw new Error(`GetStatement timeout po ${maxAttempts} pokusech`);
+}
+
+// SendRequest s retry. IBKR občas vrací:
+//  - HTTP 530 z CF edge (transient routing)
+//  - HTTP 200 + Status=Fail + "Statement could not be generated at this time" (rate limit)
+// Obě jsou dočasné, pokoušíme až 3× s exponential backoff (45s, 90s).
+async function sendRequestWithRetry(token, queryId, maxAttempts = 3) {
+  const sendUrl = `${FLEX_BASE}.SendRequest?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=3`;
+  let lastErr = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (attempt > 1) {
+      const wait = 30000 * attempt; // 60s, 90s
+      console.log(`   ⏳ Retry SendRequest #${attempt} za ${wait / 1000}s…`);
+      await sleep(wait);
+    }
+    try {
+      const res = await fetch(sendUrl, { headers: { "User-Agent": USER_AGENT } });
+
+      // HTTP úroveň — 530 / 502 / 504 jsou transient, retry
+      if (!res.ok) {
+        const transient = [502, 503, 504, 522, 524, 530].includes(res.status);
+        lastErr = new Error(`SendRequest HTTP ${res.status}`);
+        if (transient && attempt < maxAttempts) {
+          console.log(`   ⚠️  ${lastErr.message} (transient, retry)`);
+          continue;
+        }
+        throw lastErr;
+      }
+
+      const xml = await res.text();
+      const status = matchTag(xml, "Status");
+      const refCode = matchTag(xml, "ReferenceCode");
+      const errorMsg = matchTag(xml, "ErrorMessage");
+      const errorCode = matchTag(xml, "ErrorCode");
+
+      if (status === "Success" && refCode) {
+        return refCode;
+      }
+
+      // 1001 = rate limit, "try again shortly" → retry
+      const isTransient =
+        errorCode === "1001" ||
+        (errorMsg && /try again shortly/i.test(errorMsg));
+      lastErr = new Error(
+        `SendRequest selhal: code=${errorCode || "?"}, error=${errorMsg || "?"}`,
+      );
+      if (isTransient && attempt < maxAttempts) {
+        console.log(`   ⚠️  ${lastErr.message} (transient, retry)`);
+        continue;
+      }
+      throw lastErr;
+    } catch (e) {
+      lastErr = e;
+      // Síťová chyba (DNS, TCP) — retry
+      if (attempt < maxAttempts && /fetch|network|timeout/i.test(e.message)) {
+        console.log(`   ⚠️  Network error ${e.message} (retry)`);
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastErr || new Error("SendRequest selhal po retry");
 }
 
 function matchTag(xml, tagName) {
