@@ -133,20 +133,239 @@ async function loadActivePortfolio() {
   if (!meta) throw new Error(`Portfolio ${state.portfolioId} v manifestu nenalezeno`);
   setStatus(`Načítám ${meta.name}…`);
   const url = `${PORTFOLIO_BASE}${meta.file}`;
-  const res = await fetch(url, { cache: "no-cache" });
+
+  // Paralelně načíst statický JSON i KV overlay (auto-import z Flex API).
+  // Overlay je optional — pokud neexistuje nebo selže, ignorujeme.
+  const [res, overlayRes] = await Promise.all([
+    fetch(url, { cache: "no-cache" }),
+    fetch(`/api/portfolio-overlay/${meta.id}`, { cache: "no-cache" }).catch(() => null),
+  ]);
+
   if (!res.ok) {
     // Portfolio nemusí ještě existovat (např. KB čeká na import)
     state.portfolio = makeEmptyPortfolio(meta);
     state.positions = {};
+    state.overlayStats = null;
     return;
   }
   state.portfolio = await res.json();
+
+  // Mergnout overlay (pokud existuje a má nějaká data)
+  state.overlayStats = null;
+  if (overlayRes && overlayRes.ok) {
+    try {
+      const overlay = await overlayRes.json();
+      state.overlayStats = mergeOverlayIntoPortfolio(state.portfolio, overlay);
+    } catch (e) {
+      console.warn(`Overlay merge selhal: ${e.message}`);
+    }
+  }
+
   state.positions = computePositions(
     state.portfolio.transactions || [],
     state.portfolio.corporate_actions || [],
     state.portfolio.dividends || [],
     state.portfolio.withholding_tax || [],
   );
+}
+
+/**
+ * Mergne KV overlay (Flex API import) do načteného portfolia.
+ * Overlay obsahuje data z IBKR Flex Web Service v jejich nativním
+ * tvaru. Tahle funkce je transformuje do shape, který používá
+ * statický JSON + FIFO engine, a dedupuje proti existujícím IDs.
+ *
+ * Vrací { trades, dividends, withholding, corp_actions, cash_flows }
+ * — počty NOVĚ přidaných záznamů pro UI indikátor.
+ */
+function mergeOverlayIntoPortfolio(portfolio, overlay) {
+  const stats = {
+    trades: 0,
+    dividends: 0,
+    withholding: 0,
+    corp_actions: 0,
+    cash_flows: 0,
+    last_import: overlay.last_import || null,
+  };
+
+  // Zajistit existenci polí na portfolio objektu
+  portfolio.transactions = portfolio.transactions || [];
+  portfolio.dividends = portfolio.dividends || [];
+  portfolio.withholding_tax = portfolio.withholding_tax || [];
+  portfolio.corporate_actions = portfolio.corporate_actions || [];
+  portfolio.cash_flows = portfolio.cash_flows || [];
+  portfolio.instruments = portfolio.instruments || {};
+
+  // Indexy pro dedupe podle Flex ID (uložené v `flex_id` poli)
+  const existingTradeIds = new Set(
+    portfolio.transactions.map((t) => t.flex_id).filter(Boolean),
+  );
+  const existingDivIds = new Set(
+    portfolio.dividends.map((d) => d.flex_id).filter(Boolean),
+  );
+  const existingWithholdingIds = new Set(
+    portfolio.withholding_tax.map((w) => w.flex_id).filter(Boolean),
+  );
+  const existingCaIds = new Set(
+    portfolio.corporate_actions.map((a) => a.flex_id).filter(Boolean),
+  );
+  const existingCfIds = new Set(
+    portfolio.cash_flows.map((f) => f.flex_id).filter(Boolean),
+  );
+
+  // 1) Trades
+  for (const t of overlay.trades || []) {
+    if (!t.tradeID || existingTradeIds.has(t.tradeID)) continue;
+    const symbol = t.symbol;
+    if (!symbol) continue;
+    // Přidat instrument, pokud chybí (nová pozice)
+    ensureInstrument(portfolio, symbol, t);
+    portfolio.transactions.push(transformFlexTrade(t));
+    existingTradeIds.add(t.tradeID);
+    stats.trades++;
+  }
+
+  // 2) Cash transactions — split do dividends / withholding / cash_flows
+  for (const c of overlay.cash_transactions || []) {
+    if (!c.transactionID) continue;
+    const type = c.type || "";
+    if (/Dividends/i.test(type)) {
+      if (existingDivIds.has(c.transactionID)) continue;
+      ensureInstrument(portfolio, c.symbol, c);
+      portfolio.dividends.push(transformFlexDividend(c));
+      existingDivIds.add(c.transactionID);
+      stats.dividends++;
+    } else if (/Withholding/i.test(type)) {
+      if (existingWithholdingIds.has(c.transactionID)) continue;
+      portfolio.withholding_tax.push(transformFlexWithholding(c));
+      existingWithholdingIds.add(c.transactionID);
+      stats.withholding++;
+    } else {
+      // Deposits/Withdrawals, Other Fees, Broker Interest, … → cash_flows
+      if (existingCfIds.has(c.transactionID)) continue;
+      portfolio.cash_flows.push(transformFlexCashFlow(c));
+      existingCfIds.add(c.transactionID);
+      stats.cash_flows++;
+    }
+  }
+
+  // 3) Corporate actions
+  for (const a of overlay.corporate_actions || []) {
+    if (!a.actionID || existingCaIds.has(a.actionID)) continue;
+    ensureInstrument(portfolio, a.symbol, a);
+    portfolio.corporate_actions.push(transformFlexCorpAction(a));
+    existingCaIds.add(a.actionID);
+    stats.corp_actions++;
+  }
+
+  return stats;
+}
+
+// Vytvoří záznam o instrumentu, pokud ještě v portfolio.instruments neexistuje.
+function ensureInstrument(portfolio, symbol, flexRow) {
+  if (!symbol || portfolio.instruments[symbol]) return;
+  portfolio.instruments[symbol] = {
+    yahoo_symbol: symbol,           // pro IBKR je Flex symbol = Yahoo symbol
+    isin: flexRow.isin || null,
+    name: flexRow.description || symbol,
+    currency: flexRow.currency || "USD",
+    exchange: flexRow.listingExchange || null,
+    _auto_added: true,              // marker, ať víme že přišel z Flex auto-importu
+  };
+}
+
+// Flex datum yyyyMMdd → "yyyy-MM-dd"
+function flexDate(s) {
+  if (!s) return null;
+  const m = String(s).match(/^(\d{4})(\d{2})(\d{2})/);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : s;
+}
+
+// Flex dateTime "yyyyMMdd;HHmmss" → time část "HH:MM:SS"
+function flexTime(s) {
+  if (!s) return null;
+  const m = String(s).match(/[;\s](\d{2})(\d{2})(\d{2})/);
+  return m ? `${m[1]}:${m[2]}:${m[3]}` : null;
+}
+
+function transformFlexTrade(t) {
+  const qtyRaw = parseFloat(t.quantity);
+  // Buy/Sell — IBKR Flex má buySell="BUY"|"SELL" a quantity je signovaný.
+  // Pro náš JSON drží quantity vždy kladné, type rozhoduje směr.
+  const type = t.buySell === "SELL" ? "SELL" : "BUY";
+  const proceeds = parseFloat(t.proceeds);
+  const commission = parseFloat(t.ibCommission);
+  return {
+    id: `flex-trade-${t.tradeID}`,
+    flex_id: t.tradeID,
+    date: flexDate(t.tradeDate || t.dateTime),
+    time: flexTime(t.dateTime),
+    symbol: t.symbol,
+    type,
+    quantity: Math.abs(qtyRaw),
+    price: parseFloat(t.tradePrice),
+    proceeds: proceeds,
+    commission: commission,
+    currency: t.currency,
+    _source: "flex",
+  };
+}
+
+function transformFlexDividend(c) {
+  return {
+    id: `flex-div-${c.transactionID}`,
+    flex_id: c.transactionID,
+    date: flexDate(c.dateTime || c.reportDate),
+    symbol: c.symbol,
+    amount: parseFloat(c.amount),
+    currency: c.currency,
+    per_share: null, // Flex neuvádí explicitně per share, pouze total amount
+    type: c.dividendType || "Regular",
+    _source: "flex",
+  };
+}
+
+function transformFlexWithholding(c) {
+  return {
+    id: `flex-wh-${c.transactionID}`,
+    flex_id: c.transactionID,
+    date: flexDate(c.dateTime || c.reportDate),
+    symbol: c.symbol,
+    amount: parseFloat(c.amount),
+    currency: c.currency,
+    country: null,
+    _source: "flex",
+  };
+}
+
+function transformFlexCashFlow(c) {
+  return {
+    id: `flex-cf-${c.transactionID}`,
+    flex_id: c.transactionID,
+    date: flexDate(c.dateTime || c.reportDate),
+    type: c.type,
+    amount: parseFloat(c.amount),
+    currency: c.currency,
+    description: c.description || c.code || "",
+    _source: "flex",
+  };
+}
+
+function transformFlexCorpAction(a) {
+  return {
+    id: `flex-ca-${a.actionID}`,
+    flex_id: a.actionID,
+    date: flexDate(a.dateTime || a.reportDate),
+    symbol: a.symbol,
+    type: a.type,
+    description: a.actionDescription || a.description || "",
+    quantity: parseFloat(a.quantity) || 0,
+    amount: parseFloat(a.amount) || 0,
+    proceeds: parseFloat(a.proceeds) || 0,
+    cost_basis: parseFloat(a.costBasis) || 0,
+    currency: a.currency,
+    _source: "flex",
+  };
 }
 
 function makeEmptyPortfolio(meta) {
@@ -209,6 +428,30 @@ function renderHeader() {
       parts.push(`období ${p.period_from} – ${p.period_to}`);
     }
   }
+  // Indikátor auto-importu (Flex API)
+  const ov = state.overlayStats;
+  if (ov) {
+    const totalNew =
+      ov.trades + ov.dividends + ov.withholding + ov.corp_actions + ov.cash_flows;
+    const lastImport = ov.last_import
+      ? new Date(ov.last_import).toLocaleString("cs-CZ", {
+          day: "2-digit", month: "2-digit", year: "numeric",
+          hour: "2-digit", minute: "2-digit",
+        })
+      : "—";
+    if (totalNew > 0) {
+      const breakdown = [];
+      if (ov.trades) breakdown.push(`${ov.trades} obchodů`);
+      if (ov.dividends) breakdown.push(`${ov.dividends} dividend`);
+      if (ov.withholding) breakdown.push(`${ov.withholding} sráž. daní`);
+      if (ov.corp_actions) breakdown.push(`${ov.corp_actions} corp. actions`);
+      if (ov.cash_flows) breakdown.push(`${ov.cash_flows} cash flows`);
+      parts.push(`🔄 auto-import: ${breakdown.join(", ")} (k ${lastImport})`);
+    } else if (ov.last_import) {
+      parts.push(`🔄 auto-import OK (k ${lastImport})`);
+    }
+  }
+
   document.getElementById("portfolio-meta").textContent = parts.join(" · ");
   document.title = `${p.name} — Akcie tracker`;
 }
