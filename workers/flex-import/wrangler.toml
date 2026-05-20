@@ -1,0 +1,28 @@
+name = "akcie-tracker-flex-import"
+main = "src/index.js"
+compatibility_date = "2024-12-01"
+
+# Cron trigger — každý den ve 4:00 UTC = 6:00 Varšava v létě (CEST) / 5:00 v zimě (CET)
+# Volí ranní okno, kdy už je včerejší US trading session uzavřen
+# a IBKR Daily Activity Statement je k dispozici.
+[triggers]
+crons = ["0 4 * * *"]
+
+# Binding na sdílenou KV namespace (akcie-tracker projekt)
+[[kv_namespaces]]
+binding = "AKCIE_TRACKER_KV"
+id = "6d78ccbecdc64d7e9798f1ed39fca35d"
+
+# Konfigurační proměnné. Citlivé hodnoty jdou přes wrangler secret.
+[vars]
+FLEX_QUERY_ID = "1514926"
+PORTFOLIO_ID = "plegi-invest-ibkr"
+# DRY_RUN = "true" zapíše do logu, ale neuloží do KV.
+# Po ověření přepneme na "false" (nebo proměnnou smažeme).
+DRY_RUN = "true"
+
+# Secrets — nastaví se přes:
+#   wrangler secret put FLEX_TOKEN
+# nebo přes CF dashboard (Workers → akcie-tracker-flex-import → Settings → Variables and Secrets)
+# Vyžadované secrets:
+#   FLEX_TOKEN — token z IBKR Flex Web Service Configuration

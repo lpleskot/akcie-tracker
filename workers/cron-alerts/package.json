@@ -1,0 +1,14 @@
+{
+  "name": "akcie-tracker-cron",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cron worker pro evaluaci alert pravidel a odesílání emailů přes Resend.",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev --test-scheduled",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}

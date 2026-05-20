@@ -1,0 +1,27 @@
+name: Deploy flex-import worker
+
+# Spustí se při pushi do main, který se dotkne flex-import složky.
+# Lze spustit i ručně přes GitHub UI (workflow_dispatch).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "workers/flex-import/**"
+      - ".github/workflows/deploy-flex-import.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy akcie-tracker-flex-import to Cloudflare Workers
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/flex-import

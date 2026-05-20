@@ -1,0 +1,27 @@
+name: Deploy cron worker
+
+# Spustí se při pushi do main, který se dotkne worker složky.
+# Lze spustit i ručně přes GitHub UI (workflow_dispatch).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "workers/cron-alerts/**"
+      - ".github/workflows/deploy-worker.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy akcie-tracker-cron to Cloudflare Workers
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/cron-alerts

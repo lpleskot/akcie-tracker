@@ -1,1 +1,4 @@
-# Zde přibydou případné redirecty v budoucnu
+# Skrýt zdrojový kód workerů a GitHub Actions config (jsou v repu kvůli
+# auto-deployi přes GH Actions, ale neměly by být accessible přes Pages doménu).
+/workers/*  /404.html  404
+/.github/*  /404.html  404

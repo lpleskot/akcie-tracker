@@ -1,0 +1,28 @@
+name = "akcie-tracker-cron"
+main = "src/index.js"
+compatibility_date = "2024-12-01"
+
+# Cron trigger — každý den v 15:00 UTC = 17:00 Prague (létě) / 16:00 (zimě)
+# Cca 1 hodinu po otevření US burz, ~před otevřením EU burz
+[triggers]
+crons = ["0 15 * * *"]
+
+# Bindings na KV namespace (sdílený s Pages projektem akcie-tracker)
+# Doplnit id z `npx wrangler kv:namespace list` nebo z CF dashboardu
+[[kv_namespaces]]
+binding = "AKCIE_TRACKER_KV"
+id = "6d78ccbecdc64d7e9798f1ed39fca35d"
+
+# Statické URL pro načítání dat z Pages
+[vars]
+PORTFOLIO_URL = "https://akcie-tracker.pages.dev/data/portfolios/plegi-invest-ibkr.json"
+FX_URL = "https://akcie-tracker.pages.dev/data/fx_rates.json"
+WATCHLIST_API = "https://akcie-tracker.pages.dev/api/watchlist"
+ALERTS_API = "https://akcie-tracker.pages.dev/api/alerts"
+QUOTE_API = "https://akcie-tracker.pages.dev/api/quote"
+EMAIL_FROM = "alerts@notify.plegiholding.cz"
+EMAIL_TO = "pleskot@plegiholding.cz"
+DASHBOARD_URL = "https://akcie-tracker.pages.dev"
+
+# RESEND_API_KEY se nastavuje přes `wrangler secret put RESEND_API_KEY`
+# nebo v CF dashboardu (Workers → akcie-tracker-cron → Settings → Variables and Secrets)
