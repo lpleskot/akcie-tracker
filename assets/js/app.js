@@ -67,6 +67,7 @@ const sortGetters = {
   current: (r) => (r.hasPrice ? r.currentPrice : -Infinity),
   cost: (r) => r.pos.cost_basis,
   value: (r) => (r.hasPrice ? r.marketValue : -Infinity),
+  unrealized: (r) => (r.hasPrice ? r.unrealizedPnl : -Infinity),
   pnl: (r) => (r.hasPrice ? r.totalPnl : -Infinity),
   pct: (r) => (r.hasPrice ? r.totalPct : -Infinity),
 };
@@ -261,6 +262,20 @@ function mergeOverlayIntoPortfolio(portfolio, overlay) {
       existingCfIds.add(c.transactionID);
       stats.cash_flows++;
       addCash(c.currency, amt); // amount je už signed
+
+      // Pokud je to deposit/withdrawal, aktualizovat i total_deposits_usd —
+      // bez tohoto by se procento výnosu uměle nafouklo (cash by se přičetl
+      // do current value, ale jmenovatel deposits by zůstal stejný).
+      if (
+        /Deposits.*Withdrawals|Account Transfers|Internal Transfers/i.test(type)
+      ) {
+        const date = flexDate(c.dateTime || c.reportDate);
+        const usdAmt = convertToUsd(amt, c.currency, date);
+        if (Number.isFinite(usdAmt)) {
+          portfolio.total_deposits_usd =
+            (portfolio.total_deposits_usd || 0) + usdAmt;
+        }
+      }
     }
   }
 
@@ -290,6 +305,24 @@ function ensureInstrument(portfolio, symbol, flexRow) {
     exchange: flexRow.listingExchange || null,
     _auto_added: true,              // marker, ať víme že přišel z Flex auto-importu
   };
+}
+
+// Přepočet částky z lokální měny na USD pomocí ČNB kurzů.
+// Pokud kurz pro dané datum neexistuje, fallback na nejnovější dostupný.
+// Pokud měna je USD nebo kurzy nemáme, vrátí původní amount.
+function convertToUsd(amount, currency, date) {
+  if (!Number.isFinite(amount)) return NaN;
+  if (currency === "USD") return amount;
+  if (!state.fxRates?.dates) return NaN;
+  const allDates = Object.keys(state.fxRates.dates).sort();
+  if (allDates.length === 0) return NaN;
+  // Použít kurz k datu transakce, jinak nejnovější
+  const useDate =
+    date && state.fxRates.dates[date] ? date : allDates[allDates.length - 1];
+  const ccyToCzk = getFxToCzk(useDate, currency);
+  const usdToCzk = getFxToCzk(useDate, "USD");
+  if (!ccyToCzk || !usdToCzk) return NaN;
+  return (amount * ccyToCzk) / usdToCzk;
 }
 
 // Flex datum yyyyMMdd → "yyyy-MM-dd"
@@ -1765,11 +1798,13 @@ function renderOverview() {
       currentPrice,
       hasPrice,
       marketValue: u.market_value,
+      unrealizedPnl: u.value,    // jen otevřené loty — bez realizovaných a dividend
       capitalPnl,
       totalPnl,
       totalPct,
       divSameCcy,
       hasDividends: divCcys.size > 0,
+      hasRealized: (pos.realized_pnl || 0) !== 0, // pro tooltip / vizuál
     });
   }
 
@@ -1819,7 +1854,8 @@ function renderOverview() {
       <td class="num">${r.hasPrice ? fmtNum(r.currentPrice, 2) : '<span class="muted">—</span>'}</td>
       <td class="num">${fmtNum(r.pos.cost_basis, 2)}</td>
       <td class="num">${r.hasPrice ? fmtNum(r.marketValue, 2) : '<span class="muted">—</span>'}</td>
-      <td class="num clickable ${signClass(r.totalPnl)}" data-action="expand" title="${r.hasDividends && !r.divSameCcy ? 'Pozor: dividendy v jiné měně než pozice — Total Return není sečteno. Vidíte jen kapitálovou Z/Z. Klikněte pro detail.' : 'Total Return = kapitálová Z/Z + čistý dividendový výnos. Klikněte pro detail.'}">${r.hasPrice ? fmtNum(r.totalPnl, 2) + (r.hasDividends && r.divSameCcy ? ' <span class="benchmark-tooltip">＋div</span>' : '') + ' <span class="caret">▾</span>' : '<span class="muted">—</span>'}</td>
+      <td class="num ${signClass(r.unrealizedPnl)}" title="Nerealizovaná Z/Z = Hodnota pozice − Nákupní cena pozice (jen otevřené loty).${r.hasRealized ? ' Tento ticker má historické realizované obchody — viz sloupec Celkem Z/Z pro celkový pohled.' : ''}">${r.hasPrice ? fmtNum(r.unrealizedPnl, 2) : '<span class="muted">—</span>'}</td>
+      <td class="num clickable ${signClass(r.totalPnl)}" data-action="expand" title="${r.hasDividends && !r.divSameCcy ? 'Pozor: dividendy v jiné měně než pozice — Total Return není sečteno. Vidíte jen kapitálovou Z/Z. Klikněte pro detail.' : 'Celkový (historický) Total Return = realizovaná Z/Z + nerealizovaná Z/Z + čisté dividendy. Klikněte pro detail.'}">${r.hasPrice ? fmtNum(r.totalPnl, 2) + (r.hasDividends && r.divSameCcy ? ' <span class="benchmark-tooltip">＋div</span>' : '') + ' <span class="caret">▾</span>' : '<span class="muted">—</span>'}</td>
       <td class="num ${signClass(r.totalPct)}">${r.hasPrice ? fmtPct(r.totalPct) : '<span class="muted">—</span>'}</td>
     `;
     tbody.appendChild(tr);
@@ -2505,20 +2541,24 @@ function renderSummary() {
       : 0;
 
   // === Doplnit Hodnotu portfolia (1. dlaždice — placeholder výše) ===
-  // Primární údaj = aktuální hodnota držených pozic v CZK, v závorce USD ekv.
+  // Total = pozice (tržní hodnota) + cash. Odpovídá IBKR Net Liquidity.
   {
-    const portfolioCzk = fxUsdToCzk ? currentValueUsd * fxUsdToCzk : null;
+    const totalAssetsCzk = fxUsdToCzk ? totalAssetsUsd * fxUsdToCzk : null;
+    const positionsCzk = fxUsdToCzk ? currentValueUsd * fxUsdToCzk : null;
+    const cashCzk = fxUsdToCzk ? cashUsdAll * fxUsdToCzk : null;
     const mainLine =
-      portfolioCzk != null
-        ? `${fmtNum(portfolioCzk, 0)} Kč`
-        : `${fmtNum(currentValueUsd, 0)} USD`;
+      totalAssetsCzk != null
+        ? `${fmtNum(totalAssetsCzk, 0)} Kč`
+        : `${fmtNum(totalAssetsUsd, 0)} USD`;
     const subLine =
-      portfolioCzk != null ? `${fmtNum(currentValueUsd, 0)} USD ekv.` : "";
+      totalAssetsCzk != null
+        ? `${fmtNum(totalAssetsUsd, 0)} USD ekv. · pozice ${fmtNum(positionsCzk, 0)} + cash ${fmtNum(cashCzk, 0)} Kč`
+        : "";
     const missingPricesNote = allPricesAvailable
       ? ""
       : `<br><span class="muted">chybí cena: ${missingPriceSymbols.join(", ")}</span>`;
     portfolioValueCard.innerHTML = `
-      <div class="label">Hodnota portfolia · CZK</div>
+      <div class="label">Hodnota portfolia · CZK <span class="hint" title="Total Net Liquidity — tržní hodnota držených pozic + hotovost ve všech měnách, vše přepočteno přes ČNB kurz. Odpovídá IBKR Net Liquidity v jejich Portal.">i</span></div>
       <div class="value">${mainLine}</div>
       <div class="sub">${subLine}${missingPricesNote}</div>
     `;
@@ -3006,8 +3046,9 @@ function buildOverviewAoa() {
   const header = [
     "Symbol", "Název", "Burza", "Měna",
     "Kusů", "Ø nákup/ks", "Aktuální", "Nák. cena pozice",
-    "Hodnota pozice", "Kapitál. Z/Z", "Net dividendy",
-    "Zisk/Ztráta (Total Return)", "%",
+    "Hodnota pozice", "Nereal. Z/Z", "Realiz. Z/Z",
+    "Kapitál. Z/Z", "Net dividendy",
+    "Celkem Z/Z (Total Return)", "%",
   ];
   const data = rows.map((r) => [
     r.sym, r.inst.name, r.inst.exchange, r.inst.currency,
@@ -3015,6 +3056,8 @@ function buildOverviewAoa() {
     r.hasPrice ? r.currentPrice : null,
     r.pos.cost_basis,
     r.hasPrice ? r.marketValue : null,
+    r.hasPrice ? r.unrealizedPnl : null,
+    r.pos.realized_pnl || 0,
     r.hasPrice ? r.capitalPnl : null,
     r.divSameCcy ? r.pos.net_dividend_local || 0 : null,
     r.hasPrice ? r.totalPnl : null,

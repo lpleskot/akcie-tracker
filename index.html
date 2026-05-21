@@ -75,8 +75,11 @@
                 <th class="num sortable" data-sort-key="value">
                   <span class="th-label">Hodnota<br>pozice<span class="hint" title="Aktuální tržní hodnota držených kusů: počet kusů × aktuální cena z Yahoo.">i</span></span>
                 </th>
+                <th class="num sortable" data-sort-key="unrealized">
+                  <span class="th-label">Nereal.<br>Z/Z<span class="hint" title="Nerealizovaná Z/Z jen z DRŽENÝCH kusů: Hodnota pozice − Nákupní cena pozice. NEZAHRNUJE realizované Z/Z z dříve prodaných kusů ani dividendy. Užitečné pro otázku 'kolik jsem teď nahoře/dole proti aktuální ceně'.">i</span></span>
+                </th>
                 <th class="num sortable" data-sort-key="pnl">
-                  <span class="th-label">Zisk/ztráta<br>hodnota<span class="hint" title="Total Return na pozici — součet (1) realizované Z/Z z prodaných kusů FIFO, (2) nerealizované Z/Z z držených kusů (Hodnota pozice − Nák. cena pozice) a (3) čistého dividendového výnosu (hrubé dividendy − srážková daň u zdroje). Indikátor '＋div' v buňce signalizuje, že dividenda je zahrnuta. Pokud má dividenda jinou měnu než pozice (např. NOV: EUR pozice, DKK dividendy), zobrazí se jen kapitálová Z/Z. Klikni na hodnotu pro detailní rozpad.">i</span></span>
+                  <span class="th-label">Celkem<br>Z/Z<span class="hint" title="Celkový historický Total Return na ticker — součet (1) realizované Z/Z ze VŠECH prodaných kusů FIFO, (2) nerealizované Z/Z z aktuálně držených kusů a (3) čistého dividendového výnosu. Klíčový rozdíl proti 'Nereal. Z/Z': i když si realizací ztráty 'vynuluješ' aktuální pozici, tady stále vidíš celkový pohyb na tickeru. Pokud má dividenda jinou měnu (NOV), zobrazí se jen kapitálová část. '＋div' indikuje dividendu v součtu.">i</span></span>
                 </th>
                 <th class="num sortable" data-sort-key="pct">
                   <span class="th-label">Zisk/ztráta<br>%<span class="hint" title="Procentuální Total Return vůči celkové vložené investici (vč. nákladů na již prodané loty). (Kapitálová Z/Z + čisté dividendy) ÷ Total invested.">i</span></span>
