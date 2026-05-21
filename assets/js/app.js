@@ -195,6 +195,7 @@ function mergeOverlayIntoPortfolio(portfolio, overlay) {
   portfolio.corporate_actions = portfolio.corporate_actions || [];
   portfolio.cash_flows = portfolio.cash_flows || [];
   portfolio.instruments = portfolio.instruments || {};
+  portfolio.cash_balance = { ...(portfolio.cash_balance || {}) };
 
   // Indexy pro dedupe podle Flex ID (uložené v `flex_id` poli)
   const existingTradeIds = new Set(
@@ -213,39 +214,53 @@ function mergeOverlayIntoPortfolio(portfolio, overlay) {
     portfolio.cash_flows.map((f) => f.flex_id).filter(Boolean),
   );
 
-  // 1) Trades
+  // Tracking delt na cash balance, aplikované jen pro Flex-imported události
+  // (static cash_balance je už zafixovaný snapshot, nové eventy se k němu přičítají).
+  const addCash = (ccy, amount) => {
+    if (!ccy || !Number.isFinite(amount)) return;
+    if (portfolio.cash_balance[ccy] == null) portfolio.cash_balance[ccy] = 0;
+    portfolio.cash_balance[ccy] += amount;
+  };
+
+  // 1) Trades — cash impact = netCash (signed: + sell, − buy, již po komisi)
   for (const t of overlay.trades || []) {
     if (!t.tradeID || existingTradeIds.has(t.tradeID)) continue;
     const symbol = t.symbol;
     if (!symbol) continue;
-    // Přidat instrument, pokud chybí (nová pozice)
     ensureInstrument(portfolio, symbol, t);
     portfolio.transactions.push(transformFlexTrade(t));
     existingTradeIds.add(t.tradeID);
     stats.trades++;
+    // Cash delta — netCash je už proceeds + commission (signed)
+    const netCash = parseFloat(t.netCash);
+    if (Number.isFinite(netCash)) addCash(t.currency, netCash);
   }
 
   // 2) Cash transactions — split do dividends / withholding / cash_flows
   for (const c of overlay.cash_transactions || []) {
     if (!c.transactionID) continue;
     const type = c.type || "";
+    const amt = parseFloat(c.amount);
     if (/Dividends/i.test(type)) {
       if (existingDivIds.has(c.transactionID)) continue;
       ensureInstrument(portfolio, c.symbol, c);
       portfolio.dividends.push(transformFlexDividend(c));
       existingDivIds.add(c.transactionID);
       stats.dividends++;
+      addCash(c.currency, amt); // dividenda = inflow
     } else if (/Withholding/i.test(type)) {
       if (existingWithholdingIds.has(c.transactionID)) continue;
       portfolio.withholding_tax.push(transformFlexWithholding(c));
       existingWithholdingIds.add(c.transactionID);
       stats.withholding++;
+      addCash(c.currency, amt); // withholding amount je už negativní (outflow)
     } else {
       // Deposits/Withdrawals, Other Fees, Broker Interest, … → cash_flows
       if (existingCfIds.has(c.transactionID)) continue;
       portfolio.cash_flows.push(transformFlexCashFlow(c));
       existingCfIds.add(c.transactionID);
       stats.cash_flows++;
+      addCash(c.currency, amt); // amount je už signed
     }
   }
 
@@ -256,6 +271,9 @@ function mergeOverlayIntoPortfolio(portfolio, overlay) {
     portfolio.corporate_actions.push(transformFlexCorpAction(a));
     existingCaIds.add(a.actionID);
     stats.corp_actions++;
+    // Některé CA mají cash složku (cash-in-lieu apod.)
+    const proc = parseFloat(a.proceeds);
+    if (Number.isFinite(proc) && proc !== 0) addCash(a.currency, proc);
   }
 
   return stats;

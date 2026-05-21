@@ -1,0 +1,33 @@
+name: Flex import (IBKR daily)
+
+# Denně ve 4:00 UTC = 5/6 AM Varšava — stáhne nové trades z IBKR Flex
+# a uloží do KV přes Pages Function. GH-hosted runners používají Azure DC
+# IP rozsahy, které IBKR pouští (CF Worker edge IP odmítá 403).
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch: # manuální trigger přes Actions UI
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    name: Fetch & ingest IBKR Flex statement
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run flex-import script
+        env:
+          FLEX_TOKEN: ${{ secrets.FLEX_TOKEN }}
+          FLEX_QUERY_ID: "1514926"
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          PAGES_URL: "https://akcie-tracker.pages.dev"
+          PORTFOLIO_ID: "plegi-invest-ibkr"
+        run: node scripts/flex-import.mjs
