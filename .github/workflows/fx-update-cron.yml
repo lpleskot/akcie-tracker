@@ -1,0 +1,43 @@
+name: FX rates update (ČNB)
+
+# ČNB vyhlašuje kurzy v pracovní dny okolo 14:30 SEČ. Pouštíme se 14:35 UTC
+# (= 15:35 SEČ / 16:35 SELČ) — dostatečná rezerva. O víkendech a svátcích
+# ČNB nevyhlašuje, script si poradí (přeskočí). Workflow se commit zpět
+# pouze pokud něco přibylo.
+on:
+  schedule:
+    - cron: "35 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write # potřeba pro commit + push aktualizovaného JSON
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    name: Fetch ČNB rates & commit
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run fx-update script
+        run: node scripts/fx-update.mjs
+
+      - name: Commit updated fx_rates.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet data/fx_rates.json; then
+            echo "ℹ️  Žádné změny — nic ke commitu"
+            exit 0
+          fi
+          git add data/fx_rates.json
+          git commit -m "chore(fx): ČNB rates update — $(date -u +'%Y-%m-%d')"
+          git push

@@ -1704,15 +1704,31 @@ function renderAllocation() {
 }
 
 // ---------- FX rate lookup ----------
-function getFxToCzk(date, currency) {
+// Strict by default: vrátí null, když pro dané datum kurz neexistuje
+// (např. víkend, svátek, datum mimo dostupné rozmezí). Pro účetní
+// report je to správné chování — nesmíme vyrábět falešné kurzy.
+//
+// Volitelný 3. argument `{ allowFallback: true }` zapne forward-fill na
+// nejbližší předchozí datum (vhodné jen pro interní hrubé přepočty,
+// např. odhad USD ekvivalentu).
+function getFxToCzk(date, currency, opts) {
   if (currency === "CZK") return 1;
   const fx = state.fxRates;
   if (!fx || !fx.dates) return null;
+
   const day = fx.dates[date];
-  if (!day || !day.rates) return null;
-  const r = day.rates[currency];
+  if (day?.rates?.[currency]) {
+    const r = day.rates[currency];
+    return r.rate / r.amount;
+  }
+
+  if (!opts?.allowFallback) return null;
+
+  const candidates = Object.keys(fx.dates).filter((d) => d < date).sort();
+  if (candidates.length === 0) return null;
+  const fallbackDate = candidates[candidates.length - 1];
+  const r = fx.dates[fallbackDate]?.rates?.[currency];
   if (!r) return null;
-  // rate je za `amount` jednotek měny
   return r.rate / r.amount;
 }
 
@@ -1916,17 +1932,17 @@ function buildDetailRow(sym) {
   );
 
   // Poznámka o firmě (volitelná, KV-backed přes /api/notes)
+  // — sekce span přes obě grid sloupce, ať levý sloupec nezůstává prázdný
+  // když je Nákupů hodně.
   const note = state.notes?.[sym];
-  html.push(`<div class="detail-section detail-note-section">`);
-  html.push(`<h4>Poznámka</h4>`);
+  html.push(`<div class="detail-section detail-note-section detail-section-fullwidth">`);
   if (note) {
-    html.push(`<div class="note-text">${escapeHtml(note)}</div>`);
     html.push(
-      `<button class="btn-action" data-note-edit-symbol="${sym}" style="margin-top:6px;">Upravit poznámku</button>`,
+      `<div class="note-inline"><strong class="note-inline-label">Poznámka:</strong> ${escapeHtml(note)} <button class="btn-action note-inline-edit" data-note-edit-symbol="${sym}">Upravit</button></div>`,
     );
   } else {
     html.push(
-      `<button class="btn-action" data-note-edit-symbol="${sym}">+ Přidat poznámku</button>`,
+      `<button class="btn-action" data-note-edit-symbol="${sym}">+ Přidat poznámku k firmě</button>`,
     );
   }
   html.push(`</div>`);
@@ -2056,8 +2072,11 @@ function buildDetailRow(sym) {
   }
   html.push(`</tbody></table>`);
   if (hasPrice) {
+    // Nereal. % = unrealized / cost_basis_open_lots
+    const unrealizedPct =
+      pos.cost_basis > 0 ? (u.value / pos.cost_basis) * 100 : 0;
     html.push(
-      `<div class="mini-total">Aktuální cena <strong>${fmtNum(currentPrice, 2)} ${ccy}</strong> → market value <strong>${fmtNum(u.market_value, 2)} ${ccy}</strong> &nbsp;·&nbsp; <strong class="${signClass(u.value)}">Nerealizovaná Z/Z: ${fmtNum(u.value, 2)} ${ccy}</strong></div>`,
+      `<div class="mini-total">Aktuální cena <strong>${fmtNum(currentPrice, 2)} ${ccy}</strong> → market value <strong>${fmtNum(u.market_value, 2)} ${ccy}</strong> &nbsp;·&nbsp; <strong class="${signClass(u.value)}">Nerealizovaná Z/Z: ${fmtNum(u.value, 2)} ${ccy} (${fmtPct(unrealizedPct)})</strong></div>`,
     );
   } else {
     html.push(
@@ -2852,7 +2871,8 @@ function renderReport() {
       a.date.localeCompare(b.date),
     );
 
-    // FX přepočet
+    // FX přepočet — strict mode (pro účetnictví musí být přesné datum).
+    // Když ČNB kurz pro daný den chybí, zobrazí se "chybí kurz".
     let costCzk = 0;
     let allFxFound = true;
     for (const b of buys) {
