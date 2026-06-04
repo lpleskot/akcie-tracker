@@ -364,11 +364,23 @@ function mergeOverlay(existing, parsed) {
     }
   }
 
-  // Snapshoty (Open Positions, NAV, M2M) — vždy přepsat aktuálním stavem.
-  // Tyhle nepotřebujeme dedupovat, vždy chceme nejčerstvější obraz.
+  // Open Positions a M2M YTD — vždy přepsat aktuálním stavem (snapshot reality).
   merged.open_positions_snapshot = parsed.openPositions;
-  merged.nav_snapshot = parsed.nav;
   merged.m2m_ytd = parsed.m2m;
+
+  // NAV snapshot — AKUMULUJ historii (dedupe by reportDate), ať se nemažeme
+  // 7-denní okno IBKR Flexu. Pro graf "Hodnota portfolia v čase" potřebujeme
+  // co nejvíc dní.
+  merged.nav_snapshot = merged.nav_snapshot || [];
+  const navByDate = new Map(
+    merged.nav_snapshot.map((n) => [n.reportDate, n]),
+  );
+  for (const n of parsed.nav) {
+    if (n.reportDate) navByDate.set(n.reportDate, n); // nový/přepíše stejné datum
+  }
+  merged.nav_snapshot = [...navByDate.values()].sort((a, b) =>
+    (a.reportDate || "").localeCompare(b.reportDate || ""),
+  );
 
   return {
     merged,

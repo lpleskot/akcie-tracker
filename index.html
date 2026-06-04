@@ -34,6 +34,7 @@
           <button class="tab" data-view="watchlist">Watchlist</button>
           <button class="tab" data-view="journal">Deník investora</button>
           <button class="tab" data-view="report">Report pro účetní</button>
+          <button class="tab" data-view="portfolio-history">Hodnota portfolia</button>
         </div>
         <button id="btn-refresh" class="btn">Načíst znovu</button>
         <button id="btn-export-xlsx" class="btn">Export XLSX</button>
@@ -321,6 +322,71 @@
             </thead>
             <tbody></tbody>
             <tfoot id="tfoot-dividends"></tfoot>
+          </table>
+        </div>
+      </section>
+
+      <section id="view-portfolio-history" class="view">
+        <div class="filter-bar">
+          <span class="filter-label">Období:</span>
+          <div class="filter-chips" id="ph-period-chips">
+            <button class="chip" data-period="1M">1 měsíc</button>
+            <button class="chip active" data-period="3M">3 měsíce</button>
+            <button class="chip" data-period="6M">6 měsíců</button>
+            <button class="chip" data-period="1Y">1 rok</button>
+            <button class="chip" data-period="ALL">Vše</button>
+          </div>
+          <span class="filter-divider">·</span>
+          <span class="filter-count" id="ph-count"></span>
+        </div>
+
+        <div class="report-intro muted">
+          Vývoj celkové hodnoty portfolia (pozice + cash) v čase.
+          <strong style="color: var(--color-positive)">Zelené tečky</strong> = den s vkladem cashu — hodnota tehdy
+          vzrostla díky tobě, ne díky trhu. Zdroj dat: denní NAV snapshoty z IBKR Flex,
+          přepočet CZK přes ČNB kurz k danému dni.
+        </div>
+
+        <div id="ph-chart-wrap" class="ph-chart-wrap">
+          <div id="ph-chart"></div>
+        </div>
+
+        <div class="ph-tile-row">
+          <div class="ph-tile">
+            <div class="ph-tile-label">Začátek období</div>
+            <div class="ph-tile-value" id="ph-start-value">—</div>
+            <div class="ph-tile-sub" id="ph-start-date">—</div>
+          </div>
+          <div class="ph-tile">
+            <div class="ph-tile-label">Konec období</div>
+            <div class="ph-tile-value" id="ph-end-value">—</div>
+            <div class="ph-tile-sub" id="ph-end-date">—</div>
+          </div>
+          <div class="ph-tile">
+            <div class="ph-tile-label">Změna hodnoty</div>
+            <div class="ph-tile-value" id="ph-change-value">—</div>
+            <div class="ph-tile-sub" id="ph-change-pct">—</div>
+          </div>
+          <div class="ph-tile">
+            <div class="ph-tile-label">Vklady v období</div>
+            <div class="ph-tile-value" id="ph-deposits-value">—</div>
+            <div class="ph-tile-sub" id="ph-deposits-count">—</div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table id="tbl-ph">
+            <thead>
+              <tr>
+                <th>Datum</th>
+                <th class="num">Hodnota Kč</th>
+                <th class="num">Hodnota USD</th>
+                <th class="num">Δ den</th>
+                <th class="num">Δ %</th>
+                <th>Pozn.</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
           </table>
         </div>
       </section>

@@ -123,6 +123,7 @@ async function init() {
   setupEditWatchModal();
   setupAlertsModal();
   setupJournal();
+  setupPortfolioHistory();
   setupPortfolioSwitcher();
 
   // 5) Fetch live quotes
@@ -197,6 +198,10 @@ function mergeOverlayIntoPortfolio(portfolio, overlay) {
   portfolio.cash_flows = portfolio.cash_flows || [];
   portfolio.instruments = portfolio.instruments || {};
   portfolio.cash_balance = { ...(portfolio.cash_balance || {}) };
+
+  // NAV snapshot historie z overlay (denní hodnoty z IBKR Flex)
+  // — pro graf "Hodnota portfolia v čase"
+  portfolio.nav_history = overlay.nav_snapshot || [];
 
   // Indexy pro dedupe podle Flex ID (uložené v `flex_id` poli)
   const existingTradeIds = new Set(
@@ -595,6 +600,7 @@ async function refreshQuotes() {
   renderDividends();
   renderReport();
   renderJournal();
+  renderPortfolioHistory();
   renderSummary();
 }
 
@@ -1589,6 +1595,249 @@ async function journalDelete(id) {
   return res;
 }
 
+// ---------- Hodnota portfolia (NAV time-series) ----------
+function setupPortfolioHistory() {
+  state.phPeriod = state.phPeriod || "3M";
+  const chips = document.querySelectorAll("#ph-period-chips .chip");
+  chips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      state.phPeriod = chip.dataset.period;
+      chips.forEach((c) => c.classList.toggle("active", c === chip));
+      renderPortfolioHistory();
+    });
+  });
+}
+
+function renderPortfolioHistory() {
+  const p = state.portfolio;
+  const chartEl = document.getElementById("ph-chart");
+  const tbody = document.querySelector("#tbl-ph tbody");
+  const countEl = document.getElementById("ph-count");
+  if (!chartEl || !tbody) return;
+
+  // 1) Sebrat NAV snapshoty z overlay (IBKR Flex EquitySummaryByReportDateInBase)
+  const navRaw = (p?.nav_history || [])
+    .filter((n) => n.reportDate && n.total)
+    .map((n) => ({
+      date: flexDate(n.reportDate),
+      value_usd: parseFloat(n.total),
+      cash_usd: parseFloat(n.cash || 0),
+      stock_usd: parseFloat(n.stock || 0),
+    }))
+    .filter((n) => n.date && Number.isFinite(n.value_usd))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // 2) Filtr období
+  const period = state.phPeriod || "3M";
+  const today = new Date().toISOString().slice(0, 10);
+  const cutoff = computePeriodCutoff(today, period);
+  const nav = cutoff ? navRaw.filter((n) => n.date >= cutoff) : navRaw;
+
+  // 3) Identifikace dní s vkladem (Deposits/Withdrawals z cash_flows)
+  const depositsByDate = new Map();
+  for (const f of p?.cash_flows || []) {
+    if (!f.date) continue;
+    if (!/Deposits.*Withdrawals|Account Transfers|Internal Transfers/i.test(f.type || "")) {
+      continue;
+    }
+    const amt = parseFloat(f.amount);
+    if (!Number.isFinite(amt) || amt === 0) continue;
+    if (!depositsByDate.has(f.date)) depositsByDate.set(f.date, []);
+    depositsByDate.get(f.date).push({ amount: amt, currency: f.currency });
+  }
+
+  // 4) Vykreslit chart (SVG line s deposit markery)
+  chartEl.innerHTML = renderNavChartSvg(nav, depositsByDate);
+
+  // 5) Souhrnné dlaždice (start, end, change, deposits)
+  renderPhTiles(nav, depositsByDate);
+
+  // 6) Tabulka den po dni (nejnovější nahoře)
+  countEl.textContent =
+    nav.length === 0 ? "" : `${nav.length} dní v období`;
+  tbody.innerHTML = "";
+
+  if (nav.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="status">Žádná historická data NAV. Jakmile cron několik dní poběží, data tady budou. <br><br>Tip: dočasně rozšiř Flex Query v IBKR portálu na 90 dní pro rychlý backfill — viz instrukce v chatu.</td></tr>`;
+    return;
+  }
+
+  const fxUsdToCzk = (date) => getFxToCzk(date, "USD", { allowFallback: true });
+
+  // V tabulce chronologicky obráceně (nejnovější nahoře)
+  for (let i = nav.length - 1; i >= 0; i--) {
+    const n = nav[i];
+    const prev = i > 0 ? nav[i - 1] : null;
+    const fx = fxUsdToCzk(n.date);
+    const valueCzk = fx ? n.value_usd * fx : null;
+    const dayDelta =
+      prev != null ? n.value_usd - prev.value_usd : null;
+    const dayDeltaCzk = dayDelta != null && fx ? dayDelta * fx : null;
+    const dayDeltaPct =
+      prev != null && prev.value_usd > 0
+        ? (dayDelta / prev.value_usd) * 100
+        : null;
+
+    const deps = depositsByDate.get(n.date);
+    const noteHtml = deps
+      ? `<span class="ph-deposit-note">💰 vklad ${deps.map((d) => `${fmtNum(d.amount, 2)} ${d.currency}`).join(", ")}</span>`
+      : "";
+
+    const rowClass = deps ? ' class="ph-row-deposit"' : "";
+    tbody.innerHTML += `
+      <tr${rowClass}>
+        <td>${n.date}</td>
+        <td class="num">${valueCzk != null ? fmtNum(valueCzk, 0) : '<span class="muted">—</span>'}</td>
+        <td class="num">${fmtNum(n.value_usd, 0)}</td>
+        <td class="num ${signClass(dayDeltaCzk)}">${dayDeltaCzk != null ? (dayDeltaCzk > 0 ? "+" : "") + fmtNum(dayDeltaCzk, 0) : '<span class="muted">—</span>'}</td>
+        <td class="num ${signClass(dayDeltaPct)}">${dayDeltaPct != null ? fmtPct(dayDeltaPct) : '<span class="muted">—</span>'}</td>
+        <td>${noteHtml}</td>
+      </tr>
+    `;
+  }
+}
+
+function renderPhTiles(nav, depositsByDate) {
+  const setText = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  };
+  if (nav.length === 0) {
+    ["ph-start-value", "ph-start-date", "ph-end-value", "ph-end-date",
+     "ph-change-value", "ph-change-pct", "ph-deposits-value", "ph-deposits-count"]
+      .forEach((id) => setText(id, "—"));
+    return;
+  }
+  const start = nav[0];
+  const end = nav[nav.length - 1];
+  const fxStart = getFxToCzk(start.date, "USD", { allowFallback: true });
+  const fxEnd = getFxToCzk(end.date, "USD", { allowFallback: true });
+  const startCzk = fxStart ? start.value_usd * fxStart : null;
+  const endCzk = fxEnd ? end.value_usd * fxEnd : null;
+  const changeUsd = end.value_usd - start.value_usd;
+  const changeCzk = endCzk != null && startCzk != null ? endCzk - startCzk : null;
+  const changePct =
+    start.value_usd > 0 ? (changeUsd / start.value_usd) * 100 : 0;
+
+  setText("ph-start-value", startCzk != null ? `${fmtNum(startCzk, 0)} Kč` : `${fmtNum(start.value_usd, 0)} USD`);
+  setText("ph-start-date", start.date);
+  setText("ph-end-value", endCzk != null ? `${fmtNum(endCzk, 0)} Kč` : `${fmtNum(end.value_usd, 0)} USD`);
+  setText("ph-end-date", end.date);
+
+  const changeEl = document.getElementById("ph-change-value");
+  if (changeEl) {
+    changeEl.textContent = changeCzk != null ? `${changeCzk > 0 ? "+" : ""}${fmtNum(changeCzk, 0)} Kč` : `${changeUsd > 0 ? "+" : ""}${fmtNum(changeUsd, 0)} USD`;
+    changeEl.className = `ph-tile-value ${signClass(changeCzk ?? changeUsd)}`;
+  }
+  setText("ph-change-pct", `${changePct > 0 ? "+" : ""}${changePct.toFixed(2)} %`);
+
+  // Vklady v období — sečíst všechny v daterange (start..end), per currency
+  let depCountInRange = 0;
+  let depTotalUsd = 0;
+  for (const [date, deps] of depositsByDate) {
+    if (date < start.date || date > end.date) continue;
+    for (const d of deps) {
+      depCountInRange++;
+      // Hrubý přepočet na USD pro souhrn
+      if (d.currency === "USD") depTotalUsd += d.amount;
+      else {
+        const usd = convertToUsd(d.amount, d.currency, date);
+        if (Number.isFinite(usd)) depTotalUsd += usd;
+      }
+    }
+  }
+  setText("ph-deposits-value", `${fmtNum(depTotalUsd, 0)} USD`);
+  setText("ph-deposits-count", `${depCountInRange} transakc${depCountInRange === 1 ? "e" : depCountInRange < 5 ? "í" : "í"}`);
+}
+
+function renderNavChartSvg(nav, depositsByDate) {
+  if (nav.length < 2) {
+    return `<div class="ph-chart-empty">Graf vyžaduje aspoň 2 data points. Aktuálně máme ${nav.length}.</div>`;
+  }
+
+  const W = 1200;
+  const H = 320;
+  const padL = 70, padR = 20, padT = 16, padB = 32;
+
+  const xs = nav.map((n) => new Date(n.date).getTime());
+  const ys = nav.map((n) => n.value_usd);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const yMin = Math.min(...ys), yMax = Math.max(...ys);
+  const yPad = (yMax - yMin) * 0.08 || yMax * 0.05 || 1;
+  const yLo = yMin - yPad, yHi = yMax + yPad;
+
+  const sx = (t) =>
+    padL + ((t - xMin) / (xMax - xMin || 1)) * (W - padL - padR);
+  const sy = (v) => H - padB - ((v - yLo) / (yHi - yLo || 1)) * (H - padT - padB);
+
+  // Line path
+  const path = nav
+    .map((n, i) => `${i === 0 ? "M" : "L"}${sx(new Date(n.date).getTime()).toFixed(1)},${sy(n.value_usd).toFixed(1)}`)
+    .join(" ");
+
+  // Area under line (subtle gradient fill)
+  const areaPath =
+    `M${sx(xs[0]).toFixed(1)},${(H - padB).toFixed(1)} ` +
+    nav.map((n) => `L${sx(new Date(n.date).getTime()).toFixed(1)},${sy(n.value_usd).toFixed(1)}`).join(" ") +
+    ` L${sx(xs[xs.length - 1]).toFixed(1)},${(H - padB).toFixed(1)} Z`;
+
+  // Deposit markers
+  const depositCircles = nav
+    .filter((n) => depositsByDate.has(n.date))
+    .map((n) => {
+      const x = sx(new Date(n.date).getTime());
+      const y = sy(n.value_usd);
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6" fill="var(--color-positive)" stroke="#fff" stroke-width="2"><title>Vklad dne ${n.date}</title></circle>`;
+    })
+    .join("");
+
+  // Y-axis ticks (5 segments)
+  const yTicks = [];
+  for (let i = 0; i <= 4; i++) {
+    const v = yLo + (i / 4) * (yHi - yLo);
+    const y = sy(v);
+    yTicks.push(`
+      <line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="#eee" stroke-dasharray="3,3" />
+      <text x="${padL - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#888">${fmtNum(v / 1000, 0)}K USD</text>
+    `);
+  }
+
+  // X-axis labels (start, middle, end)
+  const xTicks = [];
+  const tickPositions = [0, Math.floor(nav.length / 2), nav.length - 1];
+  for (const idx of [...new Set(tickPositions)]) {
+    const n = nav[idx];
+    const x = sx(new Date(n.date).getTime());
+    xTicks.push(`<text x="${x.toFixed(1)}" y="${(H - padB + 18).toFixed(1)}" text-anchor="middle" font-size="11" fill="#888">${n.date}</text>`);
+  }
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" class="ph-chart-svg" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <linearGradient id="ph-grad" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stop-color="var(--color-accent)" stop-opacity="0.25" />
+          <stop offset="100%" stop-color="var(--color-accent)" stop-opacity="0" />
+        </linearGradient>
+      </defs>
+      ${yTicks.join("")}
+      <path d="${areaPath}" fill="url(#ph-grad)" />
+      <path d="${path}" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+      ${depositCircles}
+      ${xTicks.join("")}
+    </svg>
+  `;
+}
+
+function computePeriodCutoff(today, period) {
+  const d = new Date(`${today}T00:00:00Z`);
+  if (period === "1M") d.setUTCMonth(d.getUTCMonth() - 1);
+  else if (period === "3M") d.setUTCMonth(d.getUTCMonth() - 3);
+  else if (period === "6M") d.setUTCMonth(d.getUTCMonth() - 6);
+  else if (period === "1Y") d.setUTCFullYear(d.getUTCFullYear() - 1);
+  else return null; // ALL
+  return d.toISOString().slice(0, 10);
+}
+
 // ---------- Allocation ----------
 function renderAllocation() {
   const tbody = document.querySelector("#tbl-allocation tbody");
@@ -2580,7 +2829,14 @@ function renderSummary() {
       <div class="label">Hodnota portfolia · CZK <span class="hint" title="Total Net Liquidity — tržní hodnota držených pozic + hotovost ve všech měnách, vše přepočteno přes ČNB kurz. Odpovídá IBKR Net Liquidity v jejich Portal.">i</span></div>
       <div class="value">${mainLine}</div>
       <div class="sub">${subLine}${missingPricesNote}</div>
+      <div class="ph-tile-link muted small">📈 Klikni pro vývoj v čase</div>
     `;
+    // Klik na dlaždici → přepnutí na tab Hodnota portfolia
+    portfolioValueCard.style.cursor = "pointer";
+    portfolioValueCard.addEventListener("click", () => {
+      const tab = document.querySelector('.tab[data-view="portfolio-history"]');
+      if (tab) tab.click();
+    });
   }
 
   // === 3) Total Return % od inception (primary = %, sub = absolutní hodnoty) ===
