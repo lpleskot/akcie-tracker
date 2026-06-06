@@ -330,11 +330,11 @@
         <div class="filter-bar">
           <span class="filter-label">Období:</span>
           <div class="filter-chips" id="ph-period-chips">
-            <button class="chip" data-period="1M">1 měsíc</button>
-            <button class="chip active" data-period="3M">3 měsíce</button>
-            <button class="chip" data-period="6M">6 měsíců</button>
-            <button class="chip" data-period="1Y">1 rok</button>
-            <button class="chip" data-period="ALL">Vše</button>
+            <button class="filter-chip" data-period="1M">1 měsíc</button>
+            <button class="filter-chip" data-period="3M">3 měsíce</button>
+            <button class="filter-chip" data-period="6M">6 měsíců</button>
+            <button class="filter-chip" data-period="1Y">1 rok</button>
+            <button class="filter-chip active" data-period="ALL">Vše</button>
           </div>
           <span class="filter-divider">·</span>
           <span class="filter-count" id="ph-count"></span>
@@ -345,10 +345,6 @@
           <strong style="color: var(--color-positive)">Zelené tečky</strong> = den s vkladem cashu — hodnota tehdy
           vzrostla díky tobě, ne díky trhu. Zdroj dat: denní NAV snapshoty z IBKR Flex,
           přepočet CZK přes ČNB kurz k danému dni.
-        </div>
-
-        <div id="ph-chart-wrap" class="ph-chart-wrap">
-          <div id="ph-chart"></div>
         </div>
 
         <div class="ph-tile-row">
@@ -372,6 +368,10 @@
             <div class="ph-tile-value" id="ph-deposits-value">—</div>
             <div class="ph-tile-sub" id="ph-deposits-count">—</div>
           </div>
+        </div>
+
+        <div id="ph-chart-wrap" class="ph-chart-wrap">
+          <div id="ph-chart"></div>
         </div>
 
         <div class="table-wrap">

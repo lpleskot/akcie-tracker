@@ -2,7 +2,7 @@
   "schema_version": 1,
   "portfolio_id": "plegi-invest-ibkr",
   "source": "IBKR Activity Statement + Yahoo historical reconstruction",
-  "generated_at": "2026-06-06T10:53:15.566508Z",
+  "generated_at": "2026-06-06T11:45:49.121212Z",
   "inception_date": "2025-11-24",
   "nav_history": [
     {
@@ -984,6 +984,62 @@
       "cash": 2607.42,
       "stock": 216145.45,
       "total": 218752.88
+    }
+  ],
+  "deposits": [
+    {
+      "date": "2025-11-24",
+      "amount": 10.0,
+      "currency": "USD",
+      "description": "Electronic Fund Transfer"
+    },
+    {
+      "date": "2025-12-01",
+      "amount": 9965.0,
+      "currency": "USD",
+      "description": "Electronic Fund Transfer"
+    },
+    {
+      "date": "2025-12-08",
+      "amount": 69955.0,
+      "currency": "USD",
+      "description": "Electronic Fund Transfer"
+    },
+    {
+      "date": "2025-12-17",
+      "amount": 48960.0,
+      "currency": "USD",
+      "description": "Electronic Fund Transfer"
+    },
+    {
+      "date": "2026-02-05",
+      "amount": 19960.0,
+      "currency": "USD",
+      "description": "Electronic Fund Transfer"
+    },
+    {
+      "date": "2026-02-09",
+      "amount": 18960.0,
+      "currency": "USD",
+      "description": "Electronic Fund Transfer"
+    },
+    {
+      "date": "2026-02-19",
+      "amount": 24960.0,
+      "currency": "USD",
+      "description": "Electronic Fund Transfer"
+    },
+    {
+      "date": "2026-03-04",
+      "amount": 15960.0,
+      "currency": "USD",
+      "description": "Electronic Fund Transfer"
+    },
+    {
+      "date": "2026-05-20",
+      "amount": 29960.0,
+      "currency": "USD",
+      "description": "Electronic Fund Transfer"
     }
   ]
 }

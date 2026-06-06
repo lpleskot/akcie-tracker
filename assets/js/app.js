@@ -170,10 +170,12 @@ async function loadActivePortfolio() {
   // Static NAV history backfill (jednorázový seed z IBKR Activity Statement)
   // Mergne se s overlay nav_history v renderPortfolioHistory.
   state.portfolio.static_nav_history = [];
+  state.portfolio.static_deposits = [];
   if (navHistoryRes && navHistoryRes.ok) {
     try {
       const histData = await navHistoryRes.json();
       state.portfolio.static_nav_history = histData.nav_history || [];
+      state.portfolio.static_deposits = histData.deposits || [];
     } catch (e) {
       console.warn(`NAV history load selhal: ${e.message}`);
     }
@@ -1599,8 +1601,8 @@ async function journalDelete(id) {
 
 // ---------- Hodnota portfolia (NAV time-series) ----------
 function setupPortfolioHistory() {
-  state.phPeriod = state.phPeriod || "3M";
-  const chips = document.querySelectorAll("#ph-period-chips .chip");
+  state.phPeriod = state.phPeriod || "ALL";
+  const chips = document.querySelectorAll("#ph-period-chips .filter-chip");
   chips.forEach((chip) => {
     chip.addEventListener("click", () => {
       state.phPeriod = chip.dataset.period;
@@ -1649,22 +1651,33 @@ function renderPortfolioHistory() {
   );
 
   // 2) Filtr období
-  const period = state.phPeriod || "3M";
+  const period = state.phPeriod || "ALL";
   const today = new Date().toISOString().slice(0, 10);
   const cutoff = computePeriodCutoff(today, period);
   const nav = cutoff ? navRaw.filter((n) => n.date >= cutoff) : navRaw;
 
-  // 3) Identifikace dní s vkladem (Deposits/Withdrawals z cash_flows)
+  // 3) Identifikace dní s vkladem — DVA zdroje:
+  //    a) p.static_deposits[] = backfill z IBKR Activity Statement (historicky)
+  //    b) p.cash_flows[] (filtr na Deposits typu) = z Flex overlay (nové)
   const depositsByDate = new Map();
+  const addDep = (date, amount, currency) => {
+    if (!date || !Number.isFinite(amount) || amount === 0) return;
+    if (!depositsByDate.has(date)) depositsByDate.set(date, []);
+    depositsByDate.get(date).push({ amount, currency });
+  };
+  for (const d of p?.static_deposits || []) {
+    addDep(d.date, parseFloat(d.amount), d.currency);
+  }
   for (const f of p?.cash_flows || []) {
     if (!f.date) continue;
     if (!/Deposits.*Withdrawals|Account Transfers|Internal Transfers/i.test(f.type || "")) {
       continue;
     }
+    // Dedupe: pokud už máme stejný den + amount, neduplikovat
     const amt = parseFloat(f.amount);
-    if (!Number.isFinite(amt) || amt === 0) continue;
-    if (!depositsByDate.has(f.date)) depositsByDate.set(f.date, []);
-    depositsByDate.get(f.date).push({ amount: amt, currency: f.currency });
+    const existing = depositsByDate.get(f.date) || [];
+    const dup = existing.some((e) => Math.abs(e.amount - amt) < 0.01 && e.currency === f.currency);
+    if (!dup) addDep(f.date, amt, f.currency);
   }
 
   // 4) Vykreslit chart (SVG line s deposit markery)
@@ -1802,13 +1815,21 @@ function renderNavChartSvg(nav, depositsByDate) {
     nav.map((n) => `L${sx(new Date(n.date).getTime()).toFixed(1)},${sy(n.value_usd).toFixed(1)}`).join(" ") +
     ` L${sx(xs[xs.length - 1]).toFixed(1)},${(H - padB).toFixed(1)} Z`;
 
-  // Deposit markers
-  const depositCircles = nav
+  // Deposit markers — větší zelené tečky + tenká vertikální vodící čára,
+  // ať jsou opravdu vidět (i u depozitů, kde NAV moc nepokleslo).
+  const depositMarkers = nav
     .filter((n) => depositsByDate.has(n.date))
     .map((n) => {
       const x = sx(new Date(n.date).getTime());
       const y = sy(n.value_usd);
-      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6" fill="var(--color-positive)" stroke="#fff" stroke-width="2"><title>Vklad dne ${n.date}</title></circle>`;
+      const deps = depositsByDate.get(n.date);
+      const total = deps.reduce((s, d) => s + d.amount, 0);
+      const ccy = deps[0]?.currency || "USD";
+      const tip = `Vklad ${n.date}: +${total.toLocaleString("cs-CZ", { maximumFractionDigits: 0 })} ${ccy}`;
+      return `
+        <line x1="${x.toFixed(1)}" y1="${(padT).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(H - padB).toFixed(1)}" stroke="var(--color-positive)" stroke-width="1" stroke-opacity="0.3" stroke-dasharray="2,3" />
+        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7" fill="var(--color-positive)" stroke="#fff" stroke-width="2.5"><title>${tip}</title></circle>
+      `;
     })
     .join("");
 
@@ -1843,7 +1864,7 @@ function renderNavChartSvg(nav, depositsByDate) {
       ${yTicks.join("")}
       <path d="${areaPath}" fill="url(#ph-grad)" />
       <path d="${path}" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
-      ${depositCircles}
+      ${depositMarkers}
       ${xTicks.join("")}
     </svg>
   `;
