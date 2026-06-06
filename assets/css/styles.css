@@ -456,6 +456,22 @@ button.primary:hover {
   gap: 12px;
   margin-bottom: 14px;
 }
+/* Globální (all-time) řádek dlaždic — pevné údaje, výraznější styling */
+.ph-tile-row-global {
+  grid-template-columns: repeat(3, 1fr);
+}
+.ph-tile-emphasized {
+  border-left: 3px solid var(--color-accent);
+  padding: 14px 16px;
+}
+.ph-tile-emphasized .ph-tile-value {
+  font-size: 22px;     /* o něco větší než běžné dlaždice */
+}
+@media (max-width: 900px) {
+  .ph-tile-row-global {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
 .ph-tile {
   background: var(--color-surface);
   border: 1px solid var(--color-border);

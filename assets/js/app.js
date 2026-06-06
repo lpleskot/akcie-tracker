@@ -1680,10 +1680,13 @@ function renderPortfolioHistory() {
     if (!dup) addDep(f.date, amt, f.currency);
   }
 
-  // 4) Vykreslit chart (SVG line s deposit markery)
+  // 4) Globální (all-time) dlaždice — pevné, nezávislé na zvoleném období
+  renderPhGlobalTiles(navRaw, p, depositsByDate);
+
+  // 5) Vykreslit chart (SVG line s deposit markery) — pro zvolené období
   chartEl.innerHTML = renderNavChartSvg(nav, depositsByDate);
 
-  // 5) Souhrnné dlaždice (start, end, change, deposits)
+  // 6) Souhrnné dlaždice pro období (start, end, change, deposits in period)
   renderPhTiles(nav, depositsByDate);
 
   // 6) Tabulka den po dni (nejnovější nahoře)
@@ -1728,6 +1731,69 @@ function renderPortfolioHistory() {
         <td>${noteHtml}</td>
       </tr>
     `;
+  }
+}
+
+/**
+ * Globální (all-time) dlaždice — nezávislé na zvoleném období filtru:
+ *  - Celkem vloženo (suma všech depositů od inception, v USD a CZK)
+ *  - Aktuální hodnota portfolia (poslední záznam v NAV historii)
+ *  - Rozdíl = current − deposits (kolik jsi vydělal/ztratil oproti tomu co jsi vložil)
+ */
+function renderPhGlobalTiles(navRaw, p, depositsByDateMap) {
+  const setText = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  };
+
+  // Total deposits — sečíst VŠECHNY (historické + Flex overlay), dedupe by (date+amount+ccy)
+  let totalDepositsUsd = 0;
+  for (const [date, deps] of depositsByDateMap) {
+    for (const d of deps) {
+      const usd =
+        d.currency === "USD" ? d.amount : convertToUsd(d.amount, d.currency, date);
+      if (Number.isFinite(usd)) totalDepositsUsd += usd;
+    }
+  }
+
+  // Current NAV = poslední záznam v navRaw (bez ohledu na filtr)
+  const last = navRaw.length > 0 ? navRaw[navRaw.length - 1] : null;
+  const currentNavUsd = last ? last.value_usd : 0;
+  const currentDate = last ? last.date : null;
+  const fxToday = currentDate
+    ? getFxToCzk(currentDate, "USD", { allowFallback: true })
+    : null;
+
+  const fmtMoney = (usd) => {
+    if (fxToday != null) return `${fmtNum(usd * fxToday, 0)} Kč`;
+    return `${fmtNum(usd, 0)} USD`;
+  };
+
+  setText("ph-total-deposits-czk", fmtMoney(totalDepositsUsd));
+  setText("ph-total-deposits-usd", `${fmtNum(totalDepositsUsd, 0)} USD ekv.`);
+
+  setText("ph-current-nav-czk", fmtMoney(currentNavUsd));
+  setText("ph-current-nav-usd", `${fmtNum(currentNavUsd, 0)} USD ekv.`);
+
+  // Diff
+  const diffUsd = currentNavUsd - totalDepositsUsd;
+  const diffCzk = fxToday != null ? diffUsd * fxToday : null;
+  const diffPct =
+    totalDepositsUsd > 0 ? (diffUsd / totalDepositsUsd) * 100 : 0;
+
+  const diffEl = document.getElementById("ph-net-diff-czk");
+  if (diffEl) {
+    const prefix = diffUsd > 0 ? "+" : "";
+    diffEl.textContent =
+      diffCzk != null
+        ? `${prefix}${fmtNum(diffCzk, 0)} Kč`
+        : `${prefix}${fmtNum(diffUsd, 0)} USD`;
+    diffEl.className = `ph-tile-value ${signClass(diffUsd)}`;
+  }
+  const pctEl = document.getElementById("ph-net-diff-pct");
+  if (pctEl) {
+    pctEl.textContent = `${diffUsd > 0 ? "+" : ""}${diffPct.toFixed(2)} %`;
+    pctEl.className = `ph-tile-sub ${signClass(diffUsd)}`;
   }
 }
 
