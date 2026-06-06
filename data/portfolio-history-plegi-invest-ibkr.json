@@ -1,0 +1,989 @@
+{
+  "schema_version": 1,
+  "portfolio_id": "plegi-invest-ibkr",
+  "source": "IBKR Activity Statement + Yahoo historical reconstruction",
+  "generated_at": "2026-06-06T10:53:15.566508Z",
+  "inception_date": "2025-11-24",
+  "nav_history": [
+    {
+      "reportDate": "20251124",
+      "currency": "USD",
+      "cash": 10.0,
+      "stock": 0.0,
+      "total": 10.0
+    },
+    {
+      "reportDate": "20251125",
+      "currency": "USD",
+      "cash": 10.0,
+      "stock": 0.0,
+      "total": 10.0
+    },
+    {
+      "reportDate": "20251126",
+      "currency": "USD",
+      "cash": 10.0,
+      "stock": 0.0,
+      "total": 10.0
+    },
+    {
+      "reportDate": "20251127",
+      "currency": "USD",
+      "cash": 10.0,
+      "stock": 0.0,
+      "total": 10.0
+    },
+    {
+      "reportDate": "20251128",
+      "currency": "USD",
+      "cash": 10.0,
+      "stock": 0.0,
+      "total": 10.0
+    },
+    {
+      "reportDate": "20251201",
+      "currency": "USD",
+      "cash": 9975.0,
+      "stock": 0.0,
+      "total": 9975.0
+    },
+    {
+      "reportDate": "20251202",
+      "currency": "USD",
+      "cash": 9975.0,
+      "stock": 0.0,
+      "total": 9975.0
+    },
+    {
+      "reportDate": "20251203",
+      "currency": "USD",
+      "cash": 9975.0,
+      "stock": 0.0,
+      "total": 9975.0
+    },
+    {
+      "reportDate": "20251204",
+      "currency": "USD",
+      "cash": 9975.0,
+      "stock": 0.0,
+      "total": 9975.0
+    },
+    {
+      "reportDate": "20251205",
+      "currency": "USD",
+      "cash": 759.35,
+      "stock": 9172.38,
+      "total": 9931.73
+    },
+    {
+      "reportDate": "20251208",
+      "currency": "USD",
+      "cash": 70714.35,
+      "stock": 8992.56,
+      "total": 79706.91
+    },
+    {
+      "reportDate": "20251209",
+      "currency": "USD",
+      "cash": 70714.35,
+      "stock": 9034.66,
+      "total": 79749.01
+    },
+    {
+      "reportDate": "20251210",
+      "currency": "USD",
+      "cash": 27852.07,
+      "stock": 51624.75,
+      "total": 79476.82
+    },
+    {
+      "reportDate": "20251211",
+      "currency": "USD",
+      "cash": 27852.07,
+      "stock": 52323.05,
+      "total": 80175.12
+    },
+    {
+      "reportDate": "20251212",
+      "currency": "USD",
+      "cash": 27852.07,
+      "stock": 51872.2,
+      "total": 79724.27
+    },
+    {
+      "reportDate": "20251215",
+      "currency": "USD",
+      "cash": 27852.07,
+      "stock": 50430.8,
+      "total": 78282.87
+    },
+    {
+      "reportDate": "20251216",
+      "currency": "USD",
+      "cash": 190.15,
+      "stock": 78542.37,
+      "total": 78732.52
+    },
+    {
+      "reportDate": "20251217",
+      "currency": "USD",
+      "cash": 44117.44,
+      "stock": 82541.93,
+      "total": 126659.37
+    },
+    {
+      "reportDate": "20251218",
+      "currency": "USD",
+      "cash": 44117.44,
+      "stock": 81898.79,
+      "total": 126016.23
+    },
+    {
+      "reportDate": "20251219",
+      "currency": "USD",
+      "cash": 44117.44,
+      "stock": 81217.96,
+      "total": 125335.4
+    },
+    {
+      "reportDate": "20251222",
+      "currency": "USD",
+      "cash": 44117.44,
+      "stock": 80884.62,
+      "total": 125002.06
+    },
+    {
+      "reportDate": "20251223",
+      "currency": "USD",
+      "cash": 44117.44,
+      "stock": 79942.91,
+      "total": 124060.35
+    },
+    {
+      "reportDate": "20251224",
+      "currency": "USD",
+      "cash": 44117.44,
+      "stock": 80779.26,
+      "total": 124896.7
+    },
+    {
+      "reportDate": "20251225",
+      "currency": "USD",
+      "cash": 44117.44,
+      "stock": 80779.26,
+      "total": 124896.7
+    },
+    {
+      "reportDate": "20251226",
+      "currency": "USD",
+      "cash": 44117.44,
+      "stock": 80863.46,
+      "total": 124980.9
+    },
+    {
+      "reportDate": "20251229",
+      "currency": "USD",
+      "cash": 44023.37,
+      "stock": 80774.82,
+      "total": 124798.18
+    },
+    {
+      "reportDate": "20251230",
+      "currency": "USD",
+      "cash": 44042.74,
+      "stock": 80889.51,
+      "total": 124932.25
+    },
+    {
+      "reportDate": "20251231",
+      "currency": "USD",
+      "cash": 44055.9,
+      "stock": 80748.64,
+      "total": 124804.54
+    },
+    {
+      "reportDate": "20260101",
+      "currency": "USD",
+      "cash": 44055.9,
+      "stock": 80748.64,
+      "total": 124804.54
+    },
+    {
+      "reportDate": "20260102",
+      "currency": "USD",
+      "cash": 44074.01,
+      "stock": 80733.42,
+      "total": 124807.43
+    },
+    {
+      "reportDate": "20260105",
+      "currency": "USD",
+      "cash": 44074.01,
+      "stock": 82076.72,
+      "total": 126150.73
+    },
+    {
+      "reportDate": "20260106",
+      "currency": "USD",
+      "cash": 44097.55,
+      "stock": 83164.82,
+      "total": 127262.36
+    },
+    {
+      "reportDate": "20260107",
+      "currency": "USD",
+      "cash": 44097.55,
+      "stock": 82380.38,
+      "total": 126477.92
+    },
+    {
+      "reportDate": "20260108",
+      "currency": "USD",
+      "cash": 44097.55,
+      "stock": 83056.36,
+      "total": 127153.91
+    },
+    {
+      "reportDate": "20260109",
+      "currency": "USD",
+      "cash": 44097.55,
+      "stock": 81885.52,
+      "total": 125983.07
+    },
+    {
+      "reportDate": "20260112",
+      "currency": "USD",
+      "cash": 30064.25,
+      "stock": 95549.56,
+      "total": 125613.81
+    },
+    {
+      "reportDate": "20260113",
+      "currency": "USD",
+      "cash": 30064.25,
+      "stock": 94898.18,
+      "total": 124962.43
+    },
+    {
+      "reportDate": "20260114",
+      "currency": "USD",
+      "cash": 30064.25,
+      "stock": 95024.75,
+      "total": 125089.0
+    },
+    {
+      "reportDate": "20260115",
+      "currency": "USD",
+      "cash": 30146.09,
+      "stock": 93887.54,
+      "total": 124033.63
+    },
+    {
+      "reportDate": "20260116",
+      "currency": "USD",
+      "cash": 30146.09,
+      "stock": 93531.99,
+      "total": 123678.08
+    },
+    {
+      "reportDate": "20260119",
+      "currency": "USD",
+      "cash": 26103.34,
+      "stock": 97171.06,
+      "total": 123274.41
+    },
+    {
+      "reportDate": "20260120",
+      "currency": "USD",
+      "cash": 21022.19,
+      "stock": 99488.08,
+      "total": 120510.26
+    },
+    {
+      "reportDate": "20260121",
+      "currency": "USD",
+      "cash": 21022.19,
+      "stock": 100411.39,
+      "total": 121433.57
+    },
+    {
+      "reportDate": "20260122",
+      "currency": "USD",
+      "cash": 20879.73,
+      "stock": 102706.85,
+      "total": 123586.58
+    },
+    {
+      "reportDate": "20260123",
+      "currency": "USD",
+      "cash": 20879.73,
+      "stock": 102594.2,
+      "total": 123473.93
+    },
+    {
+      "reportDate": "20260126",
+      "currency": "USD",
+      "cash": 20879.73,
+      "stock": 101692.65,
+      "total": 122572.38
+    },
+    {
+      "reportDate": "20260127",
+      "currency": "USD",
+      "cash": 20879.73,
+      "stock": 100220.03,
+      "total": 121099.77
+    },
+    {
+      "reportDate": "20260128",
+      "currency": "USD",
+      "cash": 11771.1,
+      "stock": 108337.25,
+      "total": 120108.35
+    },
+    {
+      "reportDate": "20260129",
+      "currency": "USD",
+      "cash": 11771.1,
+      "stock": 105897.1,
+      "total": 117668.2
+    },
+    {
+      "reportDate": "20260130",
+      "currency": "USD",
+      "cash": 11771.1,
+      "stock": 104493.61,
+      "total": 116264.71
+    },
+    {
+      "reportDate": "20260202",
+      "currency": "USD",
+      "cash": 11771.1,
+      "stock": 103442.08,
+      "total": 115213.18
+    },
+    {
+      "reportDate": "20260203",
+      "currency": "USD",
+      "cash": 11771.1,
+      "stock": 96685.48,
+      "total": 108456.58
+    },
+    {
+      "reportDate": "20260204",
+      "currency": "USD",
+      "cash": -92.14,
+      "stock": 109776.82,
+      "total": 109684.68
+    },
+    {
+      "reportDate": "20260205",
+      "currency": "USD",
+      "cash": 10428.08,
+      "stock": 113898.62,
+      "total": 124326.7
+    },
+    {
+      "reportDate": "20260206",
+      "currency": "USD",
+      "cash": 3760.0,
+      "stock": 126997.44,
+      "total": 130757.44
+    },
+    {
+      "reportDate": "20260209",
+      "currency": "USD",
+      "cash": 22543.03,
+      "stock": 127644.86,
+      "total": 150187.89
+    },
+    {
+      "reportDate": "20260210",
+      "currency": "USD",
+      "cash": 12755.52,
+      "stock": 137514.81,
+      "total": 150270.33
+    },
+    {
+      "reportDate": "20260211",
+      "currency": "USD",
+      "cash": 12755.52,
+      "stock": 132810.12,
+      "total": 145565.64
+    },
+    {
+      "reportDate": "20260212",
+      "currency": "USD",
+      "cash": 12755.52,
+      "stock": 129651.78,
+      "total": 142407.3
+    },
+    {
+      "reportDate": "20260213",
+      "currency": "USD",
+      "cash": 2777.55,
+      "stock": 142747.03,
+      "total": 145524.59
+    },
+    {
+      "reportDate": "20260216",
+      "currency": "USD",
+      "cash": 2785.49,
+      "stock": 142663.41,
+      "total": 145448.9
+    },
+    {
+      "reportDate": "20260217",
+      "currency": "USD",
+      "cash": 2785.49,
+      "stock": 142006.48,
+      "total": 144791.97
+    },
+    {
+      "reportDate": "20260218",
+      "currency": "USD",
+      "cash": 2785.49,
+      "stock": 143302.79,
+      "total": 146088.28
+    },
+    {
+      "reportDate": "20260219",
+      "currency": "USD",
+      "cash": 27995.39,
+      "stock": 143830.62,
+      "total": 171826.02
+    },
+    {
+      "reportDate": "20260220",
+      "currency": "USD",
+      "cash": 17132.23,
+      "stock": 155134.42,
+      "total": 172266.66
+    },
+    {
+      "reportDate": "20260223",
+      "currency": "USD",
+      "cash": 17132.23,
+      "stock": 151218.05,
+      "total": 168350.29
+    },
+    {
+      "reportDate": "20260224",
+      "currency": "USD",
+      "cash": 13081.97,
+      "stock": 154773.72,
+      "total": 167855.69
+    },
+    {
+      "reportDate": "20260225",
+      "currency": "USD",
+      "cash": 1686.71,
+      "stock": 169991.25,
+      "total": 171677.96
+    },
+    {
+      "reportDate": "20260226",
+      "currency": "USD",
+      "cash": 1686.71,
+      "stock": 170034.2,
+      "total": 171720.91
+    },
+    {
+      "reportDate": "20260227",
+      "currency": "USD",
+      "cash": 1686.71,
+      "stock": 168526.9,
+      "total": 170213.61
+    },
+    {
+      "reportDate": "20260302",
+      "currency": "USD",
+      "cash": -59.13,
+      "stock": 171775.35,
+      "total": 171716.22
+    },
+    {
+      "reportDate": "20260303",
+      "currency": "USD",
+      "cash": -59.13,
+      "stock": 172917.55,
+      "total": 172858.42
+    },
+    {
+      "reportDate": "20260304",
+      "currency": "USD",
+      "cash": 16021.64,
+      "stock": 176831.32,
+      "total": 192852.96
+    },
+    {
+      "reportDate": "20260305",
+      "currency": "USD",
+      "cash": 16021.64,
+      "stock": 178826.66,
+      "total": 194848.3
+    },
+    {
+      "reportDate": "20260306",
+      "currency": "USD",
+      "cash": 7304.87,
+      "stock": 185665.56,
+      "total": 192970.43
+    },
+    {
+      "reportDate": "20260309",
+      "currency": "USD",
+      "cash": 7304.87,
+      "stock": 185888.83,
+      "total": 193193.7
+    },
+    {
+      "reportDate": "20260310",
+      "currency": "USD",
+      "cash": 7304.87,
+      "stock": 183512.42,
+      "total": 190817.29
+    },
+    {
+      "reportDate": "20260311",
+      "currency": "USD",
+      "cash": 7304.87,
+      "stock": 183450.35,
+      "total": 190755.22
+    },
+    {
+      "reportDate": "20260312",
+      "currency": "USD",
+      "cash": 7304.87,
+      "stock": 180483.74,
+      "total": 187788.61
+    },
+    {
+      "reportDate": "20260313",
+      "currency": "USD",
+      "cash": 7304.87,
+      "stock": 180467.5,
+      "total": 187772.37
+    },
+    {
+      "reportDate": "20260316",
+      "currency": "USD",
+      "cash": 3020.24,
+      "stock": 187096.05,
+      "total": 190116.3
+    },
+    {
+      "reportDate": "20260317",
+      "currency": "USD",
+      "cash": 2803.12,
+      "stock": 188778.14,
+      "total": 191581.27
+    },
+    {
+      "reportDate": "20260318",
+      "currency": "USD",
+      "cash": 2803.12,
+      "stock": 183255.49,
+      "total": 186058.61
+    },
+    {
+      "reportDate": "20260319",
+      "currency": "USD",
+      "cash": 2803.12,
+      "stock": 182492.46,
+      "total": 185295.59
+    },
+    {
+      "reportDate": "20260320",
+      "currency": "USD",
+      "cash": 2803.12,
+      "stock": 180107.23,
+      "total": 182910.35
+    },
+    {
+      "reportDate": "20260323",
+      "currency": "USD",
+      "cash": 2803.12,
+      "stock": 183406.24,
+      "total": 186209.36
+    },
+    {
+      "reportDate": "20260324",
+      "currency": "USD",
+      "cash": 2803.12,
+      "stock": 179691.2,
+      "total": 182494.32
+    },
+    {
+      "reportDate": "20260325",
+      "currency": "USD",
+      "cash": 2837.06,
+      "stock": 180109.81,
+      "total": 182946.87
+    },
+    {
+      "reportDate": "20260326",
+      "currency": "USD",
+      "cash": 2837.06,
+      "stock": 178541.19,
+      "total": 181378.25
+    },
+    {
+      "reportDate": "20260327",
+      "currency": "USD",
+      "cash": 3215.71,
+      "stock": 172399.85,
+      "total": 175615.56
+    },
+    {
+      "reportDate": "20260330",
+      "currency": "USD",
+      "cash": 3215.71,
+      "stock": 173323.87,
+      "total": 176539.58
+    },
+    {
+      "reportDate": "20260331",
+      "currency": "USD",
+      "cash": 3699.69,
+      "stock": 177705.27,
+      "total": 181404.97
+    },
+    {
+      "reportDate": "20260401",
+      "currency": "USD",
+      "cash": 3343.61,
+      "stock": 176293.81,
+      "total": 179637.43
+    },
+    {
+      "reportDate": "20260402",
+      "currency": "USD",
+      "cash": 3343.61,
+      "stock": 176949.95,
+      "total": 180293.57
+    },
+    {
+      "reportDate": "20260403",
+      "currency": "USD",
+      "cash": 3343.61,
+      "stock": 176949.95,
+      "total": 180293.57
+    },
+    {
+      "reportDate": "20260406",
+      "currency": "USD",
+      "cash": 3646.5,
+      "stock": 180046.85,
+      "total": 183693.35
+    },
+    {
+      "reportDate": "20260407",
+      "currency": "USD",
+      "cash": 3646.5,
+      "stock": 177231.79,
+      "total": 180878.28
+    },
+    {
+      "reportDate": "20260408",
+      "currency": "USD",
+      "cash": 3646.5,
+      "stock": 179807.65,
+      "total": 183454.15
+    },
+    {
+      "reportDate": "20260409",
+      "currency": "USD",
+      "cash": 3646.5,
+      "stock": 179133.9,
+      "total": 182780.39
+    },
+    {
+      "reportDate": "20260410",
+      "currency": "USD",
+      "cash": 3646.5,
+      "stock": 177712.04,
+      "total": 181358.54
+    },
+    {
+      "reportDate": "20260413",
+      "currency": "USD",
+      "cash": 3646.5,
+      "stock": 182871.74,
+      "total": 186518.23
+    },
+    {
+      "reportDate": "20260414",
+      "currency": "USD",
+      "cash": 3646.5,
+      "stock": 186306.24,
+      "total": 189952.73
+    },
+    {
+      "reportDate": "20260415",
+      "currency": "USD",
+      "cash": 2794.61,
+      "stock": 192719.96,
+      "total": 195514.57
+    },
+    {
+      "reportDate": "20260416",
+      "currency": "USD",
+      "cash": 2794.61,
+      "stock": 195873.72,
+      "total": 198668.33
+    },
+    {
+      "reportDate": "20260417",
+      "currency": "USD",
+      "cash": 2794.61,
+      "stock": 198158.06,
+      "total": 200952.67
+    },
+    {
+      "reportDate": "20260420",
+      "currency": "USD",
+      "cash": 2794.61,
+      "stock": 201435.14,
+      "total": 204229.75
+    },
+    {
+      "reportDate": "20260421",
+      "currency": "USD",
+      "cash": 2794.61,
+      "stock": 198016.2,
+      "total": 200810.81
+    },
+    {
+      "reportDate": "20260422",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 201452.93,
+      "total": 204327.16
+    },
+    {
+      "reportDate": "20260423",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 195756.64,
+      "total": 198630.87
+    },
+    {
+      "reportDate": "20260424",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 198470.94,
+      "total": 201345.17
+    },
+    {
+      "reportDate": "20260427",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 197835.77,
+      "total": 200710.0
+    },
+    {
+      "reportDate": "20260428",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 197541.73,
+      "total": 200415.96
+    },
+    {
+      "reportDate": "20260429",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 196237.88,
+      "total": 199112.11
+    },
+    {
+      "reportDate": "20260430",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 197693.7,
+      "total": 200567.93
+    },
+    {
+      "reportDate": "20260501",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 200825.15,
+      "total": 203699.38
+    },
+    {
+      "reportDate": "20260504",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 202295.83,
+      "total": 205170.07
+    },
+    {
+      "reportDate": "20260505",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 200864.66,
+      "total": 203738.9
+    },
+    {
+      "reportDate": "20260506",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 201266.0,
+      "total": 204140.24
+    },
+    {
+      "reportDate": "20260507",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 201992.62,
+      "total": 204866.86
+    },
+    {
+      "reportDate": "20260508",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 201065.76,
+      "total": 203939.99
+    },
+    {
+      "reportDate": "20260511",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 200480.73,
+      "total": 203354.96
+    },
+    {
+      "reportDate": "20260512",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 198327.1,
+      "total": 201201.34
+    },
+    {
+      "reportDate": "20260513",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 198058.38,
+      "total": 200932.61
+    },
+    {
+      "reportDate": "20260514",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 199807.58,
+      "total": 202681.81
+    },
+    {
+      "reportDate": "20260515",
+      "currency": "USD",
+      "cash": 2874.23,
+      "stock": 198084.52,
+      "total": 200958.75
+    },
+    {
+      "reportDate": "20260518",
+      "currency": "USD",
+      "cash": 3472.82,
+      "stock": 197103.69,
+      "total": 200576.51
+    },
+    {
+      "reportDate": "20260519",
+      "currency": "USD",
+      "cash": 19175.48,
+      "stock": 181205.47,
+      "total": 200380.95
+    },
+    {
+      "reportDate": "20260520",
+      "currency": "USD",
+      "cash": 31691.53,
+      "stock": 199292.18,
+      "total": 230983.71
+    },
+    {
+      "reportDate": "20260521",
+      "currency": "USD",
+      "cash": 23177.53,
+      "stock": 208670.93,
+      "total": 231848.47
+    },
+    {
+      "reportDate": "20260522",
+      "currency": "USD",
+      "cash": 12716.53,
+      "stock": 219299.23,
+      "total": 232015.76
+    },
+    {
+      "reportDate": "20260525",
+      "currency": "USD",
+      "cash": 12716.53,
+      "stock": 219748.2,
+      "total": 232464.74
+    },
+    {
+      "reportDate": "20260526",
+      "currency": "USD",
+      "cash": 12716.53,
+      "stock": 218982.66,
+      "total": 231699.2
+    },
+    {
+      "reportDate": "20260527",
+      "currency": "USD",
+      "cash": 12716.53,
+      "stock": 218906.82,
+      "total": 231623.35
+    },
+    {
+      "reportDate": "20260528",
+      "currency": "USD",
+      "cash": 12716.53,
+      "stock": 220706.63,
+      "total": 233423.17
+    },
+    {
+      "reportDate": "20260529",
+      "currency": "USD",
+      "cash": 12775.4,
+      "stock": 223747.44,
+      "total": 236522.84
+    },
+    {
+      "reportDate": "20260601",
+      "currency": "USD",
+      "cash": 12775.4,
+      "stock": 227325.58,
+      "total": 240100.98
+    },
+    {
+      "reportDate": "20260602",
+      "currency": "USD",
+      "cash": 2597.05,
+      "stock": 228768.28,
+      "total": 231365.33
+    },
+    {
+      "reportDate": "20260603",
+      "currency": "USD",
+      "cash": 2607.42,
+      "stock": 220431.42,
+      "total": 223038.84
+    },
+    {
+      "reportDate": "20260604",
+      "currency": "USD",
+      "cash": 2607.42,
+      "stock": 223997.44,
+      "total": 226604.86
+    },
+    {
+      "reportDate": "20260605",
+      "currency": "USD",
+      "cash": 2607.42,
+      "stock": 216145.45,
+      "total": 218752.88
+    }
+  ]
+}

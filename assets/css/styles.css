@@ -66,6 +66,7 @@ header.app-header {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto; /* drží switcher u pravého okraje, i kdyby flex-wrap shazoval řádek */
 }
 #portfolio-switcher select {
   padding: 6px 28px 6px 10px;

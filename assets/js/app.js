@@ -136,11 +136,15 @@ async function loadActivePortfolio() {
   setStatus(`Načítám ${meta.name}…`);
   const url = `${PORTFOLIO_BASE}${meta.file}`;
 
-  // Paralelně načíst statický JSON i KV overlay (auto-import z Flex API).
-  // Overlay je optional — pokud neexistuje nebo selže, ignorujeme.
-  const [res, overlayRes] = await Promise.all([
+  // Paralelně načíst:
+  //  1) Statický portfolio JSON (transakce, instrumenty, …)
+  //  2) KV overlay (auto-import z Flex API) — optional
+  //  3) Statický backfill NAV history (jednorázový z IBKR statementu + Yahoo)
+  //     — pro graf "Hodnota portfolia v čase" pre-2026-06-06
+  const [res, overlayRes, navHistoryRes] = await Promise.all([
     fetch(url, { cache: "no-cache" }),
     fetch(`/api/portfolio-overlay/${meta.id}`, { cache: "no-cache" }).catch(() => null),
+    fetch(`${PORTFOLIO_BASE.replace("portfolios/", "")}portfolio-history-${meta.id}.json`, { cache: "no-cache" }).catch(() => null),
   ]);
 
   if (!res.ok) {
@@ -160,6 +164,18 @@ async function loadActivePortfolio() {
       state.overlayStats = mergeOverlayIntoPortfolio(state.portfolio, overlay);
     } catch (e) {
       console.warn(`Overlay merge selhal: ${e.message}`);
+    }
+  }
+
+  // Static NAV history backfill (jednorázový seed z IBKR Activity Statement)
+  // Mergne se s overlay nav_history v renderPortfolioHistory.
+  state.portfolio.static_nav_history = [];
+  if (navHistoryRes && navHistoryRes.ok) {
+    try {
+      const histData = await navHistoryRes.json();
+      state.portfolio.static_nav_history = histData.nav_history || [];
+    } catch (e) {
+      console.warn(`NAV history load selhal: ${e.message}`);
     }
   }
 
@@ -472,40 +488,26 @@ function setupPortfolioSwitcher() {
 function renderHeader() {
   const p = state.portfolio;
   document.getElementById("portfolio-name").textContent = p.name;
+
+  // Hlavička: broker + account holder + account number, NIC víc.
+  // Statické počty/období z gitového JSON byly matoucí — overlay je upravuje
+  // a uživatel viděl zastaralá čísla.
   const parts = [p.broker];
   if (p.account_holder) parts.push(p.account_holder);
   if (p.account) parts.push(`účet ${p.account}`);
   if (p.customer_type) parts.push(p.customer_type);
   if (p._placeholder) {
     parts.push("⏳ data se připravují");
-  } else {
-    parts.push(`${(p.transactions || []).length} transakcí`);
-    if (p.period_from && p.period_to) {
-      parts.push(`období ${p.period_from} – ${p.period_to}`);
-    }
   }
-  // Indikátor auto-importu (Flex API)
+
+  // Jediný status indikátor: kdy proběhl poslední auto-import (cron z IBKR Flex).
   const ov = state.overlayStats;
-  if (ov) {
-    const totalNew =
-      ov.trades + ov.dividends + ov.withholding + ov.corp_actions + ov.cash_flows;
-    const lastImport = ov.last_import
-      ? new Date(ov.last_import).toLocaleString("cs-CZ", {
-          day: "2-digit", month: "2-digit", year: "numeric",
-          hour: "2-digit", minute: "2-digit",
-        })
-      : "—";
-    if (totalNew > 0) {
-      const breakdown = [];
-      if (ov.trades) breakdown.push(`${ov.trades} obchodů`);
-      if (ov.dividends) breakdown.push(`${ov.dividends} dividend`);
-      if (ov.withholding) breakdown.push(`${ov.withholding} sráž. daní`);
-      if (ov.corp_actions) breakdown.push(`${ov.corp_actions} corp. actions`);
-      if (ov.cash_flows) breakdown.push(`${ov.cash_flows} cash flows`);
-      parts.push(`🔄 auto-import: ${breakdown.join(", ")} (k ${lastImport})`);
-    } else if (ov.last_import) {
-      parts.push(`🔄 auto-import OK (k ${lastImport})`);
-    }
+  if (ov?.last_import) {
+    const lastImport = new Date(ov.last_import).toLocaleString("cs-CZ", {
+      day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+    parts.push(`🔄 poslední import ${lastImport}`);
   }
 
   document.getElementById("portfolio-meta").textContent = parts.join(" · ");
@@ -1615,17 +1617,36 @@ function renderPortfolioHistory() {
   const countEl = document.getElementById("ph-count");
   if (!chartEl || !tbody) return;
 
-  // 1) Sebrat NAV snapshoty z overlay (IBKR Flex EquitySummaryByReportDateInBase)
-  const navRaw = (p?.nav_history || [])
-    .filter((n) => n.reportDate && n.total)
-    .map((n) => ({
-      date: flexDate(n.reportDate),
-      value_usd: parseFloat(n.total),
-      cash_usd: parseFloat(n.cash || 0),
-      stock_usd: parseFloat(n.stock || 0),
-    }))
-    .filter((n) => n.date && Number.isFinite(n.value_usd))
-    .sort((a, b) => a.date.localeCompare(b.date));
+  // 1) Sebrat NAV snapshoty ze DVOU zdrojů:
+  //    - static_nav_history = jednorázový backfill z IBKR Activity Statement
+  //      (Python script + Yahoo historical, viz outputs/backfill_nav.py)
+  //    - nav_history (overlay) = denní cron z IBKR Flex Web Service
+  //    Dedupe po reportDate, overlay (čerstvější) má prioritu pro stejné datum.
+  const navByDate = new Map();
+  const ingest = (arr, source) => {
+    for (const n of arr || []) {
+      if (!n.reportDate || n.total == null) continue;
+      const date = flexDate(n.reportDate);
+      const value_usd = parseFloat(n.total);
+      if (!date || !Number.isFinite(value_usd)) continue;
+      // Pokud už máme záznam pro to datum, prioritu má 'overlay' (čerstvější data)
+      const existing = navByDate.get(date);
+      if (!existing || source === "overlay") {
+        navByDate.set(date, {
+          date,
+          value_usd,
+          cash_usd: parseFloat(n.cash || 0),
+          stock_usd: parseFloat(n.stock || 0),
+          source,
+        });
+      }
+    }
+  };
+  ingest(p?.static_nav_history || [], "static");
+  ingest(p?.nav_history || [], "overlay");
+  const navRaw = [...navByDate.values()].sort((a, b) =>
+    a.date.localeCompare(b.date),
+  );
 
   // 2) Filtr období
   const period = state.phPeriod || "3M";
