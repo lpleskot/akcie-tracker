@@ -227,7 +227,13 @@ export function computePositions(
     const tx = ev;
     const sym = tx.symbol;
     const qty = Math.abs(tx.quantity);
-    const price = tx.price;
+    // KB zaokrouhluje Kurz ve výpisech na 2 desetinná místa — autoritativní
+    // je objem (proceeds). Efektivní cena za kus = |objem| / kusy; fallback
+    // na price, když objem chybí. Pro IBKR identické (price je přesná).
+    const price =
+      tx.proceeds != null && Math.abs(tx.proceeds) > 0 && qty > 0
+        ? Math.abs(tx.proceeds) / qty
+        : tx.price;
     const comm = Math.abs(tx.commission || 0);
     const commPerUnit = qty > 0 ? comm / qty : 0;
 

@@ -20,7 +20,8 @@
 - **Multi-portfolio:** state.portfolioId, selector v hlavičce, localStorage memory. Při přepnutí: reload portfolio JSON + recompute FIFO + refresh Yahoo ceny. Watchlist + Alerty jsou globální (cross-portfolio).
 - **Yahoo Finance** přes neoficiální `query1.finance.yahoo.com` endpoint, voláno ze serveru (CF Function), cache 60 s.
 - **Yahoo ticker mapování** ve `instruments[<sym>].yahoo_symbol`. US tituly bez přípony, ostatní s `.TO`, `.ST`, `.PA`, `.DE`, `.AX`, `.WA`, `.MI`, `.AS`, `.IL`, `.PR` atd.
-- **ČNB kurzy** v `data/fx_rates.json` — 12 měn, 214 dnů (2022-12-30 → 2026-04-06+). Použito pro CZK přepočet Reportu pro účetní + agregátní dlaždice.
+- **ČNB kurzy** v `data/fx_rates.json` — 12 měn, 251 dnů (2022-12-30 → 2026-04-06+, vč. 37 dnů 2023 doplněných pro KB import). Použito pro CZK přepočet Reportu pro účetní + agregátní dlaždice.
+- **FIFO počítá z objemu, ne z kurzu** — KB zaokrouhluje Kurz ve výpisech na 2 desetinná místa, autoritativní je objem. Efektivní cena za kus = |proceeds| / qty, fallback na price. Pro IBKR identické (price přesná na 4 desetinná místa).
 
 ## Portfolia
 
@@ -41,11 +42,11 @@
 - **47 instrumentů** v 7 měnách (USD, EUR, CAD, SEK, PLN, GBP, AUD, DKK, CZK)
 - **140 transakcí**:
   - 17 **synthetic pre-2023 openings** ze STAV PTF 31.3.2023 (cost basis odhadnut na tržní cenu k tomuto datu — skutečná nákupní cena pre-2023 neznámá, KB starší výpisy v MiFID formátu nemají transakční data)
-  - 7 **synthetic Q2 2023 openings** ze STAV PTF rozdílu 30.6.2023 − 31.3.2023 (KB TRN CP Q2 2023 chybí v exportu)
-  - 116 reálných BUY/SELL z TRN CP 2023-Q1 + Q3 + Q4 + všech kvartálů 2024-2026-Q1
+  - 123 reálných BUY/SELL z TRN CP 2023 (všechny kvartály) + všech kvartálů 2024-2026-Q1
+  - Pozn.: původních 7 synthetic Q2 2023 openings nahrazeno 6/2026 skutečnými obchody — Q2 2023 výpis transakcí CP existuje, jen je ve složce podkladů pod chybným názvem (`Výpis 1.7.-30.9.2023-9.pdf` až `-12.pdf` jsou ve skutečnosti Q2 dokumenty). META synthetic SELL nahrazeno reálným prodejem 2.5.2023 @ 241.32 → realized +1 046,74 USD v 2023.
 - **23 corporate actions** (Vklad CP / Výběr CP) — splity, rights issues, restructurings. Q1 2023 CAs filtrovány (`synthetic_cutoff_date = 2023-03-31`), protože synthetic openings k 31.3.2023 už zahrnují jejich efekt.
-- **114 dividend** + 91 withholding tax (sumy: 14k USD, 27k CZK, 2k AUD, 2k EUR, 2k CAD, 2k PLN, ...)
-- **83 cash flows** (22 vkladů: 800k CZK + 56k USD + 18k EUR; 46 měnových konverzí; 15 externích CA poplatků)
+- **140 dividend** + 112 withholding tax (vč. 26 dividend + 21 daní z roku 2023, doimportováno z peněžních výpisů 2023; sumy: 14k USD, 36k CZK, 4k AUD, 2k EUR, 3k CAD, 2k PLN, ...)
+- **115 cash flows** (vč. 32 z roku 2023: vklady 300k CZK + 11k USD + 17k EUR, konverze, 1 externí poplatek)
 - **18 otevřených pozic** match 18/18 s aktuálním KB statementem (validováno 17.5.2026)
 - Validace proti Sharesight Sold Securities: 32/34 prodejů match. 2 nesoulady: CNE 1890 ks (Sharesight chyba — manuální evidence), IPO 1 ks (zaokrouhlení 6:1 split ratio 2240÷6).
 

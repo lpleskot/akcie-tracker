@@ -834,6 +834,13 @@ tfoot td {
   margin-bottom: 12px;
   font-size: 12.5px;
 }
+
+/* Stav ke konci roku — oddělit od grafu nahoře i denní tabulky dole */
+#ph-year-end-wrap {
+  margin: 28px 0 36px 0;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--color-border);
+}
 .report-event {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
