@@ -304,6 +304,9 @@
             />
             <button id="dividends-search-clear" class="btn-clear" type="button" aria-label="Vymazat" hidden>×</button>
           </div>
+          <span class="filter-divider">·</span>
+          <span class="filter-label">Rok:</span>
+          <div class="filter-chips" id="div-year-chips"></div>
           <span class="filter-count" id="dividends-count"></span>
         </div>
         <div class="table-wrap">
@@ -316,6 +319,7 @@
                 <th>Země zdroje</th>
                 <th class="num">Hrubá</th>
                 <th class="num">Daň u zdroje</th>
+                <th class="num">Daň %</th>
                 <th class="num">Net</th>
                 <th>Měna</th>
                 <th class="num">Net USD ekv.</th>
@@ -392,6 +396,29 @@
 
         <div id="ph-chart-wrap" class="ph-chart-wrap">
           <div id="ph-chart"></div>
+        </div>
+
+        <!-- Stav ke konci roku — podklad pro účetnictví (poslední obchodní
+             den roku, hodnota v orig. měně + CZK kurzem ČNB k tomu dni) -->
+        <div id="ph-year-end-wrap" hidden>
+          <div class="report-intro muted">
+            <strong>Stav ke konci roku</strong> — hodnota portfolia k poslednímu
+            obchodnímu dni roku. Kurz ČNB k tomuto dni (ne k dnešku).
+          </div>
+          <div class="table-wrap">
+            <table id="tbl-ph-year-end">
+              <thead>
+                <tr>
+                  <th>Rok</th>
+                  <th>K datu</th>
+                  <th class="num">Hodnota (orig.)</th>
+                  <th class="num">Kurz ČNB</th>
+                  <th class="num">Hodnota Kč</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </div>
 
         <div class="table-wrap">

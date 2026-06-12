@@ -30,6 +30,7 @@ const state = {
   sort: { key: "sym", dir: "asc" },
   txFilter: { from: null, to: null },
   reportFilter: { from: null, to: null },
+  divFilter: { year: null },
   searches: {
     overview: "",
     allocation: "",
@@ -117,6 +118,7 @@ async function init() {
   setupSort();
   setupExpand();
   setupTxFilter();
+  setupDivFilter();
   setupReportFilter();
   setupOverviewSearch();
   setupWatchlistModal();
@@ -1623,6 +1625,48 @@ function setupPortfolioHistory() {
   });
 }
 
+/**
+ * Stav ke konci roku — pro každý uzavřený rok poslední dostupný NAV
+ * snapshot (poslední obchodní den). Hodnota v originální měně účtu
+ * + přepočet do CZK kurzem ČNB k datu snapshotu (ne k dnešku).
+ * Účetní potřebuje stav k 31.12. — proto fixní tabulka mimo period filtr.
+ */
+function renderPhYearEnd(navRaw) {
+  const wrap = document.getElementById("ph-year-end-wrap");
+  const tbody = document.querySelector("#tbl-ph-year-end tbody");
+  if (!wrap || !tbody) return;
+
+  // navRaw je seřazené vzestupně → poslední záznam roku vyhraje
+  const lastByYear = new Map();
+  for (const n of navRaw) lastByYear.set(n.date.slice(0, 4), n);
+
+  const currentYear = new Date().toISOString().slice(0, 4);
+  const rows = [...lastByYear.entries()]
+    .filter(([y]) => y < currentYear)
+    .sort((a, b) => b[0].localeCompare(a[0]));
+
+  if (rows.length === 0) {
+    wrap.hidden = true;
+    return;
+  }
+  wrap.hidden = false;
+  tbody.innerHTML = "";
+  for (const [y, n] of rows) {
+    const ccy = n.currency || "USD";
+    const fx = getFxToCzk(n.date, ccy, { allowFallback: true });
+    const czk = fx != null ? n.value_usd * fx : null;
+    tbody.innerHTML += `
+      <tr>
+        <td><strong>${y}</strong></td>
+        <td class="num">${n.date}</td>
+        <td class="num"><strong>${fmtNum(n.value_usd, 2)} ${ccy}</strong></td>
+        <td class="num">${fx != null ? fmtNum(fx, 3) : '<span class="muted">—</span>'}</td>
+        <td class="num">${czk != null ? fmtNum(czk, 0) : '<span class="muted">—</span>'}</td>
+      </tr>
+    `;
+  }
+}
+
 function renderPortfolioHistory() {
   const p = state.portfolio;
   const chartEl = document.getElementById("ph-chart");
@@ -1650,6 +1694,7 @@ function renderPortfolioHistory() {
           value_usd,
           cash_usd: parseFloat(n.cash || 0),
           stock_usd: parseFloat(n.stock || 0),
+          currency: n.currency || "USD",
           source,
         });
       }
@@ -1693,6 +1738,9 @@ function renderPortfolioHistory() {
 
   // 4) Globální (all-time) dlaždice — pevné, nezávislé na zvoleném období
   renderPhGlobalTiles(navRaw, p, depositsByDate);
+
+  // 4b) Stav ke konci roku — podklad pro účetnictví, nezávislý na období
+  renderPhYearEnd(navRaw);
 
   // 5) Vykreslit chart (SVG line s deposit markery) — pro zvolené období
   chartEl.innerHTML = renderNavChartSvg(nav, depositsByDate);
@@ -2640,6 +2688,42 @@ function setupTxFilter() {
   });
 }
 
+// ---------- Dividends rok filtr ----------
+function setupDivFilter() {
+  const wrap = document.getElementById("div-year-chips");
+  if (!wrap) return;
+
+  const years = new Set();
+  for (const d of state.portfolio.dividends || []) years.add(d.date.slice(0, 4));
+  for (const t of state.portfolio.withholding_tax || []) years.add(t.date.slice(0, 4));
+  const sortedYears = [...years].sort().reverse();
+
+  wrap.innerHTML = "";
+  const chipAll = document.createElement("button");
+  chipAll.className = "filter-chip active";
+  chipAll.dataset.year = "all";
+  chipAll.textContent = "Vše";
+  wrap.appendChild(chipAll);
+  for (const y of sortedYears) {
+    const c = document.createElement("button");
+    c.className = "filter-chip";
+    c.dataset.year = y;
+    c.textContent = y;
+    wrap.appendChild(c);
+  }
+
+  wrap.addEventListener("click", (e) => {
+    const btn = e.target.closest(".filter-chip");
+    if (!btn) return;
+    const y = btn.dataset.year;
+    state.divFilter.year = y === "all" ? null : y;
+    wrap.querySelectorAll(".filter-chip").forEach((c) =>
+      c.classList.toggle("active", c === btn),
+    );
+    renderDividends();
+  });
+}
+
 function updateChipsActive() {
   const { from, to } = state.txFilter;
   document.querySelectorAll("#year-chips .filter-chip").forEach((c) => {
@@ -2760,15 +2844,18 @@ function renderDividends() {
   const allRows = [...events.values()].sort((a, b) =>
     b.date.localeCompare(a.date),
   );
-  // Search filter
+  // Rok + search filter
+  const yr = state.divFilter.year;
   const q = state.searches.dividends;
-  const rows = q
-    ? allRows.filter((r) => {
-        const inst = state.portfolio.instruments[r.symbol] || {};
-        const h = `${r.symbol} ${inst.name || ""}`.toLowerCase();
-        return h.includes(q);
-      })
-    : allRows;
+  const rows = allRows.filter((r) => {
+    if (yr && !r.date.startsWith(yr)) return false;
+    if (q) {
+      const inst = state.portfolio.instruments[r.symbol] || {};
+      const h = `${r.symbol} ${inst.name || ""}`.toLowerCase();
+      if (!h.includes(q)) return false;
+    }
+    return true;
+  });
   // Counter
   const divCount = document.getElementById("dividends-count");
   if (divCount) {
@@ -2787,6 +2874,8 @@ function renderDividends() {
     totalGrossUsd += r.gross_usd;
     totalTaxUsd += r.tax_usd;
 
+    const taxPct = withholdingPct(r.gross, r.tax);
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td class="num">${r.date}</td>
@@ -2795,6 +2884,7 @@ function renderDividends() {
       <td>${r.country || '<span class="muted">—</span>'}</td>
       <td class="num pos">${fmtNum(r.gross, 2)}</td>
       <td class="num ${r.tax !== 0 ? "neg" : "muted"}">${r.tax !== 0 ? fmtNum(r.tax, 2) : "—"}</td>
+      <td class="num ${taxPct != null ? "neg" : "muted"}">${taxPct != null ? `${fmtNum(taxPct, 1)} %` : "—"}</td>
       <td class="num pos"><strong>${fmtNum(net, 2)}</strong></td>
       <td>${r.currency}</td>
       <td class="num">${fmtNum(netUsd, 2)}</td>
@@ -2805,17 +2895,25 @@ function renderDividends() {
   // Total v patce
   if (tfoot && rows.length > 0) {
     const totalNetUsd = totalGrossUsd + totalTaxUsd;
+    const avgTaxPct = withholdingPct(totalGrossUsd, totalTaxUsd);
     tfoot.innerHTML = `
       <tr>
         <td colspan="4">Celkem (USD ekvivalent)</td>
         <td class="num pos">${fmtNum(totalGrossUsd, 2)}</td>
         <td class="num neg">${fmtNum(totalTaxUsd, 2)}</td>
+        <td class="num neg">${avgTaxPct != null ? `${fmtNum(avgTaxPct, 1)} %` : "—"}</td>
         <td class="num pos"><strong>${fmtNum(totalNetUsd, 2)}</strong></td>
         <td>USD</td>
         <td class="num"><strong>${fmtNum(totalNetUsd, 2)}</strong></td>
       </tr>
     `;
   }
+}
+
+// Efektivní % srážkové daně z brutto dividendy (daň je v datech záporná)
+function withholdingPct(gross, tax) {
+  if (!gross || gross <= 0 || !tax) return null;
+  return (Math.abs(tax) / gross) * 100;
 }
 
 // ---------- Summary ----------
@@ -3630,23 +3728,36 @@ function buildDividendsAoa() {
     e.country = e.country || t.country;
   }
   let arr = [...events.values()].sort((a, b) => b.date.localeCompare(a.date));
+  const yr = state.divFilter.year;
   const q = state.searches.dividends;
-  if (q) {
-    arr = arr.filter((r) => {
+  arr = arr.filter((r) => {
+    if (yr && !r.date.startsWith(yr)) return false;
+    if (q) {
       const inst = state.portfolio.instruments[r.symbol] || {};
       const h = `${r.symbol} ${inst.name || ""}`.toLowerCase();
-      return h.includes(q);
-    });
-  }
+      if (!h.includes(q)) return false;
+    }
+    return true;
+  });
+  // CZK přepočet kurzem ČNB k datu výplaty — strict mode (žádný fallback),
+  // export slouží jako podklad pro účetnictví
   const header = [
     "Datum", "Symbol", "Název", "Země zdroje",
-    "Hrubá", "Daň u zdroje", "Net", "Měna", "Net USD ekv.",
+    "Hrubá", "Daň u zdroje", "Daň %", "Net", "Měna", "Net USD ekv.",
+    "Kurz ČNB", "Hrubá CZK", "Daň CZK", "Net CZK",
   ];
   const data = arr.map((r) => {
     const inst = state.portfolio.instruments[r.symbol] || {};
+    const taxPct = withholdingPct(r.gross, r.tax);
+    const fx = getFxToCzk(r.date, r.currency);
     return [
       r.date, r.symbol, inst.name || "", r.country || "",
-      r.gross, r.tax, r.gross + r.tax, r.currency, r.gross_usd + r.tax_usd,
+      r.gross, r.tax, taxPct, r.gross + r.tax, r.currency,
+      r.gross_usd + r.tax_usd,
+      fx != null ? fx : "chybí kurz ČNB",
+      fx != null ? r.gross * fx : null,
+      fx != null ? r.tax * fx : null,
+      fx != null ? (r.gross + r.tax) * fx : null,
     ];
   });
   return [header, ...data];
