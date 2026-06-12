@@ -3178,11 +3178,14 @@ function cardHtml(label, valueHtml, sub = "") {
 
 // ---------- Report pro účetní ----------
 function setupReportFilter() {
-  // Roky chipy — jen roky, kdy došlo k SELL
+  // Roky chipy — jen roky, kdy došlo k SELL.
+  // Účetně rozhoduje datum VYPOŘADÁNÍ (settle), ne datum obchodu —
+  // prodej 30.12. s vypořádáním 2.1. patří do nového roku.
   const years = new Set();
   for (const sym in state.positions) {
     for (const cl of state.positions[sym].closed_lots || []) {
-      if (!cl.orphan && cl.sell_date) years.add(cl.sell_date.slice(0, 4));
+      const sd = cl.sell_settle_date || cl.sell_date;
+      if (!cl.orphan && sd) years.add(sd.slice(0, 4));
     }
   }
   const sortedYears = [...years].sort().reverse();
@@ -3272,14 +3275,15 @@ function renderReport() {
   summary.innerHTML = "";
 
   // Sesbírat všechny prodejní eventy v daném období
-  // Klíč = symbol + sell_date (IBKR někdy dělí 1 prodej na víc closed lotů)
+  // Klíč = symbol + sell settle date (IBKR někdy dělí 1 prodej na víc closed lotů)
+  // Účetně rozhoduje datum VYPOŘADÁNÍ — určuje rok i kurz ČNB.
   const { from, to } = state.reportFilter;
   const eventsMap = new Map();
   for (const sym in state.positions) {
     const pos = state.positions[sym];
     for (const cl of pos.closed_lots || []) {
       if (cl.orphan) continue;
-      const sd = cl.sell_date;
+      const sd = cl.sell_settle_date || cl.sell_date;
       if (from && sd < from) continue;
       if (to && sd > to) continue;
       const key = `${sym}|${sd}`;
@@ -3288,6 +3292,7 @@ function renderReport() {
         ev = {
           symbol: sym,
           sell_date: sd,
+          sell_trade_date: cl.sell_date,
           currency: state.portfolio.instruments[sym].currency,
           name: state.portfolio.instruments[sym].name,
           buys: [],
@@ -3298,7 +3303,8 @@ function renderReport() {
         eventsMap.set(key, ev);
       }
       ev.buys.push({
-        date: cl.buy_date,
+        date: cl.buy_settle_date || cl.buy_date,
+        trade_date: cl.buy_date,
         qty: cl.qty,
         cost_per_unit: cl.buy_cost_per_unit,
         total: cl.qty * cl.buy_cost_per_unit,
@@ -3334,7 +3340,7 @@ function renderReport() {
     const buysByDate = new Map();
     for (const b of ev.buys) {
       if (!buysByDate.has(b.date)) {
-        buysByDate.set(b.date, { date: b.date, qty: 0, total: 0 });
+        buysByDate.set(b.date, { date: b.date, trade_date: b.trade_date, qty: 0, total: 0 });
       }
       const e = buysByDate.get(b.date);
       e.qty += b.qty;
@@ -3373,12 +3379,12 @@ function renderReport() {
     let html = `
       <div class="report-event-header">
         <span><strong>${ev.symbol}</strong> — ${escapeHtml(ev.name)} <span class="muted">· ${ev.currency}</span></span>
-        <span class="muted">Prodej ${ev.sell_date} · ${fmtNum(ev.sell_qty, 0)} ks @ ${fmtNum(ev.sell_price, 4)}</span>
+        <span class="muted">Prodej vypořádán ${ev.sell_date}${ev.sell_trade_date && ev.sell_trade_date !== ev.sell_date ? ` (obchod ${ev.sell_trade_date})` : ""} · ${fmtNum(ev.sell_qty, 0)} ks @ ${fmtNum(ev.sell_price, 4)}</span>
       </div>
       <table>
         <thead>
           <tr>
-            <th>Datum</th>
+            <th>Datum vypořádání</th>
             <th class="num">Kusů</th>
             <th class="num">Cena celkem (${ev.currency})</th>
             <th class="num">Kurz ČNB CZK/${ev.currency}</th>
@@ -3401,7 +3407,7 @@ function renderReport() {
           <td class="num">${fmtNum(b.total, 2)}</td>
           <td class="num">${b.fx != null ? fmtNum(b.fx, 4) : '<span class="missing-fx">chybí kurz</span>'}</td>
           <td class="num">${b.czk != null ? fmtNum(b.czk, 2) : '<span class="missing-fx">—</span>'}</td>
-          <td class="report-buy">nákup</td>
+          <td class="report-buy">nákup${b.trade_date && b.trade_date !== b.date ? ` <span class="muted">(obchod ${b.trade_date})</span>` : ""}</td>
         </tr>
       `;
     }
@@ -3420,7 +3426,7 @@ function renderReport() {
         <td class="num">${fmtNum(ev.sell_net_total, 2)}</td>
         <td class="num">${sellFx != null ? fmtNum(sellFx, 4) : '<span class="missing-fx">chybí kurz</span>'}</td>
         <td class="num">${sellCzk != null ? fmtNum(sellCzk, 2) : '<span class="missing-fx">—</span>'}</td>
-        <td class="report-sell">prodej</td>
+        <td class="report-sell">prodej${ev.sell_trade_date && ev.sell_trade_date !== ev.sell_date ? ` <span class="muted">(obchod ${ev.sell_trade_date})</span>` : ""}</td>
       </tr>
       <tr class="totals">
         <td colspan="4" class="label" style="text-align:right;">${profitCzk >= 0 ? "Zisk" : "Ztráta"} v Kč:</td>
@@ -3667,11 +3673,35 @@ function buildTransactionsAoa() {
  * typy — u SELL jde o čistý výnos po komisi.
  * Pokud kurz pro daný den chybí (víkend/svátek/budoucnost), v posledním
  * sloupci je místo částky text „chybí kurz ČNB".
+ *
+ * Účetně rozhoduje datum VYPOŘADÁNÍ (settle_date) — určuje rok
+ * i kurz ČNB. Filtr období se proto aplikuje na datum vypořádání,
+ * ne na datum obchodu (prodej 30.12. vypořádaný 2.1. patří do
+ * nového roku). Fallback na datum obchodu, když settle chybí.
  */
 function buildTransactionsAccountingAoa() {
-  const txs = getFilteredTransactions();
+  const { from, to } = state.txFilter;
+  const search = state.searches.transactions;
+  const txs = state.portfolio.transactions
+    .filter((t) => {
+      const sd = t.settle_date || t.date;
+      if (from && sd < from) return false;
+      if (to && sd > to) return false;
+      if (search) {
+        const inst = state.portfolio.instruments[t.symbol];
+        const h = `${t.symbol} ${inst?.name || ""}`.toLowerCase();
+        if (!h.includes(search)) return false;
+      }
+      return true;
+    })
+    .sort((a, b) =>
+      `${b.settle_date || b.date} ${b.time || ""}`.localeCompare(
+        `${a.settle_date || a.date} ${a.time || ""}`,
+      ),
+    );
+
   const header = [
-    "Datum", "Čas", "Symbol", "Název", "Burza", "Měna",
+    "Datum vypořádání", "Datum obchodu", "Čas", "Symbol", "Název", "Burza", "Měna",
     "Typ", "Množství",
     "Cena (orig.)", "Hodnota (orig.)", "Komise (orig.)",
     "Kurz ČNB", "Nákup celkem CZK",
@@ -3679,8 +3709,9 @@ function buildTransactionsAccountingAoa() {
   const data = txs.map((t) => {
     const inst = state.portfolio.instruments[t.symbol] || {};
     const ccy = inst.currency || t.currency;
+    const settle = t.settle_date || t.date;
     // Strict mode — pokud kurz pro datum chybí, vrátí null
-    const fxToCzk = getFxToCzk(t.date, ccy);
+    const fxToCzk = getFxToCzk(settle, ccy);
     const qty = Math.abs(t.quantity);
 
     const totalCzk = fxToCzk != null
@@ -3688,7 +3719,7 @@ function buildTransactionsAccountingAoa() {
       : "chybí kurz ČNB";
 
     return [
-      t.date, t.time, t.symbol, inst.name, inst.exchange, ccy,
+      settle, t.date, t.time, t.symbol, inst.name, inst.exchange, ccy,
       t.type, qty,
       t.price, t.proceeds, t.commission,
       fxToCzk, totalCzk,
@@ -3835,14 +3866,17 @@ function exportReportXlsx() {
     const pos = state.positions[sym];
     for (const cl of pos.closed_lots || []) {
       if (cl.orphan) continue;
-      if (from && cl.sell_date < from) continue;
-      if (to && cl.sell_date > to) continue;
-      const key = `${sym}|${cl.sell_date}`;
+      // Účetně rozhoduje datum vypořádání (rok i kurz ČNB)
+      const sd = cl.sell_settle_date || cl.sell_date;
+      if (from && sd < from) continue;
+      if (to && sd > to) continue;
+      const key = `${sym}|${sd}`;
       let ev = eventsMap.get(key);
       if (!ev) {
         ev = {
           symbol: sym,
-          sell_date: cl.sell_date,
+          sell_date: sd,
+          sell_trade_date: cl.sell_date,
           currency: state.portfolio.instruments[sym].currency,
           name: state.portfolio.instruments[sym].name,
           buys: [],
@@ -3853,7 +3887,8 @@ function exportReportXlsx() {
         eventsMap.set(key, ev);
       }
       ev.buys.push({
-        date: cl.buy_date,
+        date: cl.buy_settle_date || cl.buy_date,
+        trade_date: cl.buy_date,
         qty: cl.qty,
         total: cl.qty * cl.buy_cost_per_unit,
       });
@@ -3867,7 +3902,7 @@ function exportReportXlsx() {
 
   const aoa = [
     [
-      "Symbol", "Název", "Měna", "Typ", "Datum", "Kusů",
+      "Symbol", "Název", "Měna", "Typ", "Datum vypořádání", "Datum obchodu", "Kusů",
       "Cena celkem (orig.)", "Kurz ČNB", "Cena celkem v Kč",
     ],
   ];
@@ -3876,7 +3911,7 @@ function exportReportXlsx() {
     // Slučit nákupy stejných dat
     const byDate = new Map();
     for (const b of ev.buys) {
-      if (!byDate.has(b.date)) byDate.set(b.date, { date: b.date, qty: 0, total: 0 });
+      if (!byDate.has(b.date)) byDate.set(b.date, { date: b.date, trade_date: b.trade_date, qty: 0, total: 0 });
       const e = byDate.get(b.date);
       e.qty += b.qty;
       e.total += b.total;
@@ -3889,18 +3924,18 @@ function exportReportXlsx() {
       if (czk != null) costCzk += czk;
       aoa.push([
         ev.symbol, ev.name, ev.currency, "Nákup",
-        b.date, b.qty, b.total, fx, czk,
+        b.date, b.trade_date, b.qty, b.total, fx, czk,
       ]);
     }
     const sellFx = getFxToCzk(ev.sell_date, ev.currency);
     const sellCzk = sellFx != null ? ev.sell_net_total * sellFx : null;
     aoa.push([
       ev.symbol, ev.name, ev.currency, "Prodej",
-      ev.sell_date, ev.sell_qty, ev.sell_net_total, sellFx, sellCzk,
+      ev.sell_date, ev.sell_trade_date, ev.sell_qty, ev.sell_net_total, sellFx, sellCzk,
     ]);
     aoa.push([
       ev.symbol, ev.name, ev.currency, "── Sumář",
-      "", "", "",
+      "", "", "", "",
       `Nákup: ${fmtNum(costCzk, 2)} CZK · Zisk: ${fmtNum((sellCzk ?? 0) - costCzk, 2)} CZK`,
       (sellCzk ?? 0) - costCzk,
     ]);
@@ -3910,9 +3945,9 @@ function exportReportXlsx() {
   }
   if (events.length > 0) {
     aoa.push([]);
-    aoa.push(["GRAND TOTAL", "", "", "", "", "", "Nákup CZK", grandCost, ""]);
-    aoa.push(["", "", "", "", "", "", "Prodej CZK", grandSell, ""]);
-    aoa.push(["", "", "", "", "", "", "Zisk/Ztráta CZK", grandSell - grandCost, ""]);
+    aoa.push(["GRAND TOTAL", "", "", "", "", "", "", "Nákup CZK", grandCost, ""]);
+    aoa.push(["", "", "", "", "", "", "", "Prodej CZK", grandSell, ""]);
+    aoa.push(["", "", "", "", "", "", "", "Zisk/Ztráta CZK", grandSell - grandCost, ""]);
   }
 
   const wb = XLSX.utils.book_new();

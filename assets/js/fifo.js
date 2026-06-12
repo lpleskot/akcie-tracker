@@ -241,6 +241,8 @@ export function computePositions(
       // Cost per unit includes prorated commission (přesnější cost basis pro FIFO)
       s(sym).open_lots.push({
         date: tx.date,
+        // Datum vypořádání — pro účetnictví určuje rok i kurz ČNB
+        settle_date: tx.settle_date || tx.date,
         time: tx.time,
         qty: qty,
         original_qty: qty,
@@ -251,6 +253,7 @@ export function computePositions(
       // FIFO: vezmi z nejstaršího open lotu
       let remaining = qty;
       const sellPriceNet = price - commPerUnit; // čistý výnos po prorataci komise prodeje
+      const sellSettle = tx.settle_date || tx.date;
       const lots = s(sym).open_lots;
 
       while (remaining > 0 && lots.length > 0) {
@@ -260,8 +263,10 @@ export function computePositions(
 
         s(sym).closed_lots.push({
           buy_date: lot.date,
+          buy_settle_date: lot.settle_date || lot.date,
           buy_time: lot.time,
           sell_date: tx.date,
+          sell_settle_date: sellSettle,
           sell_time: tx.time,
           qty: take,
           buy_price: lot.price,
@@ -282,6 +287,7 @@ export function computePositions(
         s(sym).closed_lots.push({
           orphan: true,
           sell_date: tx.date,
+          sell_settle_date: sellSettle,
           sell_time: tx.time,
           qty: remaining,
           sell_price: price,

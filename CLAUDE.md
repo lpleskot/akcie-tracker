@@ -22,6 +22,7 @@
 - **Yahoo ticker mapování** ve `instruments[<sym>].yahoo_symbol`. US tituly bez přípony, ostatní s `.TO`, `.ST`, `.PA`, `.DE`, `.AX`, `.WA`, `.MI`, `.AS`, `.IL`, `.PR` atd.
 - **ČNB kurzy** v `data/fx_rates.json` — 12 měn, 251 dnů (2022-12-30 → 2026-04-06+, vč. 37 dnů 2023 doplněných pro KB import). Použito pro CZK přepočet Reportu pro účetní + agregátní dlaždice.
 - **FIFO počítá z objemu, ne z kurzu** — KB zaokrouhluje Kurz ve výpisech na 2 desetinná místa, autoritativní je objem. Efektivní cena za kus = |proceeds| / qty, fallback na price. Pro IBKR identické (price přesná na 4 desetinná místa).
+- **Účetně rozhoduje datum VYPOŘADÁNÍ (settle_date)**, ne datum obchodu — určuje rok i kurz ČNB. Prodej s obchodem 30.12. a vypořádáním 2.1. patří do nového roku. Platí pro: Report pro účetní (rok chips, FIFO párování, kurzy), export Reportu, export Transakcí pro účetní. FIFO closed lots nesou buy_settle_date + sell_settle_date. Tab Transakce (obrazovka) zůstává na datu obchodu. fx_rates.json proto pokrývá settle data všech transakcí (313 dnů).
 
 ## Portfolia
 
