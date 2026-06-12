@@ -3562,18 +3562,21 @@ function buildTransactionsAoa() {
 
 /**
  * Export pro účetní — stejná data jako Transakce, ale s přepočtem
- * do CZK kurzem ČNB k datu transakce. Účetní potřebuje hodnoty v Kč.
- * Pokud kurz pro daný den chybí (víkend/svátek/budoucnost), buňka
- * je prázdná a poznámka „chybí kurz" je v posledním sloupci.
+ * do CZK kurzem ČNB k datu transakce. Účetní účtuje celkový náklad
+ * pořízení (hodnota + komise), proto poslední sloupec „Nákup celkem CZK"
+ * = (hodnota + komise) × kurz. Díky znaménkům (BUY záporná hodnota
+ * i komise, SELL kladná hodnota, záporná komise) vzorec platí pro oba
+ * typy — u SELL jde o čistý výnos po komisi.
+ * Pokud kurz pro daný den chybí (víkend/svátek/budoucnost), v posledním
+ * sloupci je místo částky text „chybí kurz ČNB".
  */
 function buildTransactionsAccountingAoa() {
   const txs = getFilteredTransactions();
   const header = [
-    "Datum", "Čas", "Symbol", "Název", "ISIN", "Burza", "Měna",
+    "Datum", "Čas", "Symbol", "Název", "Burza", "Měna",
     "Typ", "Množství",
     "Cena (orig.)", "Hodnota (orig.)", "Komise (orig.)",
-    "Kurz ČNB", "Cena CZK", "Hodnota CZK", "Komise CZK",
-    "Poznámka",
+    "Kurz ČNB", "Nákup celkem CZK",
   ];
   const data = txs.map((t) => {
     const inst = state.portfolio.instruments[t.symbol] || {};
@@ -3582,17 +3585,15 @@ function buildTransactionsAccountingAoa() {
     const fxToCzk = getFxToCzk(t.date, ccy);
     const qty = Math.abs(t.quantity);
 
-    const priceCzk = fxToCzk != null ? t.price * fxToCzk : null;
-    const proceedsCzk = fxToCzk != null ? t.proceeds * fxToCzk : null;
-    const commissionCzk = fxToCzk != null ? t.commission * fxToCzk : null;
-    const note = fxToCzk == null ? "chybí kurz ČNB" : "";
+    const totalCzk = fxToCzk != null
+      ? (t.proceeds + t.commission) * fxToCzk
+      : "chybí kurz ČNB";
 
     return [
-      t.date, t.time, t.symbol, inst.name, inst.isin, inst.exchange, ccy,
+      t.date, t.time, t.symbol, inst.name, inst.exchange, ccy,
       t.type, qty,
       t.price, t.proceeds, t.commission,
-      fxToCzk, priceCzk, proceedsCzk, commissionCzk,
-      note,
+      fxToCzk, totalCzk,
     ];
   });
   return [header, ...data];
