@@ -518,6 +518,11 @@ function renderHeader() {
 
 // ---------- Tabs ----------
 function setupTabs() {
+  const setTabSpecificButtons = (view) => {
+    // "Export pro účetní" jen na Transakce
+    const accBtn = document.getElementById("btn-export-accounting");
+    if (accBtn) accBtn.hidden = view !== "transactions";
+  };
   document.querySelectorAll(".tab").forEach((btn) => {
     btn.addEventListener("click", () => {
       const view = btn.dataset.view;
@@ -528,8 +533,11 @@ function setupTabs() {
       document.querySelectorAll(".view").forEach((v) =>
         v.classList.toggle("active", v.id === `view-${view}`),
       );
+      setTabSpecificButtons(view);
     });
   });
+  // Initial state
+  setTabSpecificButtons(state.view || "overview");
 }
 
 function setupRefresh() {
@@ -538,6 +546,9 @@ function setupRefresh() {
   });
   document.getElementById("btn-export-xlsx").addEventListener("click", () => {
     exportCurrentViewXlsx();
+  });
+  document.getElementById("btn-export-accounting")?.addEventListener("click", () => {
+    exportTransactionsAccountingXlsx();
   });
 }
 
@@ -3399,6 +3410,24 @@ function exportCurrentViewXlsx() {
   XLSX.writeFile(wb, filename);
 }
 
+/**
+ * Export pro účetní (Transakce s CZK přepočtem) — vždy export transakcí
+ * bez ohledu na to, který tab je právě aktivní (tlačítko je viditelné
+ * jen v Transakce, ale logicky exportuje ten dataset).
+ */
+function exportTransactionsAccountingXlsx() {
+  if (typeof XLSX === "undefined") {
+    alert("XLSX knihovna se nenačetla. Hard refresh (Cmd+Shift+R) a zkuste znovu.");
+    return;
+  }
+  const aoa = buildTransactionsAccountingAoa();
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  XLSX.utils.book_append_sheet(wb, ws, "Transakce pro účetní");
+  const filename = `${state.portfolio.id}-transakce-pro-ucetni-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
 function getFilteredOverviewRows() {
   const rows = [];
   const q = state.searches.overview;
@@ -3497,7 +3526,7 @@ function buildAllocationAoa() {
   return [header, ...data];
 }
 
-function buildTransactionsAoa() {
+function getFilteredTransactions() {
   const { from, to } = state.txFilter;
   const search = state.searches.transactions;
   let txs = state.portfolio.transactions.filter((t) => {
@@ -3510,9 +3539,13 @@ function buildTransactionsAoa() {
     }
     return true;
   });
-  txs = txs.sort((a, b) =>
+  return txs.sort((a, b) =>
     `${b.date} ${b.time || ""}`.localeCompare(`${a.date} ${a.time || ""}`),
   );
+}
+
+function buildTransactionsAoa() {
+  const txs = getFilteredTransactions();
   const header = [
     "Datum", "Čas", "Symbol", "Název", "ISIN", "Burza", "Měna",
     "Typ", "Množství", "Cena", "Hodnota", "Komise",
@@ -3522,6 +3555,44 @@ function buildTransactionsAoa() {
     return [
       t.date, t.time, t.symbol, inst.name, inst.isin, inst.exchange, inst.currency,
       t.type, Math.abs(t.quantity), t.price, t.proceeds, t.commission,
+    ];
+  });
+  return [header, ...data];
+}
+
+/**
+ * Export pro účetní — stejná data jako Transakce, ale s přepočtem
+ * do CZK kurzem ČNB k datu transakce. Účetní potřebuje hodnoty v Kč.
+ * Pokud kurz pro daný den chybí (víkend/svátek/budoucnost), buňka
+ * je prázdná a poznámka „chybí kurz" je v posledním sloupci.
+ */
+function buildTransactionsAccountingAoa() {
+  const txs = getFilteredTransactions();
+  const header = [
+    "Datum", "Čas", "Symbol", "Název", "ISIN", "Burza", "Měna",
+    "Typ", "Množství",
+    "Cena (orig.)", "Hodnota (orig.)", "Komise (orig.)",
+    "Kurz ČNB", "Cena CZK", "Hodnota CZK", "Komise CZK",
+    "Poznámka",
+  ];
+  const data = txs.map((t) => {
+    const inst = state.portfolio.instruments[t.symbol] || {};
+    const ccy = inst.currency || t.currency;
+    // Strict mode — pokud kurz pro datum chybí, vrátí null
+    const fxToCzk = getFxToCzk(t.date, ccy);
+    const qty = Math.abs(t.quantity);
+
+    const priceCzk = fxToCzk != null ? t.price * fxToCzk : null;
+    const proceedsCzk = fxToCzk != null ? t.proceeds * fxToCzk : null;
+    const commissionCzk = fxToCzk != null ? t.commission * fxToCzk : null;
+    const note = fxToCzk == null ? "chybí kurz ČNB" : "";
+
+    return [
+      t.date, t.time, t.symbol, inst.name, inst.isin, inst.exchange, ccy,
+      t.type, qty,
+      t.price, t.proceeds, t.commission,
+      fxToCzk, priceCzk, proceedsCzk, commissionCzk,
+      note,
     ];
   });
   return [header, ...data];
