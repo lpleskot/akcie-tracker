@@ -336,11 +336,51 @@ function mergeOverlayIntoPortfolio(portfolio, overlay) {
   return stats;
 }
 
+// IBKR listingExchange → Yahoo Finance přípona tickeru.
+// US burzy (NASDAQ, NYSE, ARCA, …) příponu nemají → symbol beze změny.
+// Bez přípony Yahoo napáruje např. "CSG" na cizí US titul místo CSG.AS
+// (Amsterdam) a vrátí null cenu. Kódy odpovídají konvenci statických
+// instrumentů (SBF→.PA, SFB→.ST, TSE→.TO, IBIS→.DE).
+const IBKR_EXCHANGE_SUFFIX = {
+  AEB: ".AS",     // Euronext Amsterdam
+  SBF: ".PA",     // Euronext Paris
+  IBIS: ".DE",    // Xetra
+  IBIS2: ".DE",
+  SFB: ".ST",     // Stockholm
+  TSE: ".TO",     // Toronto
+  VENTURE: ".V",  // TSX Venture
+  LSE: ".L",      // London
+  LSEETF: ".L",
+  CPH: ".CO",     // Kodaň (DKK)
+  OMXC: ".CO",
+  OSE: ".OL",     // Oslo
+  EBS: ".SW",     // SIX Swiss
+  SWX: ".SW",
+  VIRTX: ".SW",
+  BVME: ".MI",    // Milán
+  BM: ".MC",      // Madrid
+  BME: ".MC",
+  "ENEXT.BE": ".BR", // Brusel
+  HEX: ".HE",     // Helsinki
+  GPW: ".WA",     // Varšava
+  WSE: ".WA",
+  ASX: ".AX",     // Austrálie
+  SEHK: ".HK",    // Hong Kong
+};
+
+// Odvodí Yahoo symbol z IBKR symbolu + burzy. Forex/holé symboly nechá být.
+function deriveYahooSymbol(symbol, listingExchange) {
+  if (!symbol) return symbol;
+  if (symbol.includes(".")) return symbol; // už má příponu / je to pár
+  const suffix = IBKR_EXCHANGE_SUFFIX[listingExchange];
+  return suffix ? symbol + suffix : symbol;
+}
+
 // Vytvoří záznam o instrumentu, pokud ještě v portfolio.instruments neexistuje.
 function ensureInstrument(portfolio, symbol, flexRow) {
   if (!symbol || portfolio.instruments[symbol]) return;
   portfolio.instruments[symbol] = {
-    yahoo_symbol: symbol,           // pro IBKR je Flex symbol = Yahoo symbol
+    yahoo_symbol: deriveYahooSymbol(symbol, flexRow.listingExchange),
     isin: flexRow.isin || null,
     name: flexRow.description || symbol,
     currency: flexRow.currency || "USD",
