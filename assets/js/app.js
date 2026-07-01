@@ -253,6 +253,23 @@ function mergeOverlayIntoPortfolio(portfolio, overlay) {
     if (!t.tradeID || existingTradeIds.has(t.tradeID)) continue;
     const symbol = t.symbol;
     if (!symbol) continue;
+
+    // Forex konverze (IBKR automaticky mění měny při nákupu titulů v cizí měně)
+    // NEJSOU pozice — assetCategory="CASH", symbol je měnový pár "BASE.QUOTE"
+    // (např. EUR.USD, USD.DKK). Nezakládat instrument ani transakci, jen
+    // promítnout obě nohy konverze do multi-currency cash zůstatku:
+    //   base měna  = symbol před tečkou, delta = quantity (signed)
+    //   quote měna = t.currency (za tečkou), delta = netCash (signed, po komisi)
+    if (isForexConversion(t)) {
+      existingTradeIds.add(t.tradeID);
+      const [baseCcy] = symbol.split(".");
+      const qty = parseFloat(t.quantity);
+      const netCash = parseFloat(t.netCash);
+      if (Number.isFinite(qty)) addCash(baseCcy, qty);
+      if (Number.isFinite(netCash)) addCash(t.currency, netCash);
+      continue;
+    }
+
     ensureInstrument(portfolio, symbol, t);
     portfolio.transactions.push(transformFlexTrade(t));
     existingTradeIds.add(t.tradeID);
@@ -362,6 +379,15 @@ function flexTime(s) {
   if (!s) return null;
   const m = String(s).match(/[;\s](\d{2})(\d{2})(\d{2})/);
   return m ? `${m[1]}:${m[2]}:${m[3]}` : null;
+}
+
+// Je Flex trade měnová konverze (forex), ne obchod s cenným papírem?
+// IBKR forex má assetCategory="CASH" a symbol ve tvaru "BASE.QUOTE"
+// (např. EUR.USD). assetCategory bereme jako primární signál; symbol pattern
+// je fallback, kdyby atribut ve Flex exportu chyběl.
+function isForexConversion(t) {
+  if (t.assetCategory && t.assetCategory.toUpperCase() === "CASH") return true;
+  return /^[A-Z]{3}\.[A-Z]{3}$/.test(t.symbol || "");
 }
 
 function transformFlexTrade(t) {
