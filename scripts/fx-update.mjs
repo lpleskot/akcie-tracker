@@ -36,7 +36,8 @@ let failed = 0;
 
 let d = startDate;
 while (d <= today) {
-  const url = `${CNB_API}?date=${d}&lang=CS`;
+  // lang=EN — ČNB API od 2026 vrací na lang=CS chybu HTTP 400 (typeMismatch)
+  const url = `${CNB_API}?date=${d}&lang=EN`;
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": "akcie-tracker-fx-update/1.0" },
@@ -55,7 +56,8 @@ while (d <= today) {
       d = nextDay(d);
       continue;
     }
-    const validFor = payload?.validFor || d;
+    // validFor je nově per-rate (payload.validFor už ČNB nevrací); fallback na d
+    const validFor = payload?.validFor || rates[0]?.validFor || d;
     const entry = { valid_for: validFor, rates: {} };
     for (const r of rates) {
       const code = r.currencyCode;

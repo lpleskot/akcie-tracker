@@ -50,7 +50,7 @@ jinak se nedostanou do repa.
   Platí pro: Report pro účetní (rok chips, FIFO párování, kurzy), export Reportu,
   export Transakcí pro účetní. FIFO closed lots nesou `buy_settle_date` + `sell_settle_date`.
   Tab Transakce (obrazovka) zůstává na datu obchodu. `fx_rates.json` proto pokrývá
-  settle data všech transakcí (**313 dnů**).
+  settle data všech transakcí (**346 dnů**).
 - **Yahoo Finance** přes neoficiální `query1.finance.yahoo.com`, voláno ze serveru
   (CF Function `/api/quote`), cache 60 s, MINOR_UNITS scale (GBp/100, ZAc/100 atd.).
 - **ČNB kurzy** v `data/fx_rates.json` — denní fetch přes GH Action `fx-update-cron.yml`
@@ -115,7 +115,7 @@ flowchart TD
 
 ### `plegi-invest-kb.json` (Komerční banka, account 1609386)
 - **Zdroj:** KB TRN CP (PDF) + KB TRN CASH (PDF) + KB STAV PTF (snapshoty).
-- Období 2022-12-30 → 2026-02-25 (inception = synthetic).
+- Období 2022-12-30 → 2026-06-30 (inception = synthetic).
 - **47 instrumentů** v 9 měnách (USD, EUR, CAD, SEK, PLN, GBP, AUD, DKK, CZK).
 - **140 transakcí:**
   - 17 synthetic pre-2023 openings ze STAV PTF 31.3.2023 (cost basis = tržní cena k datu,
@@ -125,12 +125,20 @@ flowchart TD
     `Výpis 1.7.-30.9.2023-9.pdf` … `-12.pdf`.)
 - **23 corporate actions** (Vklad/Výběr CP) — splity, rights issues, restructurings.
   Q1 2023 CAs filtrovány (`synthetic_cutoff_date = 2023-03-31`).
-- **140 dividend** + 112 withholding tax, **115 cash flows**.
-- **18/18 otevřených pozic** match KB statementu (17.5.2026). Validace vs Sharesight
+- **155 dividend** + 121 withholding tax, **118 cash flows**.
+- **Q2 2026 import** (dividendy/daně/externí CA poplatky z TRN CASH; žádné obchody — TRN CP Q2
+  neexistuje): datum = **vypořádání (= připsání na účet)**, ne splatnost. Důkaz: HUYA dividenda
+  (splatnost 01.07, vypořádání 30.06) je v Q2 výpisu a v zůstatku k 30.06. Poplatky za vedení
+  účtu ("Poplatek za správu" + DPH) se **neimportují** (řeší účetní, nepromítají se do ceny akcií).
+  **Celá historie přerovnána na vypořádání** (audit 2026-07 přes reparsing všech TRN CASH + 2023
+  Výpisů): 74 záznamů (2023–2026-Q1) posunuto o 1–5 dní, **žádná změna daňového roku**, celkový
+  FX dopad +534 CZK. Re-audit: 0 záznamů zbývá na datu splatnosti.
+- **18/18 otevřených pozic** match KB statementu (30.6.2026). Validace vs Sharesight
   Sold Securities: 32/34 prodejů match (2 nesoulady = CNE 1890 ks Sharesight chyba, IPO 1 ks zaokrouhlení).
 
 ### `data/fx_rates.json`
-- ČNB rates pro 12 měn, **313 dnů** (pokrývá i settle data). Auto-update denně 14:35 UTC.
+- ČNB rates pro 12 měn, **346 dnů** (pokrývá i settle data). Auto-update denně 14:35 UTC
+  (`fx-update.mjs` — ČNB API `lang=EN`, `validFor` per-rate; forward-only od max data).
 
 ---
 
@@ -213,7 +221,7 @@ web/
 ## Co ještě není (budoucí iterace)
 
 - Upload form pro nové broker exporty (zatím import přes Cowork chat — Lukáš nahraje PDF/CSV, Claude parsuje).
-- Q2 2026+ inkrementální import KB.
+- Q3 2026+ inkrementální import KB.
 - PDF export reportu pro účetní (zatím jen XLSX).
 - Telegram channel jako alternativa k emailu.
 - Custom doména `akcie.plegiholding.cz` (zatím `*.pages.dev`).
