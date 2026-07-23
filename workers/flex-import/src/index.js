@@ -16,6 +16,8 @@
  * DRY_RUN="true" → parsuje a loguje, ale neukládá. Pro bezpečné testování.
  */
 
+import { sendFailureEmail } from "../../_shared/notify.js";
+
 const FLEX_BASE = "https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService";
 const KV_OVERLAY_PREFIX = "portfolio-overlay:";
 // IBKR má WAF pravidla, která odmítají "bot-like" User-Agent z CF edge IP
@@ -24,15 +26,38 @@ const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
+// Hodina v Evropě/Praze pro daný timestamp — Intl řeší přechod CET/CEST za nás.
+function pragueHour(ts) {
+  return Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Prague",
+      hour: "2-digit",
+      hour12: false,
+    }).format(new Date(ts)),
+  );
+}
+
 export default {
   async scheduled(event, env, ctx) {
+    // Cíl: běžet v 07:00 Prahy celoročně. Crony jedou jen v UTC, proto jsou
+    // v configu dva triggery (5:00 + 6:00 UTC) — spustí se jen ten, kterému
+    // v Praze právě je 7 hodin; DST dvojče tiše skončí.
+    if (pragueHour(event.scheduledTime) !== 7) {
+      console.log(`⏭️ Skip — trigger ${event.cron} není 7:00 v Praze (DST dvojče)`);
+      return;
+    }
     ctx.waitUntil(runImport(env));
   },
 
-  // Manuální HTTP trigger pro testing — `curl https://<worker>.workers.dev/`
+  // Manuální HTTP trigger pro testing — vyžaduje secret ADMIN_KEY.
+  // Bez nastaveného ADMIN_KEY je endpoint zavřený (cron běží dál) —
+  // veřejný /run by komukoli dovolil pálit IBKR Flex rate limit.
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === "/run") {
+      if (!env.ADMIN_KEY || request.headers.get("x-admin-key") !== env.ADMIN_KEY) {
+        return new Response("Forbidden", { status: 403 });
+      }
       const result = await runImport(env);
       return new Response(JSON.stringify(result, null, 2), {
         headers: { "Content-Type": "application/json" },
@@ -71,7 +96,8 @@ async function runImport(env) {
     const { merged, stats } = mergeOverlay(existing, parsed);
     console.log(
       `🔀 Merge stats: +${stats.newTrades} trades, +${stats.newCashTx} cash tx, ` +
-        `+${stats.newCorpActions} corp actions, +${stats.newTransfers} transfers`,
+        `+${stats.newCorpActions} corp actions, +${stats.newTransfers} transfers, ` +
+        `+${stats.newNavDays} NAV days`,
     );
 
     // 5) Save — pokud DRY_RUN, neukládá
@@ -80,7 +106,10 @@ async function runImport(env) {
       return { ok: true, dry_run: true, stats, parsed_counts: countParsed(parsed) };
     }
 
-    if (stats.newTrades + stats.newCashTx + stats.newCorpActions + stats.newTransfers > 0) {
+    // POZOR: newNavDays MUSÍ být v podmínce — v den bez obchodů/dividend by se
+    // jinak denní NAV snapshot zahodil, a protože Flex vrací jen ~7denní okno,
+    // vznikla by v grafu hodnoty portfolia trvalá díra (REVIZE_REPORT.md R3).
+    if (stats.newTrades + stats.newCashTx + stats.newCorpActions + stats.newTransfers + stats.newNavDays > 0) {
       merged.last_import = new Date().toISOString();
       await env.AKCIE_TRACKER_KV.put(overlayKey, JSON.stringify(merged));
       console.log(`✅ Overlay uložen do KV (${overlayKey})`);
@@ -92,6 +121,9 @@ async function runImport(env) {
   } catch (err) {
     console.error(`❌ Flex import selhal: ${err.message}`);
     console.error(err.stack);
+    // Selhání musí být vidět — jinak je jediným signálem chybějící overlay
+    // (posílá se jen pokud je nastaven RESEND_API_KEY + EMAIL_FROM/TO)
+    await sendFailureEmail(env, "flex-import", err);
     return { ok: false, error: err.message };
   }
 }
@@ -301,9 +333,24 @@ function parseAttributes(s) {
   const regex = /([a-zA-Z][a-zA-Z0-9_]*)="([^"]*)"/g;
   let m;
   while ((m = regex.exec(s)) !== null) {
-    result[m[1]] = m[2];
+    result[m[1]] = decodeXmlEntities(m[2]);
   }
   return result;
+}
+
+// XML entity v hodnotách atributů ("Barnes &amp; Noble" → "Barnes & Noble").
+// Pořadí: numerické → pojmenované → &amp; ÚPLNĚ NAPOSLED (jinak by se
+// "&amp;lt;" chybně rozbalilo dvakrát).
+function decodeXmlEntities(s) {
+  if (!s.includes("&")) return s;
+  return s
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, n) => String.fromCharCode(parseInt(n, 16)))
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
 }
 
 // ---------- KV merge / overlay ----------
@@ -334,6 +381,7 @@ function mergeOverlay(existing, parsed) {
   let newCashTx = 0;
   let newCorpActions = 0;
   let newTransfers = 0;
+  let newNavDays = 0;
 
   for (const t of parsed.trades) {
     if (t.tradeID && !tradeIds.has(t.tradeID)) {
@@ -376,7 +424,9 @@ function mergeOverlay(existing, parsed) {
     merged.nav_snapshot.map((n) => [n.reportDate, n]),
   );
   for (const n of parsed.nav) {
-    if (n.reportDate) navByDate.set(n.reportDate, n); // nový/přepíše stejné datum
+    if (!n.reportDate) continue;
+    if (!navByDate.has(n.reportDate)) newNavDays++;
+    navByDate.set(n.reportDate, n); // nový/přepíše stejné datum
   }
   merged.nav_snapshot = [...navByDate.values()].sort((a, b) =>
     (a.reportDate || "").localeCompare(b.reportDate || ""),
@@ -384,7 +434,7 @@ function mergeOverlay(existing, parsed) {
 
   return {
     merged,
-    stats: { newTrades, newCashTx, newCorpActions, newTransfers },
+    stats: { newTrades, newCashTx, newCorpActions, newTransfers, newNavDays },
   };
 }
 

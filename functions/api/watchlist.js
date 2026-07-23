@@ -9,6 +9,8 @@
  * KV klíč: "watchlist" → JSON { items: [...] }
  */
 
+import { fetchYahooQuote, jsonResponse as json } from "./_lib.js";
+
 const KV_KEY = "watchlist";
 
 export async function onRequestGet({ env }) {
@@ -145,28 +147,9 @@ async function handleUpdate(env, data, body) {
   return json({ ok: true, item });
 }
 
-async function fetchYahooQuote(symbol) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-    },
-  });
-  if (!res.ok) throw new Error(`Yahoo ${res.status}`);
-  const data = await res.json();
-  const result = data?.chart?.result?.[0];
-  if (!result) {
-    throw new Error(data?.chart?.error?.description || "ticker not found");
-  }
-  const m = result.meta;
-  return {
-    name: m.longName || m.shortName,
-    currency: m.currency,
-    exchange: m.fullExchangeName || m.exchangeName,
-    price: m.regularMarketPrice,
-  };
-}
+// Yahoo fetch je sdílený z _lib.js — na rozdíl od dřívější lokální kopie
+// normalizuje minor units (GBp → GBP), takže londýnské tituly se ukládají
+// v librách, ne pencích, konzistentně s /api/quote.
 
 async function cleanupFiredForItem(env, itemId) {
   // Vyčistit fired:watch:{itemId}:* klíče
@@ -176,14 +159,4 @@ async function cleanupFiredForItem(env, itemId) {
   await Promise.all(
     list.keys.map((k) => env.AKCIE_TRACKER_KV.delete(k.name)),
   );
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-cache",
-    },
-  });
 }

@@ -8,6 +8,8 @@
  *        body { action: "rearm",  id, symbol? } → smaže fired stav (pro celé pravidlo nebo per symbol)
  */
 
+import { jsonResponse as json } from "./_lib.js";
+
 const KV_KEY = "alerts";
 const DEFAULT_RULES = [
   {
@@ -72,7 +74,11 @@ export async function onRequestPost({ env, request }) {
     const id = body.id;
     const rule = data.rules.find((r) => r.id === id);
     if (!rule) return json({ error: "Not found" }, 404);
-    Object.assign(rule, body.patch || {});
+    // Whitelist — patch nesmí přepsat id/type/scope pravidla
+    const patch = body.patch || {};
+    for (const k of ["armed", "threshold_pct", "description"]) {
+      if (k in patch) rule[k] = patch[k];
+    }
     await env.AKCIE_TRACKER_KV.put(KV_KEY, JSON.stringify(data));
     return json({ ok: true, rule });
   }
@@ -98,14 +104,4 @@ async function cleanupFired(env, ruleId) {
   await Promise.all(
     list.keys.map((k) => env.AKCIE_TRACKER_KV.delete(k.name)),
   );
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-cache",
-    },
-  });
 }

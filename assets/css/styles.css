@@ -1281,6 +1281,14 @@ table.mini tr:hover {
   border-color: #f5b3ae;
 }
 
+/* Nefatální varování (výpadek overlay, zastaralý import) — viz #warnings */
+.status.warn {
+  background: #fdf3d7;
+  color: #8a6d1a;
+  border-color: #ecd9a0;
+  margin-bottom: 10px;
+}
+
 footer.app-footer {
   margin-top: 32px;
   font-size: 12px;

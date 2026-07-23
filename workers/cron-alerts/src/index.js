@@ -4,17 +4,47 @@
  * Spouští se 1× denně v 15:00 UTC (cca 1h po otevření US burz).
  *
  * Pipeline:
- *   1. Načte portfolio + watchlist + alerts pravidla
- *   2. Vyhledá relevantní Yahoo tickery a stáhne aktuální ceny
- *   3. Vyhodnotí pravidla — která splňují podmínku a ještě nejsou fired
- *   4. Pošle souhrnný email přes Resend
- *   5. Zapíše fired stav do KV (neposílá znovu dokud manuálně re-armed)
+ *   1. Načte portfolio (HTTP) + KV overlay (Flex auto-import) → merge
+ *   2. Načte watchlist + alerts pravidla přímo z KV (binding — žádné HTTP)
+ *   3. Vyhledá relevantní Yahoo tickery a stáhne aktuální ceny
+ *   4. Vyhodnotí pravidla — která splňují podmínku a ještě nejsou fired
+ *   5. Pošle souhrnný email přes Resend
+ *   6. Zapíše fired stav do KV (neposílá znovu dokud manuálně re-armed)
+ *   Při selhání pošle failure email (pokud je nastavený RESEND_API_KEY).
  *
- * Manuální spuštění pro testování:
- *   curl -X POST https://akcie-tracker-cron.<account>.workers.dev/__scheduled \
- *        -H "Authorization: Bearer <wrangler dev key>"
- *   nebo `wrangler dev --test-scheduled` lokálně a hit /__scheduled
+ * FIFO počítá sdílený engine ../../../assets/js/fifo.js a overlay transformace
+ * ../../../assets/js/flex-shared.js — stejný kód jako frontend, žádná
+ * divergentní kopie. (Wrangler/esbuild je zabalí při deployi.)
+ *
+ * Manuální spuštění (vyžaduje secret ADMIN_KEY):
+ *   curl -H "x-admin-key: <ADMIN_KEY>" https://akcie-tracker-cron.<subdoména>.workers.dev/run
+ *   Testovací režim bez odeslání emailu a zápisu fired stavů: /run?dry=1
+ *
+ * Za Cloudflare Access: nastav secrets CF_ACCESS_CLIENT_ID + CF_ACCESS_CLIENT_SECRET
+ * (service token) — přidají se jako hlavičky k HTTP fetchům na pages.dev.
  */
+
+import { computePositions, fmtNum, fmtPct } from "../../../assets/js/fifo.js";
+import {
+  ensureInstrument,
+  isForexConversion,
+  transformFlexTrade,
+  transformFlexCorpAction,
+} from "../../../assets/js/flex-shared.js";
+import { sendResendEmail, sendFailureEmail } from "../../_shared/notify.js";
+
+// Výchozí pravidlo, když v KV ještě nic není.
+// MUSÍ odpovídat DEFAULT_RULES ve functions/api/alerts.js (UI ukazuje totéž).
+const DEFAULT_RULES = [
+  {
+    id: "any-position-drop-20",
+    type: "drop_from_buy_all",
+    scope: "owned",
+    threshold_pct: -20,
+    armed: true,
+    description: "Jakákoliv držená pozice klesne 20 % pod průměrnou nákupní cenu",
+  },
+];
 
 export default {
   // Scheduled trigger (cron)
@@ -22,35 +52,51 @@ export default {
     ctx.waitUntil(runAlertEvaluation(env, "scheduled"));
   },
 
-  // HTTP endpoint pro manuální trigger (pro test)
+  // HTTP endpoint pro manuální trigger — jen se správným x-admin-key.
+  // Bez nastaveného ADMIN_KEY je endpoint zavřený (cron běží dál).
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === "/run" || url.pathname === "/__scheduled") {
-      const result = await runAlertEvaluation(env, "manual");
+      if (!env.ADMIN_KEY || request.headers.get("x-admin-key") !== env.ADMIN_KEY) {
+        return new Response("Forbidden", { status: 403 });
+      }
+      const dryRun = url.searchParams.get("dry") === "1";
+      const result = await runAlertEvaluation(env, "manual", dryRun);
       return new Response(JSON.stringify(result, null, 2), {
         headers: { "Content-Type": "application/json" },
       });
     }
     return new Response(
-      "Akcie tracker cron worker. POST /run pro manuální evaluaci.",
+      "Akcie tracker cron worker. GET /run (x-admin-key) pro manuální evaluaci, /run?dry=1 bez odeslání.",
       { headers: { "Content-Type": "text/plain; charset=utf-8" } },
     );
   },
 };
 
-async function runAlertEvaluation(env, source) {
+async function runAlertEvaluation(env, source, dryRun = false) {
   const startedAt = new Date().toISOString();
-  console.log(`[${startedAt}] cron evaluation start (source=${source})`);
+  console.log(`[${startedAt}] cron evaluation start (source=${source}, dry=${dryRun})`);
 
   try {
-    // 1) Načíst data
-    const portfolio = await fetchJson(env.PORTFOLIO_URL);
-    const watchlistData = await fetchJson(env.WATCHLIST_API);
-    const alertsData = await fetchJson(env.ALERTS_API);
-    const watchlist = watchlistData?.items || [];
-    const alertRules = alertsData?.rules || [];
+    // 1) Statický portfolio JSON (HTTP) + KV overlay (Flex auto-import).
+    //    Bez overlay by worker neviděl pozice z denního auto-importu —
+    //    nehlídal by nové a hlídal dál prodané (REVIZE_REPORT.md R6).
+    const portfolio = await fetchJson(env.PORTFOLIO_URL, env);
+    const overlay = await env.AKCIE_TRACKER_KV.get(
+      `portfolio-overlay:${env.PORTFOLIO_ID}`,
+      "json",
+    );
+    mergeOverlayForAlerts(portfolio, overlay);
 
-    // 2) Sesbírat všechny relevantní symboly
+    // 2) Watchlist + alert pravidla přímo z KV (sdílený binding s Pages)
+    const watchlistData =
+      (await env.AKCIE_TRACKER_KV.get("watchlist", "json")) || { items: [] };
+    const alertsData =
+      (await env.AKCIE_TRACKER_KV.get("alerts", "json")) || { rules: DEFAULT_RULES };
+    const watchlist = watchlistData.items || [];
+    const alertRules = alertsData.rules || [];
+
+    // 3) Sesbírat všechny relevantní symboly
     const symbols = new Set();
     for (const [, inst] of Object.entries(portfolio.instruments)) {
       symbols.add(inst.yahoo_symbol);
@@ -63,18 +109,18 @@ async function runAlertEvaluation(env, source) {
       return { ok: true, message: "no symbols", evaluated: 0 };
     }
 
-    // 3) Stáhnout ceny
+    // 4) Stáhnout ceny
     const quoteUrl = `${env.QUOTE_API}?symbols=${encodeURIComponent([...symbols].join(","))}`;
-    const quotesData = await fetchJson(quoteUrl);
+    const quotesData = await fetchJson(quoteUrl, env);
     const quotes = quotesData?.quotes || {};
 
-    // 4) Vypočítat FIFO pozice (pro pravidla na vlastnictví)
+    // 5) Vypočítat FIFO pozice (sdílený engine — splity, bonusy, cancellations)
     const positions = computePositions(
       portfolio.transactions,
       portfolio.corporate_actions || [],
     );
 
-    // 5) Vyhodnotit pravidla
+    // 6) Vyhodnotit pravidla
     const triggers = [];
 
     // Pravidla na držené pozice
@@ -134,12 +180,16 @@ async function runAlertEvaluation(env, source) {
       };
     }
 
-    // 6) Sestavit email
+    // Dry run — vrátit co BY se poslalo, nic neodesílat ani nezapisovat
+    if (dryRun) {
+      console.log(`🧪 DRY RUN — ${triggers.length} triggerů, email se neposílá.`);
+      return { ok: true, dry_run: true, triggers };
+    }
+
+    // 7) Sestavit + odeslat email přes Resend
     const subject = buildEmailSubject(triggers);
     const html = buildEmailHtml(triggers, env);
     const text = buildEmailText(triggers, env);
-
-    // 7) Odeslat přes Resend
     const sendRes = await sendResendEmail(env, subject, html, text);
     if (!sendRes.ok) {
       console.error("Resend selhal:", sendRes.error);
@@ -160,8 +210,56 @@ async function runAlertEvaluation(env, source) {
     return { ok: true, triggers: triggers.length, email_id: sendRes.id };
   } catch (err) {
     console.error("Cron selhal:", err);
+    // Selhání musí být vidět, ne jen v logu, který nikdo nečte
+    await sendFailureEmail(env, "cron-alerts", err);
     return { ok: false, error: String(err.message || err) };
   }
+}
+
+/**
+ * Mergne KV overlay do portfolia — jen část potřebná pro alerty
+ * (transakce → pozice, corporate actions → splity, instrumenty).
+ * Zrcadlí mergeOverlayIntoPortfolio v app.js; transformace jsou sdílené
+ * z flex-shared.js, tady je jen dedupe smyčka.
+ */
+function mergeOverlayForAlerts(portfolio, overlay) {
+  portfolio.transactions = portfolio.transactions || [];
+  portfolio.corporate_actions = portfolio.corporate_actions || [];
+  portfolio.instruments = portfolio.instruments || {};
+  if (!overlay) return;
+
+  const txIds = new Set(
+    portfolio.transactions.map((t) => t.flex_id).filter(Boolean),
+  );
+  for (const t of overlay.trades || []) {
+    if (!t.tradeID || txIds.has(t.tradeID)) continue;
+    if (isForexConversion(t)) continue; // konverze měn nejsou pozice
+    ensureInstrument(portfolio, t.symbol, t);
+    portfolio.transactions.push(transformFlexTrade(t));
+    txIds.add(t.tradeID);
+  }
+
+  const caIds = new Set(
+    portfolio.corporate_actions.map((a) => a.flex_id).filter(Boolean),
+  );
+  for (const a of overlay.corporate_actions || []) {
+    if (!a.actionID || caIds.has(a.actionID)) continue;
+    portfolio.corporate_actions.push(transformFlexCorpAction(a));
+    caIds.add(a.actionID);
+  }
+}
+
+// Fetch JSON; za Cloudflare Access přidá service-token hlavičky (pokud jsou
+// nastavené secrets CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET).
+async function fetchJson(url, env) {
+  const headers = { "User-Agent": "akcie-tracker-cron" };
+  if (env.CF_ACCESS_CLIENT_ID && env.CF_ACCESS_CLIENT_SECRET) {
+    headers["CF-Access-Client-Id"] = env.CF_ACCESS_CLIENT_ID;
+    headers["CF-Access-Client-Secret"] = env.CF_ACCESS_CLIENT_SECRET;
+  }
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error(`Fetch ${url} → ${res.status}`);
+  return res.json();
 }
 
 // ---------- Evaluace pravidel ----------
@@ -249,84 +347,6 @@ function evaluateWatchRule(rule, currentPrice) {
     return change <= -Math.abs(rule.threshold_pct);
   }
   return false;
-}
-
-// ---------- FIFO engine (zjednodušená kopie pro worker — bez splitů, ty řešeno už v statickém JSON) ----------
-function computePositions(transactions, corporateActions = []) {
-  const events = [
-    ...transactions.map((t) => ({
-      ...t,
-      _kind: "tx",
-      _ts: `${t.date} ${t.time || "00:00:00"}`,
-    })),
-    ...corporateActions.map((c) => ({
-      ...c,
-      _kind: "corp",
-      _ts: `${c.date} 23:59:59`,
-    })),
-  ];
-  events.sort((a, b) => a._ts.localeCompare(b._ts));
-
-  const state = new Map();
-  function s(sym) {
-    if (!state.has(sym))
-      state.set(sym, { open_lots: [], realized_pnl: 0 });
-    return state.get(sym);
-  }
-
-  for (const ev of events) {
-    if (ev._kind === "corp") {
-      if (ev.type === "split") {
-        const ratio = ev.ratio_to / ev.ratio_from;
-        for (const lot of s(ev.symbol).open_lots) {
-          lot.qty *= ratio;
-          lot.price /= ratio;
-          lot.cost_per_unit /= ratio;
-        }
-      }
-      continue;
-    }
-    const tx = ev;
-    const qty = Math.abs(tx.quantity);
-    const comm = Math.abs(tx.commission || 0);
-    const commPerUnit = qty > 0 ? comm / qty : 0;
-    if (tx.type === "BUY") {
-      s(tx.symbol).open_lots.push({
-        date: tx.date,
-        qty,
-        price: tx.price,
-        cost_per_unit: tx.price + commPerUnit,
-      });
-    } else if (tx.type === "SELL") {
-      let remaining = qty;
-      const sellNet = tx.price - commPerUnit;
-      const lots = s(tx.symbol).open_lots;
-      while (remaining > 0 && lots.length > 0) {
-        const lot = lots[0];
-        const take = Math.min(remaining, lot.qty);
-        s(tx.symbol).realized_pnl += take * (sellNet - lot.cost_per_unit);
-        lot.qty -= take;
-        remaining -= take;
-        if (lot.qty <= 1e-9) lots.shift();
-      }
-    }
-  }
-
-  const result = {};
-  for (const [sym, st] of state.entries()) {
-    let net_qty = 0;
-    let cost = 0;
-    for (const lot of st.open_lots) {
-      net_qty += lot.qty;
-      cost += lot.qty * lot.cost_per_unit;
-    }
-    result[sym] = {
-      net_qty,
-      avg_open_price: net_qty > 0 ? cost / net_qty : 0,
-      realized_pnl: st.realized_pnl,
-    };
-  }
-  return result;
 }
 
 // ---------- Email ----------
@@ -452,54 +472,7 @@ function buildEmailText(triggers, env) {
   return lines.join("\n");
 }
 
-async function sendResendEmail(env, subject, html, text) {
-  if (!env.RESEND_API_KEY) {
-    return { ok: false, error: "RESEND_API_KEY není nastavený (secret)" };
-  }
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: env.EMAIL_FROM,
-      to: [env.EMAIL_TO],
-      subject,
-      html,
-      text,
-    }),
-  });
-  if (!res.ok) {
-    const errText = await res.text();
-    return { ok: false, error: `Resend ${res.status}: ${errText}` };
-  }
-  const data = await res.json();
-  return { ok: true, id: data.id };
-}
-
 // ---------- Helpers ----------
-async function fetchJson(url) {
-  const res = await fetch(url, {
-    headers: { "User-Agent": "akcie-tracker-cron" },
-  });
-  if (!res.ok) throw new Error(`Fetch ${url} → ${res.status}`);
-  return res.json();
-}
-
-function fmtNum(n, decimals = 2) {
-  if (n == null || isNaN(n)) return "—";
-  return n.toLocaleString("cs-CZ", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-}
-
-function fmtPct(n) {
-  if (n == null || isNaN(n)) return "—";
-  return `${n > 0 ? "+" : ""}${fmtNum(n, 2)} %`;
-}
-
 function escapeHtml(s) {
   return String(s ?? "").replace(
     /[&<>"']/g,

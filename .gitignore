@@ -18,6 +18,7 @@ desktop.ini
 node_modules/
 dist/
 .cache/
+.wrangler/
 
 # Logs
 *.log

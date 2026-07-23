@@ -32,7 +32,7 @@ console.log(`📊 ČNB FX update — last in JSON: ${lastDate}, fetching from ${
 
 let added = 0;
 let skipped = 0;
-let failed = 0;
+let failedDay = null; // fail-fast: den, na kterém fetch selhal
 
 let d = startDate;
 while (d <= today) {
@@ -43,10 +43,11 @@ while (d <= today) {
       headers: { "User-Agent": "akcie-tracker-fx-update/1.0" },
     });
     if (!res.ok) {
-      console.log(`   ${d}: HTTP ${res.status} (přeskakuji)`);
-      failed++;
-      d = nextDay(d);
-      continue;
+      // Fail-fast: NEpokračovat za chybný den. Další běh startuje od max
+      // data v JSON — den přeskočený kvůli chybě by v kurzech chyběl navždy
+      // a strict getFxToCzk() by pro něj vracel null (daňový report).
+      failedDay = `${d}: HTTP ${res.status}`;
+      break;
     }
     const payload = await res.json();
     const rates = payload?.rates || [];
@@ -76,17 +77,24 @@ while (d <= today) {
       );
     }
   } catch (e) {
-    console.log(`   ${d}: chyba ${e.message}`);
-    failed++;
+    failedDay = `${d}: ${e.message}`;
+    break;
   }
   d = nextDay(d);
 }
 
 if (added > 0) {
   writeFileSync(FILE, JSON.stringify(data, null, 2) + "\n", "utf-8");
-  console.log(`\n✅ ${FILE} aktualizován: +${added} dnů (skip ${skipped}, fail ${failed})`);
+  console.log(`\n✅ ${FILE} aktualizován: +${added} dnů (skip ${skipped})`);
 } else {
-  console.log(`\nℹ️  Žádné nové dny (skip ${skipped}, fail ${failed})`);
+  console.log(`\nℹ️  Žádné nové dny (skip ${skipped})`);
+}
+
+if (failedDay) {
+  // Nenulový exit → workflow zčervená a GitHub pošle notifikaci o selhání.
+  // Zameškané dny se doplní při příštím úspěšném běhu (startuje od max data).
+  console.error(`\n❌ Fetch selhal (${failedDay}) — končím s chybou.`);
+  process.exit(1);
 }
 
 function nextDay(dateStr) {

@@ -7,22 +7,24 @@ compatibility_date = "2024-12-01"
 [triggers]
 crons = ["0 15 * * *"]
 
-# Bindings na KV namespace (sdílený s Pages projektem akcie-tracker)
-# Doplnit id z `npx wrangler kv:namespace list` nebo z CF dashboardu
+# Bindings na KV namespace (sdílený s Pages projektem akcie-tracker).
+# Z KV se čtou přímo: watchlist, alerts, portfolio-overlay:{PORTFOLIO_ID},
+# fired:* — žádné HTTP na vlastní API (funguje i za Cloudflare Access).
 [[kv_namespaces]]
 binding = "AKCIE_TRACKER_KV"
 id = "6d78ccbecdc64d7e9798f1ed39fca35d"
 
-# Statické URL pro načítání dat z Pages
 [vars]
+# Statický portfolio JSON + quote proxy se čtou přes HTTP z Pages
 PORTFOLIO_URL = "https://akcie-tracker.pages.dev/data/portfolios/plegi-invest-ibkr.json"
-FX_URL = "https://akcie-tracker.pages.dev/data/fx_rates.json"
-WATCHLIST_API = "https://akcie-tracker.pages.dev/api/watchlist"
-ALERTS_API = "https://akcie-tracker.pages.dev/api/alerts"
 QUOTE_API = "https://akcie-tracker.pages.dev/api/quote"
+PORTFOLIO_ID = "plegi-invest-ibkr"
 EMAIL_FROM = "alerts@notify.plegiholding.cz"
 EMAIL_TO = "pleskot@plegiholding.cz"
 DASHBOARD_URL = "https://akcie-tracker.pages.dev"
 
-# RESEND_API_KEY se nastavuje přes `wrangler secret put RESEND_API_KEY`
-# nebo v CF dashboardu (Workers → akcie-tracker-cron → Settings → Variables and Secrets)
+# Secrets (wrangler secret put <NÁZEV>, nebo CF dashboard → Settings → Variables):
+#   RESEND_API_KEY          — odesílání alertů + failure notifikací (povinné)
+#   ADMIN_KEY               — ochrana manuálního /run endpointu (bez něj je /run zavřený)
+#   CF_ACCESS_CLIENT_ID     — service token, až bude Pages za Cloudflare Access
+#   CF_ACCESS_CLIENT_SECRET — (bez nich se HTTP fetche posílají bez Access hlaviček)

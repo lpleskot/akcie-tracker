@@ -7,6 +7,8 @@ on:
     branches: [main]
     paths:
       - "workers/flex-import/**"
+      # Worker importuje sdílený notify modul
+      - "workers/_shared/**"
       - ".github/workflows/deploy-flex-import.yml"
   workflow_dispatch:
 

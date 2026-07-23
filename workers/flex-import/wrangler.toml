@@ -2,11 +2,13 @@ name = "akcie-tracker-flex-import"
 main = "src/index.js"
 compatibility_date = "2024-12-01"
 
-# Cron trigger — každý den ve 4:00 UTC = 6:00 Varšava v létě (CEST) / 5:00 v zimě (CET)
-# Volí ranní okno, kdy už je včerejší US trading session uzavřen
-# a IBKR Daily Activity Statement je k dispozici.
+# Cron trigger — cíl 07:00 Prahy celoročně. CF crony běží jen v UTC, proto
+# dvojice triggerů (5:00 UTC = 7:00 CEST léto, 6:00 UTC = 7:00 CET zima);
+# scheduled handler pustí jen ten, kterému v Praze právě je 7 hodin — druhý
+# (DST dvojče) tiše skončí. Ranní okno: včerejší US session je uzavřená
+# a IBKR Daily Activity Statement k dispozici.
 [triggers]
-crons = ["0 4 * * *"]
+crons = ["0 5 * * *", "0 6 * * *"]
 
 # Binding na sdílenou KV namespace (akcie-tracker projekt)
 [[kv_namespaces]]
@@ -20,9 +22,15 @@ PORTFOLIO_ID = "plegi-invest-ibkr"
 # DRY_RUN = "true" zapíše do logu, ale neuloží do KV.
 # Po ověření přepneme na "false" (nebo proměnnou smažeme).
 DRY_RUN = "false"
+# Failure notifikace (posílají se jen s nastaveným RESEND_API_KEY secretem)
+EMAIL_FROM = "alerts@notify.plegiholding.cz"
+EMAIL_TO = "pleskot@plegiholding.cz"
 
 # Secrets — nastaví se přes:
 #   wrangler secret put FLEX_TOKEN
 # nebo přes CF dashboard (Workers → akcie-tracker-flex-import → Settings → Variables and Secrets)
 # Vyžadované secrets:
 #   FLEX_TOKEN — token z IBKR Flex Web Service Configuration
+#   ADMIN_KEY  — ochrana manuálního /run endpointu (bez něj je /run zavřený)
+# Volitelné:
+#   RESEND_API_KEY — e-mail při selhání importu (stejný klíč jako cron-alerts)

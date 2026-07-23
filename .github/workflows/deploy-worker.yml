@@ -7,6 +7,10 @@ on:
     branches: [main]
     paths:
       - "workers/cron-alerts/**"
+      # Worker importuje sdílené moduly — jejich změna musí redeploynout worker
+      - "workers/_shared/**"
+      - "assets/js/fifo.js"
+      - "assets/js/flex-shared.js"
       - ".github/workflows/deploy-worker.yml"
   workflow_dispatch:
 

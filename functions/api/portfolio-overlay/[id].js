@@ -11,6 +11,8 @@
  * Pokud overlay neexistuje, vrátí prázdnou strukturu (200 OK).
  */
 
+import { jsonResponse as json } from "../_lib.js";
+
 const KV_PREFIX = "portfolio-overlay:";
 
 export async function onRequestGet({ env, params }) {
@@ -29,14 +31,4 @@ export async function onRequestGet({ env, params }) {
     m2m_ytd: [],
   };
   return json(overlay);
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-cache",
-    },
-  });
 }

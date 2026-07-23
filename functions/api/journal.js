@@ -13,6 +13,8 @@
  * podle lokální časové zóny prohlížeče.
  */
 
+import { jsonResponse as json } from "./_lib.js";
+
 const KV_KEY = "journal";
 const MAX_LEN = 10000; // pohodlné dlouhé zápisky
 
@@ -78,14 +80,4 @@ export async function onRequestPost({ env, request }) {
   }
 
   return json({ error: "Unknown action" }, 400);
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-cache",
-    },
-  });
 }
