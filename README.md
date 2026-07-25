@@ -109,6 +109,9 @@ npx wrangler dev
 
 Běží na `http://localhost:8787` — statické assety, `/api/*` i KV (lokální,
 prázdná simulace; `--remote` použije produkční bindingy — pozor na zápisy).
+Tip: přidej `--persist-to /tmp/akcie-tracker-kv` — bez toho lokální KV
+zapisuje do `.wrangler/` uvnitř asset složky, watcher po každém zápisu
+restartuje server a requesty končí 503.
 Cron joby lze lokálně spustit přes `/run/*` s nastaveným klíčem:
 `npx wrangler dev --var ADMIN_KEY:test` a pak
 `curl -H "x-admin-key: test" "http://localhost:8787/run/alerts?dry=1"`.

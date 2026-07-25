@@ -135,6 +135,7 @@ async function init() {
   setupWatchlistModal();
   setupEditWatchModal();
   setupAlertsModal();
+  setupModalClose("modal-edit-note");
   setupJournal();
   setupPortfolioHistory();
   setupPortfolioSwitcher();
@@ -734,6 +735,8 @@ async function reloadWatchlist() {
       } catch {}
     }
     renderWatchlist();
+    // Přehled pozic zobrazuje watchlist stav v ⋯ menu — držet v sync
+    if (state.positions) renderOverview();
   }
 }
 
@@ -1109,6 +1112,30 @@ document.addEventListener("click", async (e) => {
       body: JSON.stringify({ action: "delete", id }),
     });
     if (res.ok) await reloadWatchlist();
+  }
+  // Přehled pozic — "Přidat do watchlistu" z ⋯ menu. Bez modalu a pravidel;
+  // API si přes Yahoo validaci doplní název/měnu, pravidla jdou přidat později.
+  if (t.matches?.("[data-pos-watch-add]")) {
+    const sym = t.dataset.posWatchAdd;
+    const inst = state.portfolio?.instruments?.[sym];
+    if (!inst) return;
+    const res = await fetch(WATCHLIST_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "add",
+        symbol: sym,
+        yahoo_symbol: inst.yahoo_symbol || sym,
+        rules: [],
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error || `Přidání do watchlistu selhalo (HTTP ${res.status})`);
+      return;
+    }
+    await reloadWatchlist(); // překreslí i Přehled — menu se přepne na "Aktualizovat značku"
+    return;
   }
   if (t.matches?.("[data-watch-mark]")) {
     const id = t.dataset.watchMark;
@@ -2224,6 +2251,17 @@ function renderOverview() {
 
   // 4) Vykreslit
   for (const r of rows) {
+    // Akce v ⋯ menu: poznámka vždy; watchlist akce podle stavu — pozice
+    // ještě nesledovaná → přidat, už sledovaná → aktualizovat značku
+    // (páruje se přes yahoo_symbol, stejný klíč jako dedupe v API).
+    const hasNote = !!state.notes?.[r.sym];
+    const watchItem = (state.watchlist?.items || []).find(
+      (it) => it.yahoo_symbol === r.inst.yahoo_symbol || it.symbol === r.sym,
+    );
+    const watchActionHtml = watchItem
+      ? `<li><button type="button" role="menuitem" data-watch-mark="${watchItem.id}" data-current-price="${r.hasPrice ? r.currentPrice : ""}" ${r.hasPrice ? "" : "disabled"}>Aktualizovat značku</button></li>`
+      : `<li><button type="button" role="menuitem" data-pos-watch-add="${r.sym}">Přidat do watchlistu</button></li>`;
+
     const tr = document.createElement("tr");
     tr.className = "position";
     tr.dataset.sym = r.sym;
@@ -2240,6 +2278,15 @@ function renderOverview() {
       <td class="num ${signClass(r.unrealizedPnl)}" title="Nerealizovaná Z/Z = Hodnota pozice − Nákupní cena pozice (jen otevřené loty).${r.hasRealized ? ' Tento ticker má historické realizované obchody — viz sloupec Celkem Z/Z pro celkový pohled.' : ''}">${r.hasPrice ? fmtNum(r.unrealizedPnl, 2) : '<span class="muted">—</span>'}</td>
       <td class="num clickable ${signClass(r.totalPnl)}" data-action="expand" title="${r.hasDividends && !r.divSameCcy ? 'Pozor: dividendy v jiné měně než pozice — Total Return není sečteno. Vidíte jen kapitálovou Z/Z. Klikněte pro detail.' : 'Celkový (historický) Total Return = realizovaná Z/Z + nerealizovaná Z/Z + čisté dividendy. Klikněte pro detail.'}">${r.hasPrice ? fmtNum(r.totalPnl, 2) + (r.hasDividends && r.divSameCcy ? ' <span class="benchmark-tooltip">＋div</span>' : '') + ' <span class="caret">▾</span>' : '<span class="muted">—</span>'}</td>
       <td class="num ${signClass(r.totalPct)}">${r.hasPrice ? fmtPct(r.totalPct) : '<span class="muted">—</span>'}</td>
+      <td>
+        <div class="action-menu">
+          <button class="btn-action action-menu-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Zobrazit akce">⋯</button>
+          <ul class="action-menu-items" role="menu" hidden>
+            <li><button type="button" role="menuitem" data-note-edit-symbol="${r.sym}">${hasNote ? "Upravit poznámku" : "Přidat poznámku"}</button></li>
+            ${watchActionHtml}
+          </ul>
+        </div>
+      </td>
     `;
     tbody.appendChild(tr);
   }
@@ -2564,7 +2611,7 @@ function buildDetailRow(sym) {
   tr.className = "detail";
   tr.dataset.sym = sym;
   const td = document.createElement("td");
-  td.colSpan = 11;
+  td.colSpan = 13; // celá šířka tabulky Přehledu (12 datových sloupců + Akce)
   td.innerHTML = html.join("");
   tr.appendChild(td);
   return tr;
