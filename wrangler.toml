@@ -2,9 +2,14 @@
 # Deploy: Workers Builds (CF git integrace) — npx wrangler deploy při každém
 # pushi do main. Lokální vývoj: npx wrangler dev (viz README).
 
+# Jméno musí sedět s Workers Builds projektem v CF — jinak ho CI při buildu
+# přepíše a otevírá PR na "opravu" configu.
 name = "akcie-tracker"
 main = "worker/index.js"
 compatibility_date = "2026-05-01"
+workers_dev = true
+# Preview URLs vypnuté — privátní nástroj, verze nemají co viset na dalších URL.
+preview_urls = false
 
 # Celý repo root je zároveň asset složka — co NEservírovat určuje .assetsignore
 # (worker/, scripts/, .github/, *.md, …). _headers čte platforma automaticky.

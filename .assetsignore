@@ -1,6 +1,10 @@
 # Co se NEuploaduje jako statický asset webu (syntaxe jako .gitignore).
 # Dřív na Pages bylo veřejně dostupné všechno v repu (vč. *.md a zdrojáků
 # workerů, jen zakryté přes _redirects) — teď se to na CDN vůbec nedostane.
+# POZOR: .git/ tu MUSÍ zůstat — wrangler ho nevyřazuje sám a Workers Builds
+# klonuje repo včetně něj (2026-07-25 se tak celá git historie nahrála
+# jako veřejné assety, než to tenhle řádek zastavil).
+.git/
 worker/
 scripts/
 .github/

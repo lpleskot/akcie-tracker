@@ -1,6 +1,6 @@
 # DEPLOY.md — akcie-tracker
 
-> Od 2026-07-23 běží projekt jako **jeden Cloudflare Worker `akcie-tracker`**
+> Od 2026-07-25 běží projekt jako **jeden Cloudflare Worker `akcie-tracker`**
 > (statické assety + `/api/*` + oba crony). Dřívější setup (Pages projekt +
 > 2 samostatné workery) je zrušený — jednorázový přechod viz checklist dole.
 
@@ -60,18 +60,20 @@ nebo prostě počkat na cron.
 
 1. ✅ Pages projekt `akcie-tracker` smazán (2026-07-23) — uvolnil jméno
    i `pages.dev` URL.
-2. **Připojit repo přes Workers Builds**: CF Dashboard → Workers & Pages →
-   **Create** → tab **Workers** → **Import a repository** (Connect to Git) →
-   vybrat `lpleskot/akcie-tracker`, branch `main` → Project name `akcie-tracker`
-   → Build command *(prázdné)* → Deploy command `npx wrangler deploy` →
-   Root directory `/` → **Save and Deploy**. Build log je hned vidět;
-   kdyby build spadl, chyba je v něm celá.
-3. Nastavit **Worker secrets** (tabulka výše — stejné hodnoty jako dřív).
-4. Ověřit web + API na `akcie-tracker.lukas-pleskot.workers.dev` (checklist výše).
-5. **Smazat staré Workery** `akcie-tracker-cron` a `akcie-tracker-flex-import`
-   (Workers & Pages → worker → Settings → Delete). Jinak poběží crony dvakrát —
-   a staré workery mají pořád Resend kód + secrets, takže by dál posílaly e-maily.
-6. **Zapnout Access** (sekce výše) — priorita č. 1 (R1).
+2. ✅ Repo připojeno přes Workers Builds (2026-07-25). Projekt vznikl jako
+   `akcie-tracker2` — jméno `akcie-tracker` tehdy blokoval worker vytvořený
+   neúspěšným GH Action deployem; po jeho smazání projekt přejmenován zpět
+   na **`akcie-tracker`**. (Build command prázdný, Deploy command
+   `npx wrangler deploy`, root `/`.)
+3. ✅ Staré Workery `akcie-tracker-cron` a `akcie-tracker-flex-import` smazány
+   (2026-07-25) — uvolnily account limit cron triggerů free plánu (kvůli němu
+   triggery prvního deploye neprošly) a přestaly posílat Resend e-maily.
+4. Push → Workers Builds build: v logu nesmí být `.git/` v asset uploadu,
+   warning o jménu, ani error u „Deployed … triggers".
+5. Nastavit **Worker secrets** (tabulka výše — stejné hodnoty jako dřív).
+6. Ověřit web + API na `akcie-tracker.lukas-pleskot.workers.dev` (checklist výše)
+   vč. `/.git/HEAD` → 404.
+7. **Zapnout Access** (sekce výše) — priorita č. 1 (R1).
 
 ## Future custom domain
 
