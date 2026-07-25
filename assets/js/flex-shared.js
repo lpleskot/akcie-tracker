@@ -96,6 +96,9 @@ export function transformFlexTrade(t) {
     id: `flex-trade-${t.tradeID}`,
     flex_id: t.tradeID,
     date: flexDate(t.tradeDate || t.dateTime),
+    // Účetně rozhoduje vypořádání (rok i kurz ČNB) — bez tohoto pole by
+    // report u auto-importovaných obchodů tiše počítal s datem obchodu.
+    settle_date: flexDate(t.settleDateTarget),
     time: flexTime(t.dateTime),
     symbol: t.symbol,
     type,

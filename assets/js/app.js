@@ -3362,10 +3362,12 @@ function renderReport() {
     const sellFx = getFxToCzk(ev.sell_date, ev.currency);
     const sellCzk = sellFx != null ? ev.sell_net_total * sellFx : null;
     if (sellFx == null) allFxFound = false;
-    const profitCzk = sellCzk != null ? sellCzk - costCzk : null;
+    // Zisk jen když jsou známé VŠECHNY kurzy — chybějící nákupní kurz by se
+    // jinak tiše sečetl jako nula a ze ztráty udělal zisk (TTD 2026-07).
+    const profitCzk = allFxFound ? sellCzk - costCzk : null;
 
     if (!allFxFound) anyMissingFx = true;
-    if (sellCzk != null) {
+    if (allFxFound) {
       grandCostCzk += costCzk;
       grandSellCzk += sellCzk;
       grandProfitCzk += profitCzk;
@@ -3427,7 +3429,7 @@ function renderReport() {
         <td class="report-sell">prodej${ev.sell_trade_date && ev.sell_trade_date !== ev.sell_date ? ` <span class="muted">(obchod ${ev.sell_trade_date})</span>` : ""}</td>
       </tr>
       <tr class="totals">
-        <td colspan="4" class="label" style="text-align:right;">${profitCzk >= 0 ? "Zisk" : "Ztráta"} v Kč:</td>
+        <td colspan="4" class="label" style="text-align:right;">${profitCzk == null ? "Zisk/ztráta" : profitCzk >= 0 ? "Zisk" : "Ztráta"} v Kč:</td>
         <td class="num ${signClass(profitCzk)}"><strong>${profitCzk != null ? fmtNum(profitCzk, 2) : '<span class="missing-fx">—</span>'}</strong></td>
         <td></td>
       </tr>
@@ -3454,7 +3456,7 @@ function renderReport() {
     </div>
   `;
   if (anyMissingFx) {
-    sumHtml += `<div class="muted" style="flex-basis:100%;">⚠️ Některé kurzy ČNB chybí — souhrn nemusí být úplný.</div>`;
+    sumHtml += `<div class="muted" style="flex-basis:100%;">⚠️ Některé kurzy ČNB chybí — prodeje s neúplnými kurzy NEJSOU v souhrnu započtené. Doplňte chybějící dny do data/fx_rates.json.</div>`;
   }
   summary.innerHTML = sumHtml;
 }

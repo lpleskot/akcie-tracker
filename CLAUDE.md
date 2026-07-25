@@ -61,9 +61,10 @@ jinak se nedostanou do repa.
 - **Účetně rozhoduje datum VYPOŘÁDÁNÍ (settle_date)**, ne datum obchodu — určuje rok
   i kurz ČNB. Prodej s obchodem 30.12. a vypořádáním 2.1. patří do nového roku.
   Platí pro: Report pro účetní (rok chips, FIFO párování, kurzy), export Reportu,
-  export Transakcí pro účetní. FIFO closed lots nesou `buy_settle_date` + `sell_settle_date`.
-  Tab Transakce (obrazovka) zůstává na datu obchodu. `fx_rates.json` proto pokrývá
-  settle data všech transakcí (**346 dnů**).
+  export Transakcí pro účetní. FIFO closed lots nesou `buy_settle_date` + `sell_settle_date`;
+  **Flex overlay trades nesou `settle_date` z `settleDateTarget`** (doplněno 2026-07-25 —
+  bez toho report u auto-importů tiše používal datum obchodu). Tab Transakce (obrazovka)
+  zůstává na datu obchodu. `fx_rates.json` pokrývá settle data všech transakcí.
 - **Yahoo Finance** přes neoficiální `query1.finance.yahoo.com`, voláno ze serveru
   (CF Function `/api/quote`), cache 60 s, MINOR_UNITS scale (GBp/100, ZAc/100 atd.).
 - **ČNB kurzy** v `data/fx_rates.json` — denní fetch přes GH Action `fx-update-cron.yml`
@@ -175,8 +176,14 @@ flowchart TD
   Sold Securities: 32/34 prodejů match (2 nesoulady = CNE 1890 ks Sharesight chyba, IPO 1 ks zaokrouhlení).
 
 ### `data/fx_rates.json`
-- ČNB rates pro 12 měn, **346 dnů** (pokrývá i settle data). Auto-update denně 14:35 UTC
-  (`fx-update.mjs` — ČNB API `lang=EN`, `validFor` per-rate; forward-only od max data).
+- ČNB rates pro 12 měn, **448 dnů**: rok 2026 souvisle (backfill všech všedních dnů
+  2026-07-25 — settle data Flex auto-importů padají kamkoliv), starší roky jen settle
+  dny transakcí. Auto-update denně 14:35 UTC (`fx-update.mjs` — ČNB API `lang=EN`,
+  `validFor` per-rate; forward-only od max data — **starší díry doplňovat ručně**,
+  stejný entry formát, serializace `JSON.stringify(data, null, 2) + "\n"`, klíče
+  chronologicky). Víkendy/svátky: API vrací poslední vyhlášené kurzy, ukládají se pod
+  dotazované datum s `valid_for` = skutečný den vyhlášení (poslední vyhlášený kurz —
+  účetně korektní).
 
 ---
 
