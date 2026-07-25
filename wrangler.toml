@@ -1,5 +1,5 @@
 # akcie-tracker — jednotný Worker: statické assety (web) + /api/* + oba crony.
-# Deploy: GH Action .github/workflows/deploy.yml (wrangler deploy) při každém
+# Deploy: Workers Builds (CF git integrace) — npx wrangler deploy při každém
 # pushi do main. Lokální vývoj: npx wrangler dev (viz README).
 
 name = "akcie-tracker"

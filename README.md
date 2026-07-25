@@ -139,8 +139,7 @@ web/                           ← repo root = asset složka Workeru
 ├── .assetsignore              ← co se neservíruje jako asset
 ├── _headers                   ← CSP, HSTS, cache
 └── .github/workflows/
-    ├── deploy.yml             ← wrangler deploy při každém pushi do main
-    └── fx-update-cron.yml     ← denní ČNB kurzy → commit → řetězený deploy
+    └── fx-update-cron.yml     ← denní ČNB kurzy → commit → push (deploy přes CF)
 ```
 
 ## Přidání nového portfolia
@@ -152,9 +151,8 @@ web/                           ← repo root = asset složka Workeru
 
 ## Deploy
 
-Automaticky při každém pushi do `main` přes GitHub Actions
-(`.github/workflows/deploy.yml` → `wrangler deploy`). Repo secrets:
-`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. Worker secrets (`FLEX_TOKEN`,
+Automaticky při každém pushi do `main` přes **Workers Builds** (Cloudflare git
+integrace; Deploy command `npx wrangler deploy`). Worker secrets (`FLEX_TOKEN`,
 `ADMIN_KEY`) se nastavují v CF dashboardu.
 
 Detaily v `DEPLOY.md`.

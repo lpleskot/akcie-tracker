@@ -20,7 +20,8 @@ pro účetnictví — transakční log + report v CZK + XLSX exporty.
 
 **Hosting:**
 - **Worker `akcie-tracker`** — `https://akcie-tracker.lukas-pleskot.workers.dev/`
-  (push do `main` → GH Action `deploy.yml` → `wrangler deploy`; web, API i crony v jednom)
+  (push do `main` → **Workers Builds**, CF git integrace → `npx wrangler deploy`;
+  web, API i crony v jednom)
 - **Cron joby uvnitř téhož Workeru** (dispatch podle `event.cron` ve `worker/index.js`):
   - flex-import v **07:00 Prahy celoročně** — crony jedou jen v UTC → dvojice triggerů
     `0 5 * * *` + `0 6 * * *`, handler pustí jen ten, kterému je v Praze právě 7:00
@@ -134,9 +135,9 @@ flowchart TD
   `/run/alerts?dry=1` = vyhodnotí bez zápisu fired. Hlídá jen IBKR portfolio
   (`PORTFOLIO_ID`), KB pozice ne.
 - **fx-update-cron**: `scripts/fx-update.mjs` fetchne ČNB pro chybějící dny,
-  commit + push `data/fx_rates.json` (potřebuje `contents: write`), pak **řetězeně
-  spustí deploy** (`workflow_call`) — push přes `GITHUB_TOKEN` totiž `on: push`
-  workflows netriggeruje a nové kurzy by se jinak nedostaly na web.
+  commit + push `data/fx_rates.json` (potřebuje `contents: write`). Push spustí
+  deploy přes Workers Builds webhook — ten funguje i pro commity z `GITHUB_TOKEN`
+  (na rozdíl od `on: push` GitHub workflows), takže se kurzy dostanou na web.
 
 ---
 
@@ -215,11 +216,11 @@ flowchart TD
 **KV klíče (sdílené):** `watchlist`, `alerts`, `notes`, `journal`,
 `portfolio-overlay:{id}`, `fired:alert:{ruleId}:{symbol}`, `fired:watch:{itemId}:{ruleId}`.
 
-**Secrets:** GitHub repo → `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` (deploy).
-Worker `akcie-tracker` (CF Dashboard → Settings → Variables and Secrets):
-`FLEX_TOKEN`, `ADMIN_KEY`. Access service token není potřeba; Resend odstraněn
-(žádné e-maily). Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403);
-cron triggery běží vždy.
+**Secrets:** Worker `akcie-tracker` (CF Dashboard → Settings → Variables and Secrets):
+`FLEX_TOKEN`, `ADMIN_KEY`. Deploy běží přes Workers Builds pod CF účtem — GitHub
+secrets `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` už nejsou potřeba (možno
+smazat). Access service token není potřeba; Resend odstraněn (žádné e-maily).
+Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží vždy.
 
 ---
 
@@ -253,7 +254,7 @@ web/                                    ← repo root = asset složka Workeru
 ├── .assetsignore                       ← co se neservíruje (worker/, *.md, …)
 ├── data/portfolios/{manifest,plegi-invest-ibkr,plegi-invest-kb}.json
 ├── data/portfolio-history-plegi-invest-ibkr.json, data/fx_rates.json
-├── .github/workflows/{deploy,fx-update-cron}.yml
+├── .github/workflows/fx-update-cron.yml    ← jediný GH workflow (ČNB kurzy)
 ├── scripts/fx-update.mjs
 ├── _headers                            ← CSP, HSTS, cache
 ├── REVIZE_REPORT.md                    ← zjištění a stav revizí kódu

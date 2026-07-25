@@ -6,15 +6,18 @@
 
 ## Jak deploy funguje
 
-- **Push do `main`** → GH Action `deploy.yml` → `wrangler deploy` (podle root
-  `wrangler.toml`). Statické assety se uploadují inkrementálně (jen změněné).
+- **Workers Builds (git integrace)** — Worker `akcie-tracker` je v CF dashboardu
+  připojený na repo `lpleskot/akcie-tracker`, branch `main`. Každý push spustí
+  build v Cloudflare: Build command žádný, Deploy command `npx wrangler deploy`
+  (podle root `wrangler.toml`). Statické assety se uploadují inkrementálně.
 - **Denní ČNB kurzy** — `fx-update-cron.yml` (14:35 UTC) commitne
-  `data/fx_rates.json` a **řetězeně zavolá deploy** (`workflow_call`). Pozor:
-  push přes `GITHUB_TOKEN` netriggeruje `on: push` workflows, proto to řetězení.
-- **Ruční deploy** — GitHub → Actions → Deploy → Run workflow.
+  `data/fx_rates.json`; push spustí Workers Builds webhookem — funguje i pro
+  commity z `GITHUB_TOKEN` (na rozdíl od `on: push` GitHub workflows).
+- **Ruční deploy / build log** — Worker → záložka **Deployments** (příp. Builds):
+  log každého buildu + retry. Lokálně: `npx wrangler deploy` (po `wrangler login`).
 
-**GitHub repo secrets:** `CLOUDFLARE_API_TOKEN` (Workers Scripts Edit),
-`CLOUDFLARE_ACCOUNT_ID`.
+Pro deploy nejsou potřeba žádné GitHub secrets (build běží pod CF účtem) —
+`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` v repu lze smazat.
 
 **Worker secrets** (CF Dashboard → Workers & Pages → `akcie-tracker` →
 Settings → Variables and Secrets, nebo `npx wrangler secret put <NÁZEV>`):
@@ -55,17 +58,19 @@ nebo prostě počkat na cron.
 
 ## Jednorázový přechod z Pages (checklist migrace)
 
-1. ✅ Push migračního commitu → Action **Deploy** vytvoří Worker `akcie-tracker`.
-   (Kdyby deploy spadl na kolizi jména s Pages projektem: smazat Pages projekt
-   `akcie-tracker` — krok 4 — a Deploy spustit ručně znovu.)
-2. Nastavit **Worker secrets** (tabulka výše — stejné hodnoty jako dřív).
-3. Ověřit web + API na `akcie-tracker.lukas-pleskot.workers.dev` (checklist výše).
-4. **Smazat staré Workery** `akcie-tracker-cron` a `akcie-tracker-flex-import`
+1. ✅ Pages projekt `akcie-tracker` smazán (2026-07-23) — uvolnil jméno
+   i `pages.dev` URL.
+2. **Připojit repo přes Workers Builds**: CF Dashboard → Workers & Pages →
+   **Create** → tab **Workers** → **Import a repository** (Connect to Git) →
+   vybrat `lpleskot/akcie-tracker`, branch `main` → Project name `akcie-tracker`
+   → Build command *(prázdné)* → Deploy command `npx wrangler deploy` →
+   Root directory `/` → **Save and Deploy**. Build log je hned vidět;
+   kdyby build spadl, chyba je v něm celá.
+3. Nastavit **Worker secrets** (tabulka výše — stejné hodnoty jako dřív).
+4. Ověřit web + API na `akcie-tracker.lukas-pleskot.workers.dev` (checklist výše).
+5. **Smazat staré Workery** `akcie-tracker-cron` a `akcie-tracker-flex-import`
    (Workers & Pages → worker → Settings → Delete). Jinak poběží crony dvakrát —
    a staré workery mají pořád Resend kód + secrets, takže by dál posílaly e-maily.
-5. **Smazat Pages projekt** `akcie-tracker` (jeho deploy od teď stejně selhává —
-   root `wrangler.toml` není Pages config). Tím zanikne `akcie-tracker.pages.dev`
-   → aktualizovat záložku na workers.dev URL.
 6. **Zapnout Access** (sekce výše) — priorita č. 1 (R1).
 
 ## Future custom domain
