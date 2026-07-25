@@ -59,9 +59,11 @@ export async function runAlertEvaluation(env, source, dryRun = false) {
     const watchlist = watchlistData.items || [];
     const alertRules = alertsData.rules || [];
 
-    // 3) Sesbírat všechny relevantní symboly
+    // 3) Sesbírat všechny relevantní symboly (delisted tituly na Yahoo
+    //    neexistují a s nulovou cenou by falešně plnily drop pravidla)
     const symbols = new Set();
     for (const [, inst] of Object.entries(portfolio.instruments)) {
+      if (inst.delisted) continue;
       symbols.add(inst.yahoo_symbol);
     }
     for (const w of watchlist) {

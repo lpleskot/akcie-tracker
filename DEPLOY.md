@@ -17,7 +17,7 @@
   log každého buildu + retry. Lokálně: `npx wrangler deploy` (po `wrangler login`).
 
 Pro deploy nejsou potřeba žádné GitHub secrets (build běží pod CF účtem) —
-`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` v repu lze smazat.
+`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` z repa smazány 2026-07-25.
 
 **Worker secrets** (CF Dashboard → Workers & Pages → `akcie-tracker` →
 Settings → Variables and Secrets, nebo `npx wrangler secret put <NÁZEV>`):

@@ -17,7 +17,8 @@
    "all_currencies": null,
    "yahoo_symbol": "CNE.TO",
    "yahoo_unmapped": false,
-   "exchange": "Toronto"
+   "exchange": "Toronto",
+   "delisted": "2025-11-17"
   },
   "YAL.AX": {
    "isin": "AU000000YAL0",

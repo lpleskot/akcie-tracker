@@ -176,6 +176,13 @@ flowchart TD
   FX dopad +534 CZK. Re-audit: 0 záznamů zbývá na datu splatnosti.
 - **18/18 otevřených pozic** match KB statementu (30.6.2026). Validace vs Sharesight
   Sold Securities: 32/34 prodejů match (2 nesoulady = CNE 1890 ks Sharesight chyba, IPO 1 ks zaokrouhlení).
+- **Delisted konvence** (`instruments[sym].delisted = "YYYY-MM-DD"`): CNE.TO (Canacol,
+  TSX suspend 17.11.2025, CCAA). Frontend se neptá Yahoo a přiřadí syntetickou cenu 0
+  (`{price: 0, delisted: true}`) — pozice se počítá do hodnot jako bezcenná, Přehled
+  ukazuje badge „delisted", alerty (cron i UI náhled) ji přeskakují. Pozice zůstává
+  otevřená — KB ji stále vede a daňová ztráta se realizuje až formálním odpisem.
+  Dřívější delisted tituly (SMSI, SPCE, IPO.TO) jsou vyřešené: reverse splity spárované
+  přes received/removed CA a zbytky doprodané → net_qty 0.
 
 ### `data/fx_rates.json`
 - ČNB rates pro 12 měn, **448 dnů**: rok 2026 souvisle (backfill všech všedních dnů
@@ -289,7 +296,9 @@ web/                                    ← repo root = asset složka Workeru
 - Notifikace alertů (e-mail/Telegram) — Resend odstraněn 2026-07-23 (nevyužíval se),
   alerty se zatím jen zapisují jako fired a zobrazují v UI.
 - Custom doména `akcie.plegiholding.cz` (zatím `*.workers.dev`).
-- Delisted pozice (IPO.TO, SMSI, SPCE) — KB odepsala mimo formální TRN CP, ukazují non-zero qty.
+- **CNE.TO (Canacol)**: až KB akcie formálně odepíše / CCAA restrukturalizace skončí,
+  zanést zánik podle výpisu (cancellation, příp. SELL) — teprve tím se realizuje
+  daňová ztráta. Do té doby drženo jako otevřená pozice s `delisted` flagem.
 - Doplňovat `IBKR_EXCHANGE_SUFFIX` o burzy, které se objeví u nových Flex titulů.
 
 ---

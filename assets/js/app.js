@@ -535,9 +535,13 @@ function setupSort() {
 
 // ---------- Quotes ----------
 async function refreshQuotes() {
-  const symbols = Object.values(state.portfolio.instruments).map(
-    (i) => i.yahoo_symbol,
-  );
+  const instruments = Object.values(state.portfolio.instruments);
+  // Delisted tituly (instruments[sym].delisted = datum) na Yahoo neexistují —
+  // neptáme se a přiřadíme syntetickou nulovou cenu: pozice je bezcenná do
+  // vyřešení restrukturalizace, počítá se do hodnot jako 0, UI ukáže badge.
+  const symbols = instruments
+    .filter((i) => !i.delisted)
+    .map((i) => i.yahoo_symbol);
   setStatus(`Načítám ceny pro ${symbols.length} titulů…`);
 
   const url = `${QUOTE_URL}?symbols=${encodeURIComponent(symbols.join(","))}`;
@@ -546,6 +550,11 @@ async function refreshQuotes() {
   const data = await res.json();
   state.quotes = data.quotes;
   state.quotesFetchedAt = data.fetched_at;
+  for (const i of instruments) {
+    if (i.delisted) {
+      state.quotes[i.yahoo_symbol] = { price: 0, currency: i.currency, delisted: true };
+    }
+  }
 
   // Pre-fetch quotes pro symboly ve watchlistu (nedrží je, ale chceme cenu)
   const portfolioSyms = Object.values(state.portfolio.instruments).map(
@@ -1392,7 +1401,8 @@ function evaluateRule(rule) {
       if (!pos || pos.net_qty === 0) continue;
       const inst = state.portfolio.instruments[sym];
       const quote = state.quotes[inst.yahoo_symbol] || {};
-      if (quote.price == null) continue;
+      // Delisted (syntetická cena 0) by vždy „splnil" pokles — nehlídáme ho
+      if (quote.price == null || quote.delisted) continue;
       const change =
         ((quote.price - pos.avg_open_price) / pos.avg_open_price) * 100;
       if (change <= -Math.abs(rule.threshold_pct)) {
@@ -1413,7 +1423,7 @@ function evaluateRule(rule) {
     const inst = state.portfolio.instruments[sym];
     if (pos && pos.net_qty > 0 && inst) {
       const quote = state.quotes[inst.yahoo_symbol] || {};
-      if (quote.price != null) {
+      if (quote.price != null && !quote.delisted) {
         const change =
           ((quote.price - pos.avg_open_price) / pos.avg_open_price) * 100;
         if (change <= -Math.abs(rule.threshold_pct)) {
@@ -2195,6 +2205,7 @@ function renderOverview() {
     const quote = state.quotes[inst.yahoo_symbol] || {};
     const currentPrice = quote.price;
     const hasPrice = currentPrice != null && !quote.error;
+    const isDelisted = !!quote.delisted;
     const u = unrealizedPnl(pos, currentPrice);
 
     // Kapitálová Z/Z = realizovaná + nerealizovaná (jen kapitálové pohyby)
@@ -2230,6 +2241,7 @@ function renderOverview() {
       divSameCcy,
       hasDividends: divCcys.size > 0,
       hasRealized: (pos.realized_pnl || 0) !== 0, // pro tooltip / vizuál
+      isDelisted,
     });
   }
 
@@ -2287,7 +2299,7 @@ function renderOverview() {
       <td>${r.inst.currency}</td>
       <td class="num">${fmtNum(r.pos.net_qty, 0)}</td>
       <td class="num">${fmtNum(r.pos.avg_open_price, 4)}</td>
-      <td class="num">${r.hasPrice ? fmtNum(r.currentPrice, 2) : '<span class="muted">—</span>'}</td>
+      <td class="num">${r.isDelisted ? '<span class="muted" title="Titul byl stažen z burzy — počítá se s hodnotou 0 do vyřešení restrukturalizace.">delisted</span>' : r.hasPrice ? fmtNum(r.currentPrice, 2) : '<span class="muted">—</span>'}</td>
       <td class="num">${fmtNum(r.pos.cost_basis, 2)}</td>
       <td class="num">${r.hasPrice ? fmtNum(r.marketValue, 2) : '<span class="muted">—</span>'}</td>
       <td class="num ${signClass(r.unrealizedPnl)}" title="Nerealizovaná Z/Z = Hodnota pozice − Nákupní cena pozice (jen otevřené loty).${r.hasRealized ? ' Tento ticker má historické realizované obchody — viz sloupec Celkem Z/Z pro celkový pohled.' : ''}">${r.hasPrice ? fmtNum(r.unrealizedPnl, 2) : '<span class="muted">—</span>'}</td>
@@ -2357,7 +2369,7 @@ function buildDetailRow(sym) {
   const html = [];
   html.push(`<div class="detail-card">`);
   html.push(
-    `<h3>${sym} — ${escapeHtml(inst.name)} <span class="muted">· ${inst.exchange} · ${ccy}</span></h3>`,
+    `<h3>${sym} — ${escapeHtml(inst.name)} <span class="muted">· ${inst.exchange} · ${ccy}</span>${inst.delisted ? ` <span class="badge sell" title="Staženo z burzy ${inst.delisted}. Pozice se drží do formálního zániku akcií — daňová ztráta se realizuje až odpisem.">DELISTED ${inst.delisted}</span>` : ""}</h3>`,
   );
 
   // Poznámka o firmě (volitelná, KV-backed přes /api/notes)
