@@ -1,9 +1,10 @@
 /**
  * Cron job alerts — evaluace alert pravidel nad pozicemi a watchlistem.
  *
- * Vstupní body (worker/index.js): cron 15:00 UTC (cca 1h po otevření US burz)
- * a manuální GET /run/alerts (x-admin-key), /run/alerts?dry=1 = testovací
- * režim bez zápisu fired stavů.
+ * Vstupní body (worker/index.js): denní cron hned po flex-importu (ranní běh
+ * pracuje se zavíracími cenami předchozího dne — pro denní kontrolu poklesů
+ * stačí) a manuální GET /run/alerts (x-admin-key), /run/alerts?dry=1 =
+ * testovací režim bez zápisu fired stavů.
  *
  * Pipeline:
  *   1. Načte portfolio (ASSETS binding) + KV overlay (Flex auto-import) → merge

@@ -14,21 +14,20 @@ pro účetnictví — transakční log + report v CZK + XLSX exporty.
 
 **Stack:** Statické HTML + vanilla JS ES modules, žádný framework, žádný build krok,
 žádný TypeScript. Backend = **jeden CF Worker `akcie-tracker`** (statické assety + `/api/*`
-+ oba denní crony v jednom, entry `worker/index.js`) + **2 GitHub Actions workflows**
-(deploy, FX update). Cloudflare KV namespace `AKCIE_TRACKER_KV`
++ denní cron v jednom, entry `worker/index.js`) + **1 GitHub Actions workflow**
+(denní ČNB kurzy). Cloudflare KV namespace `AKCIE_TRACKER_KV`
 (ID `6d78ccbecdc64d7e9798f1ed39fca35d`) s bindingem ve Workeru.
 
 **Hosting:**
 - **Worker `akcie-tracker`** — `https://akcie-tracker.lukas-pleskot.workers.dev/`
   (push do `main` → **Workers Builds**, CF git integrace → `npx wrangler deploy`;
   web, API i crony v jednom)
-- **Cron joby uvnitř téhož Workeru** (dispatch podle `event.cron` ve `worker/index.js`):
-  - flex-import v **07:00 Prahy celoročně** — crony jedou jen v UTC → dvojice triggerů
-    `0 5 * * *` + `0 6 * * *`, handler pustí jen ten, kterému je v Praze právě 7:00
-    (DST dvojče se skipne)
-  - alerts `0 15 * * *` UTC (cca 1 h po otevření US burz)
+- **Jediný denní cron** `0 5 * * *` UTC = **7:00 Prahy v létě / 6:00 v zimě**
+  (vědomý DST drift, rozhodnutí 2026-07-25): nejdřív flex-import, hned po něm
+  vyhodnocení alertů nad čerstvým overlay (`runDailyJobs` ve `worker/index.js`).
 - Bývalý Pages projekt a samostatné Workery `akcie-tracker-cron` +
-  `akcie-tracker-flex-import` jsou zrušené (migrace 2026-07-23).
+  `akcie-tracker-flex-import` jsou zrušené (migrace 2026-07-23/25). Účet od
+  2026-07-25 **Workers Paid** (free měl account limit 5 cron triggerů).
 
 **Přístup:** ⚠️ **Cloudflare Access zatím NENÍ aktivní** (R1 z revize 2026-07-22).
 Zmírnění: `noindex` + `robots.txt`. Po migraci na jeden Worker je zapnutí o dost
@@ -102,14 +101,14 @@ jinak se nedostanou do repa.
 
 ```mermaid
 flowchart TD
-  IBKR[IBKR Flex Web Service<br/>query, token] -->|07:00 Prahy, Mozilla UA| FI[cron job flex-import<br/>SendRequest → wait 30s → GetStatement → XML]
+  IBKR[IBKR Flex Web Service<br/>query, token] -->|ranní cron, Mozilla UA| FI[cron job flex-import<br/>SendRequest → wait 30s → GetStatement → XML]
   FI -->|dedupe by ID, NAV akumuluje| KV[(KV portfolio-overlay:id)]
   KV --> FE[Frontend loadActivePortfolio<br/>merge overlay + nav_history]
   STATIC[data/portfolios/id.json<br/>statický snapshot] --> FE
   HIST[data/portfolio-history-id.json<br/>NAV backfill] --> FE
   CNB[ČNB API] -->|GH Action 14:35 UTC| FX[data/fx_rates.json commit → řetězený deploy]
   FE --> WL[watchlist + alerts + quotes]
-  WL -->|15 UTC| CRON[cron job alerts<br/>vyhodnotí pravidla → fired flagy v KV]
+  WL -->|hned po importu| CRON[cron job alerts<br/>vyhodnotí pravidla → fired flagy v KV]
 ```
 
 - **flex-import**: 2-call flow (SendRequest → wait 30s + retry → GetStatement → XML).

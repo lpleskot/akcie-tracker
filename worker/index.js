@@ -7,10 +7,8 @@
  * - /api/*  → routovací tabulka níže (worker/api/*.js).
  * - /run/*  → manuální spuštění cron jobů, vyžaduje header x-admin-key
  *   = secret ADMIN_KEY (bez nastaveného secretu trvale zavřeno).
- * - Cron triggery (wrangler.toml):
- *     "0 5 * * *" + "0 6 * * *"  → flex-import v 07:00 Prahy (DST pár,
- *                                   spustí se jen trigger odpovídající 7:00)
- *     "0 15 * * *"               → alerts (cca 1h po otevření US burz)
+ * - Jediný cron trigger "0 5 * * *" (= 7:00 Prahy v létě / 6:00 v zimě):
+ *   nejdřív flex-import, pak nad čerstvým overlay vyhodnocení alertů.
  */
 
 import { jsonResponse } from "./api/lib.js";
@@ -23,7 +21,6 @@ import * as portfolioOverlay from "./api/portfolio-overlay.js";
 import { runImport } from "./jobs/flex-import.js";
 import { runAlertEvaluation } from "./jobs/alerts.js";
 
-const ALERTS_CRON = "0 15 * * *";
 const OVERLAY_PREFIX = "/api/portfolio-overlay/";
 
 // Endpoint → modul s get/post handlery (request, env) → Response
@@ -35,31 +32,17 @@ const API_ROUTES = {
   "/api/journal": journal,
 };
 
-// Hodina v Evropě/Praze pro daný timestamp — Intl řeší přechod CET/CEST za nás.
-function pragueHour(ts) {
-  return Number(
-    new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/Prague",
-      hour: "2-digit",
-      hour12: false,
-    }).format(new Date(ts)),
-  );
+// Ranní sekvence: import musí doběhnout před alerty, aby vyhodnocení vidělo
+// čerstvý overlay. runImport chyby chytá uvnitř (vrací ok:false), takže
+// alerty poběží i při selhání importu.
+async function runDailyJobs(env) {
+  await runImport(env);
+  await runAlertEvaluation(env, "scheduled");
 }
 
 export default {
   async scheduled(event, env, ctx) {
-    if (event.cron === ALERTS_CRON) {
-      ctx.waitUntil(runAlertEvaluation(env, "scheduled"));
-      return;
-    }
-    // Flex import: cíl 07:00 Prahy celoročně. Crony jedou jen v UTC, proto
-    // jsou v configu dva triggery (5:00 + 6:00 UTC) — spustí se jen ten,
-    // kterému v Praze právě je 7 hodin; DST dvojče tiše skončí.
-    if (pragueHour(event.scheduledTime) !== 7) {
-      console.log(`⏭️ Skip — trigger ${event.cron} není 7:00 v Praze (DST dvojče)`);
-      return;
-    }
-    ctx.waitUntil(runImport(env));
+    ctx.waitUntil(runDailyJobs(env));
   },
 
   async fetch(request, env, ctx) {

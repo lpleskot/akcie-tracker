@@ -40,8 +40,8 @@ v `wrangler.toml` — deployují se automaticky.
 - `/api/portfolio-overlay/plegi-invest-ibkr` — JSON overlay (data z KV)
 - `/run/alerts` bez klíče → 403; s `x-admin-key: <ADMIN_KEY>` a `?dry=1` → JSON triggerů
 - `/CLAUDE.md`, `/worker/index.js` → 404 (`.assetsignore` funguje)
-- Ráno po 7:00: v logu Workeru (Observability → Logs) běh importu v 5:00 UTC
-  (léto) a skip v 6:00 UTC; v 15:00 UTC běh alertů
+- Ráno: v logu Workeru (Observability → Logs) běh importu a hned po něm alertů
+  (jediný cron `0 5 * * *` UTC = 7:00 Prahy v létě / 6:00 v zimě)
 
 ## Cloudflare Access — zabezpečit přístup
 

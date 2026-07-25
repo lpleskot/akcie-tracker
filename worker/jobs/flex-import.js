@@ -4,8 +4,8 @@
  * Open Positions, M2M YTD) a ukládá je idempotentně do KV jako overlay
  * nad statický portfolio JSON.
  *
- * Vstupní body (worker/index.js): cron 07:00 Prahy (DST pár 5:00 + 6:00 UTC)
- * a manuální GET /run/flex-import (x-admin-key).
+ * Vstupní body (worker/index.js): denní cron 5:00 UTC (= 7:00 Prahy v létě /
+ * 6:00 v zimě) a manuální GET /run/flex-import (x-admin-key).
  *
  * Flow:
  *   1) SendRequest(token, queryId)  →  ReferenceCode

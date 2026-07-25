@@ -18,12 +18,11 @@ directory = "."
 binding = "ASSETS"
 not_found_handling = "404-page"
 
-# Crony jedou jen v UTC. Flex import má cíl 07:00 Prahy celoročně → dvojice
-# triggerů (5:00 UTC = 7:00 CEST léto, 6:00 UTC = 7:00 CET zima); scheduled
-# handler pustí jen ten, kterému v Praze právě je 7 hodin. Alerts 15:00 UTC
-# = cca 1 h po otevření US burz. Pozn.: free plán = max 3 triggery na worker.
+# Jediný denní cron: Flex import + hned po něm vyhodnocení alertů.
+# Crony jedou jen v UTC → 5:00 UTC = 7:00 Prahy v létě / 6:00 v zimě
+# (vědomé zjednodušení, DST drift je ok — rozhodnutí 2026-07-25).
 [triggers]
-crons = ["0 5 * * *", "0 6 * * *", "0 15 * * *"]
+crons = ["0 5 * * *"]
 
 # Sdílená KV namespace (watchlist, alerts, notes, journal, portfolio-overlay:*, fired:*)
 [[kv_namespaces]]

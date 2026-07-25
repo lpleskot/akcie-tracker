@@ -6,8 +6,8 @@ Privátní portfolio tracker pro PLEGI invest přes Interactive Brokers a Komer�
 
 - **Frontend:** statické HTML + vanilla JS (ES modules), bez build kroku
 - **Backend:** jeden Cloudflare Worker `akcie-tracker` — servíruje statické assety,
-  obsluhuje `/api/*` (router ve `worker/index.js`) a spouští oba denní cron joby
-  (IBKR Flex import, alert evaluace)
+  obsluhuje `/api/*` (router ve `worker/index.js`) a jednou denně ráno spouští
+  cron (IBKR Flex import + hned poté vyhodnocení alertů)
 - **Storage:** Cloudflare KV namespace `AKCIE_TRACKER_KV`, JSON soubory v `data/`
   pro portfolio data + ČNB kurzy
 - **Hosting:** Cloudflare Workers (`akcie-tracker.lukas-pleskot.workers.dev`)
