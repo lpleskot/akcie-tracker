@@ -73,7 +73,8 @@ nebo prostě počkat na cron.
 5. Nastavit **Worker secrets** (tabulka výše — stejné hodnoty jako dřív).
 6. Ověřit web + API na `akcie-tracker.lukas-pleskot.workers.dev` (checklist výše)
    vč. `/.git/HEAD` → 404.
-7. **Zapnout Access** (sekce výše) — priorita č. 1 (R1).
+7. ✅ **Access zapnut** (2026-07-25) — anonymní curl vrací 302 na
+   `lpleskot.cloudflareaccess.com`, R1 z revize uzavřena. Migrace kompletní.
 
 ## Future custom domain
 

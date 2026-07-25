@@ -29,15 +29,14 @@ pro účetnictví — transakční log + report v CZK + XLSX exporty.
   `akcie-tracker-flex-import` jsou zrušené (migrace 2026-07-23/25). Účet od
   2026-07-25 **Workers Paid** (free měl account limit 5 cron triggerů).
 
-**Přístup:** ⚠️ **Cloudflare Access zatím NENÍ aktivní** (R1 z revize 2026-07-22).
-Zmírnění: `noindex` + `robots.txt`. Po migraci na jeden Worker je zapnutí o dost
-jednodušší — **service token už není potřeba** (crony čtou portfolio JSON přes ASSETS
-binding a ceny přímo, žádné HTTP přes vlastní doménu). **TODO (Lukáš, CF Dashboard):**
-1. Workers & Pages → `akcie-tracker` → Settings → **Domains & Routes** → u workers.dev
-   **Enable Cloudflare Access** → politika Allow e-mail `lukas.pleskot@chrudim.cz`.
-2. Ověřit: anonymní curl na `/` i `/data/...` → 302/403; přihlášení e-mail kódem projde.
-3. Pozn.: manuální `/run/*` endpointy jsou pak také za Accessem — pro curl je potřeba
-   Access service token, nebo prostě počkat na cron.
+**Přístup:** ✅ **Cloudflare Access AKTIVNÍ od 2026-07-25** (uzavírá R1 z revize
+2026-07-22). Zapnuto na workers.dev (Worker → Settings → Domains & Routes →
+Enable Cloudflare Access), politika Allow e-mail `lukas.pleskot@chrudim.cz`.
+Ověřeno anonymním curl: `/`, `/data/*`, `/api/*` i `/run/*` → 302 na
+`lpleskot.cloudflareaccess.com`. Crony běží Accessem nedotčené (žádné HTTP přes
+vlastní doménu — ASSETS binding). Manuální `/run/*` přes curl vyžaduje Access
+**service token** (Zero Trust → Service Auth) NAVÍC k `x-admin-key` — nebo
+prostě počkat na ranní cron. Druhá vrstva ochrany: `noindex` + `robots.txt`.
 
 **Repo:** `lpleskot/akcie-tracker` (private, GitHub). **Git root je subfolder `web/`**,
 ne kořen projektu — `workers/`, `.github/`, `scripts/` musí být **uvnitř** `web/`,
@@ -266,8 +265,6 @@ web/                                    ← repo root = asset složka Workeru
 
 ## Co ještě není (budoucí iterace)
 
-- ⚠️ **Zapnout Cloudflare Access** na workers.dev (jedním klikem, bez service tokenu)
-  — viz sekce Přístup a `REVIZE_REPORT.md` R1. Priorita č. 1.
 - Unit testy FIFO enginu (`node --test`, fixtures z validovaných dat) — REVIZE R9.
 - Upload form pro nové broker exporty (zatím import přes Cowork chat — Lukáš nahraje PDF/CSV, Claude parsuje).
 - Q3 2026+ inkrementální import KB.

@@ -8,7 +8,7 @@
 
 | # | Oblast | Zjištění | Místo | Závažnost | Pracnost | Doporučení | Stav |
 |---|---|---|---|---|---|---|---|
-| R1 | Bezpečnost | Celá aplikace veřejná bez autentizace — CLAUDE.md tvrdil CF Access (403), realita: 200 anonymně vč. portfolio JSON a zapisovatelných API | Pages projekt (infra) | 🔴 | M | Zapnout CF Access + service token pro cron worker | **kód připraven — čeká na Lukáše (CF Dashboard)** |
+| R1 | Bezpečnost | Celá aplikace veřejná bez autentizace — CLAUDE.md tvrdil CF Access (403), realita: 200 anonymně vč. portfolio JSON a zapisovatelných API | Pages projekt (infra) | 🔴 | M | Zapnout CF Access + service token pro cron worker | **opraveno 2026-07-25** — Access na workers.dev (po migraci na 1 Worker bez service tokenu), anonymní curl → 302 |
 | R2 | Bezpečnost | Veřejné trigger endpointy `/run` na obou workerech | oba workery | 🔴 | S | `x-admin-key` gate, default zavřeno | **opraveno** |
 | R3 | Data / crony | Overlay se ukládal jen když přibyly transakce — NAV snapshoty z klidných dnů se nenávratně zahazovaly (Flex okno ~7 dní) | flex-import | 🔴 | S | Počítat `newNavDays` do save podmínky | **opraveno** |
 | R4 | Data / crony | fx-update: selhání jednoho dne = trvalá díra v kurzech (další běh startuje od max data) | scripts/fx-update.mjs | 🟡 | S | Fail-fast + exit 1 | **opraveno** |
@@ -51,6 +51,11 @@ Zero Trust → Access → aplikace + e-mail politika → service token → secre
 ověřit anonymní curl (302/403) a druhý den průchod cronu.
 Pozn.: data byla po nějakou dobu veřejná na uhodnutelné URL — riziko vyhodnoť
 (jde o transakce a číslo účtu, ne přístupové údaje).
+
+**Uzavřeno 2026-07-25:** po migraci na jeden Worker (viz CLAUDE.md) zapnut
+Access jedním klikem na workers.dev — service token pro crony už nebyl potřeba
+(joby nejdou přes HTTP na vlastní doménu). Ověřeno anonymním curl: web,
+portfolio JSON, všechna API i /run/* vrací 302 na lpleskot.cloudflareaccess.com.
 
 ### R2 — `/run` endpointy — opraveno
 
