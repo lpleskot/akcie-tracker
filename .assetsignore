@@ -1,0 +1,12 @@
+# Co se NEuploaduje jako statický asset webu (syntaxe jako .gitignore).
+# Dřív na Pages bylo veřejně dostupné všechno v repu (vč. *.md a zdrojáků
+# workerů, jen zakryté přes _redirects) — teď se to na CDN vůbec nedostane.
+worker/
+scripts/
+.github/
+*.md
+wrangler.toml
+.assetsignore
+.gitignore
+.wrangler/
+.DS_Store

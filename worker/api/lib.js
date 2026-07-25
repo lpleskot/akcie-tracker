@@ -1,12 +1,11 @@
 /**
- * Sdílené helpery pro Pages Functions (/api/*).
+ * Sdílené helpery API vrstvy — Yahoo fetch + JSON response.
  *
- * Soubor neexportuje žádný onRequest* handler, takže není routovaný jako
- * endpoint — požadavek na /api/_lib propadne na statický 404.
- *
- * fetchYahooQuote je JEDINÁ implementace Yahoo fetche (dřív měl quote.js
- * a watchlist.js každý svou kopii a watchlist neuměl minor units —
- * londýnské tituly v pencích, viz REVIZE_REPORT.md R5).
+ * fetchYahooQuote je JEDINÁ implementace Yahoo fetche — používá ji
+ * /api/quote, /api/watchlist (validace při add) i cron job alerts
+ * (worker/jobs/alerts.js). Dřív měl quote.js a watchlist.js každý svou
+ * kopii a watchlist neuměl minor units — londýnské tituly v pencích,
+ * viz REVIZE_REPORT.md R5.
  */
 
 export const YAHOO_UA =

@@ -1,0 +1,40 @@
+# akcie-tracker — jednotný Worker: statické assety (web) + /api/* + oba crony.
+# Deploy: GH Action .github/workflows/deploy.yml (wrangler deploy) při každém
+# pushi do main. Lokální vývoj: npx wrangler dev (viz README).
+
+name = "akcie-tracker"
+main = "worker/index.js"
+compatibility_date = "2026-05-01"
+
+# Celý repo root je zároveň asset složka — co NEservírovat určuje .assetsignore
+# (worker/, scripts/, .github/, *.md, …). _headers čte platforma automaticky.
+[assets]
+directory = "."
+binding = "ASSETS"
+not_found_handling = "404-page"
+
+# Crony jedou jen v UTC. Flex import má cíl 07:00 Prahy celoročně → dvojice
+# triggerů (5:00 UTC = 7:00 CEST léto, 6:00 UTC = 7:00 CET zima); scheduled
+# handler pustí jen ten, kterému v Praze právě je 7 hodin. Alerts 15:00 UTC
+# = cca 1 h po otevření US burz. Pozn.: free plán = max 3 triggery na worker.
+[triggers]
+crons = ["0 5 * * *", "0 6 * * *", "0 15 * * *"]
+
+# Sdílená KV namespace (watchlist, alerts, notes, journal, portfolio-overlay:*, fired:*)
+[[kv_namespaces]]
+binding = "AKCIE_TRACKER_KV"
+id = "6d78ccbecdc64d7e9798f1ed39fca35d"
+
+[vars]
+PORTFOLIO_ID = "plegi-invest-ibkr"
+FLEX_QUERY_ID = "1514926"
+# DRY_RUN = "true" → flex-import parsuje a loguje, ale nezapíše do KV.
+DRY_RUN = "false"
+
+# Secrets — nastavit v CF dashboardu (Worker → Settings → Variables and Secrets)
+# nebo přes `wrangler secret put <NÁZEV>`:
+#   FLEX_TOKEN — token z IBKR Flex Web Service Configuration (povinné)
+#   ADMIN_KEY  — ochrana manuálních /run/* endpointů (bez něj zavřeno)
+# Žádné notifikace — e-maily (Resend) odstraněny 2026-07-23; selhání jobů je
+# vidět v CF lozích, fired alerty v tabu Alerty. Access service token není
+# potřeba — joby čtou portfolio JSON přes ASSETS binding a ceny přímo.

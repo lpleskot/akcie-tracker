@@ -10,17 +10,17 @@
  * pohledy — jeden ticker = jedna note.
  */
 
-import { jsonResponse as json } from "./_lib.js";
+import { jsonResponse as json } from "./lib.js";
 
 const KV_KEY = "notes";
 const MAX_LEN = 800; // pohodlné limit; ~120 slov stačí na popis firmy
 
-export async function onRequestGet({ env }) {
+export async function get(request, env) {
   const notes = (await env.AKCIE_TRACKER_KV.get(KV_KEY, "json")) || {};
   return json({ notes });
 }
 
-export async function onRequestPost({ env, request }) {
+export async function post(request, env) {
   let body;
   try {
     body = await request.json();

@@ -9,18 +9,18 @@
  * KV klíč: "watchlist" → JSON { items: [...] }
  */
 
-import { fetchYahooQuote, jsonResponse as json } from "./_lib.js";
+import { fetchYahooQuote, jsonResponse as json } from "./lib.js";
 
 const KV_KEY = "watchlist";
 
-export async function onRequestGet({ env }) {
+export async function get(request, env) {
   const data = (await env.AKCIE_TRACKER_KV.get(KV_KEY, "json")) || {
     items: [],
   };
   return json(data);
 }
 
-export async function onRequestPost({ env, request }) {
+export async function post(request, env) {
   let body;
   try {
     body = await request.json();
@@ -147,7 +147,7 @@ async function handleUpdate(env, data, body) {
   return json({ ok: true, item });
 }
 
-// Yahoo fetch je sdílený z _lib.js — na rozdíl od dřívější lokální kopie
+// Yahoo fetch je sdílený z lib.js — na rozdíl od dřívější lokální kopie
 // normalizuje minor units (GBp → GBP), takže londýnské tituly se ukládají
 // v librách, ne pencích, konzistentně s /api/quote.
 

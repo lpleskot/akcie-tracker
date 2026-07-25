@@ -4,17 +4,18 @@
  * Volá Yahoo Finance chart endpoint pro každý symbol paralelně,
  * vrací sjednocený JSON s aktuální cenou, předchozím zavřením, měnou a názvem.
  *
- * Yahoo fetch + minor-units normalizace žije v _lib.js (sdílené s watchlist).
+ * Yahoo fetch + minor-units normalizace žije v lib.js (sdílené s watchlist
+ * a cron jobem alerts).
  *
  * Cachuje na 60 s přes Cloudflare Cache API (sníží počet volání Yahoo
  * a zrychlí opakované načtení stránky). Chybové odpovědi se necachují.
  */
 
-import { fetchYahooQuote, jsonResponse } from "./_lib.js";
+import { fetchYahooQuote, jsonResponse } from "./lib.js";
 
 const CACHE_TTL_SECONDS = 60;
 
-export async function onRequestGet({ request }) {
+export async function get(request) {
   const url = new URL(request.url);
   const symbolsParam = url.searchParams.get("symbols");
 

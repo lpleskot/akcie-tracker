@@ -1,10 +1,11 @@
 /**
- * akcie-tracker-flex-import
- *
- * Cron worker — denně stahuje z IBKR Flex Web Service nové transakce
+ * Cron job flex-import — denně stahuje z IBKR Flex Web Service nové transakce
  * (Trades, CashTransactions, CorporateActions, Transfers, NAV snapshot,
  * Open Positions, M2M YTD) a ukládá je idempotentně do KV jako overlay
  * nad statický portfolio JSON.
+ *
+ * Vstupní body (worker/index.js): cron 07:00 Prahy (DST pár 5:00 + 6:00 UTC)
+ * a manuální GET /run/flex-import (x-admin-key).
  *
  * Flow:
  *   1) SendRequest(token, queryId)  →  ReferenceCode
@@ -16,8 +17,6 @@
  * DRY_RUN="true" → parsuje a loguje, ale neukládá. Pro bezpečné testování.
  */
 
-import { sendFailureEmail } from "../../_shared/notify.js";
-
 const FLEX_BASE = "https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService";
 const KV_OVERLAY_PREFIX = "portfolio-overlay:";
 // IBKR má WAF pravidla, která odmítají "bot-like" User-Agent z CF edge IP
@@ -26,52 +25,8 @@ const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-// Hodina v Evropě/Praze pro daný timestamp — Intl řeší přechod CET/CEST za nás.
-function pragueHour(ts) {
-  return Number(
-    new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/Prague",
-      hour: "2-digit",
-      hour12: false,
-    }).format(new Date(ts)),
-  );
-}
-
-export default {
-  async scheduled(event, env, ctx) {
-    // Cíl: běžet v 07:00 Prahy celoročně. Crony jedou jen v UTC, proto jsou
-    // v configu dva triggery (5:00 + 6:00 UTC) — spustí se jen ten, kterému
-    // v Praze právě je 7 hodin; DST dvojče tiše skončí.
-    if (pragueHour(event.scheduledTime) !== 7) {
-      console.log(`⏭️ Skip — trigger ${event.cron} není 7:00 v Praze (DST dvojče)`);
-      return;
-    }
-    ctx.waitUntil(runImport(env));
-  },
-
-  // Manuální HTTP trigger pro testing — vyžaduje secret ADMIN_KEY.
-  // Bez nastaveného ADMIN_KEY je endpoint zavřený (cron běží dál) —
-  // veřejný /run by komukoli dovolil pálit IBKR Flex rate limit.
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    if (url.pathname === "/run") {
-      if (!env.ADMIN_KEY || request.headers.get("x-admin-key") !== env.ADMIN_KEY) {
-        return new Response("Forbidden", { status: 403 });
-      }
-      const result = await runImport(env);
-      return new Response(JSON.stringify(result, null, 2), {
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-    return new Response(
-      "akcie-tracker-flex-import\n\nEndpoints:\n  GET /run — trigger import manuálně\n",
-      { headers: { "Content-Type": "text/plain" } },
-    );
-  },
-};
-
 // ---------- Main flow ----------
-async function runImport(env) {
+export async function runImport(env) {
   const dryRun = env.DRY_RUN === "true";
   console.log(`🚀 Flex import start — dry_run=${dryRun}, portfolio=${env.PORTFOLIO_ID}`);
 
@@ -121,9 +76,8 @@ async function runImport(env) {
   } catch (err) {
     console.error(`❌ Flex import selhal: ${err.message}`);
     console.error(err.stack);
-    // Selhání musí být vidět — jinak je jediným signálem chybějící overlay
-    // (posílá se jen pokud je nastaven RESEND_API_KEY + EMAIL_FROM/TO)
-    await sendFailureEmail(env, "flex-import", err);
+    // Selhání je vidět v CF lozích; nepřímý signál v UI = žlutý banner
+    // "poslední import před X dny", když overlay zestárne (R7).
     return { ok: false, error: err.message };
   }
 }

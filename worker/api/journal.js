@@ -13,19 +13,19 @@
  * podle lokální časové zóny prohlížeče.
  */
 
-import { jsonResponse as json } from "./_lib.js";
+import { jsonResponse as json } from "./lib.js";
 
 const KV_KEY = "journal";
 const MAX_LEN = 10000; // pohodlné dlouhé zápisky
 
-export async function onRequestGet({ env }) {
+export async function get(request, env) {
   const data = (await env.AKCIE_TRACKER_KV.get(KV_KEY, "json")) || {
     entries: [],
   };
   return json(data);
 }
 
-export async function onRequestPost({ env, request }) {
+export async function post(request, env) {
   let body;
   try {
     body = await request.json();

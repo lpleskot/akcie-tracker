@@ -8,10 +8,14 @@
  *        body { action: "rearm",  id, symbol? } → smaže fired stav (pro celé pravidlo nebo per symbol)
  */
 
-import { jsonResponse as json } from "./_lib.js";
+import { jsonResponse as json } from "./lib.js";
 
 const KV_KEY = "alerts";
-const DEFAULT_RULES = [
+
+// Výchozí pravidlo, když v KV ještě nic není. Importuje ho i cron job
+// alerts (worker/jobs/alerts.js) — UI a cron musí ukazovat totéž,
+// dřív to byly dvě kopie, které se mohly rozejít.
+export const DEFAULT_RULES = [
   {
     id: "any-position-drop-20",
     type: "drop_from_buy_all",
@@ -22,7 +26,7 @@ const DEFAULT_RULES = [
   },
 ];
 
-export async function onRequestGet({ env }) {
+export async function get(request, env) {
   const data = (await env.AKCIE_TRACKER_KV.get(KV_KEY, "json")) || {
     rules: DEFAULT_RULES,
   };
@@ -39,7 +43,7 @@ export async function onRequestGet({ env }) {
   return json({ ...data, fired });
 }
 
-export async function onRequestPost({ env, request }) {
+export async function post(request, env) {
   let body;
   try {
     body = await request.json();

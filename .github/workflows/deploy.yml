@@ -1,0 +1,31 @@
+name: Deploy
+
+# Nasadí celý projekt (web + API + crony) jako jeden Worker `akcie-tracker`.
+# Spouští se:
+#   - při každém pushi do main (statické assety se uploadují inkrementálně,
+#     jde jen o změněné soubory — např. denní fx_rates.json),
+#   - ručně přes GitHub UI (workflow_dispatch),
+#   - řetězeně z fx-update-cron.yml (workflow_call) — commit vytvořený přes
+#     GITHUB_TOKEN totiž on:push workflows NEtriggeruje (GitHub anti-rekurze),
+#     bez řetězení by se nové kurzy nikdy nedostaly na web.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy akcie-tracker to Cloudflare Workers
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

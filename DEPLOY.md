@@ -1,93 +1,98 @@
 # DEPLOY.md — akcie-tracker
 
-## Cloudflare Pages — initial setup
+> Od 2026-07-23 běží projekt jako **jeden Cloudflare Worker `akcie-tracker`**
+> (statické assety + `/api/*` + oba crony). Dřívější setup (Pages projekt +
+> 2 samostatné workery) je zrušený — jednorázový přechod viz checklist dole.
 
-### 1) Vytvořit projekt
+## Jak deploy funguje
 
-1. `dash.cloudflare.com` → **Workers & Pages** → **Create application** → tab **Pages** → **Connect to Git**
-2. Vybrat GitHub účet `lpleskot` (případně autorizovat Cloudflare GitHub App)
-3. Repo: `akcie-tracker`
-4. Branch: `main`
+- **Push do `main`** → GH Action `deploy.yml` → `wrangler deploy` (podle root
+  `wrangler.toml`). Statické assety se uploadují inkrementálně (jen změněné).
+- **Denní ČNB kurzy** — `fx-update-cron.yml` (14:35 UTC) commitne
+  `data/fx_rates.json` a **řetězeně zavolá deploy** (`workflow_call`). Pozor:
+  push přes `GITHUB_TOKEN` netriggeruje `on: push` workflows, proto to řetězení.
+- **Ruční deploy** — GitHub → Actions → Deploy → Run workflow.
 
-### 2) Build settings
+**GitHub repo secrets:** `CLOUDFLARE_API_TOKEN` (Workers Scripts Edit),
+`CLOUDFLARE_ACCOUNT_ID`.
 
-| Pole | Hodnota |
+**Worker secrets** (CF Dashboard → Workers & Pages → `akcie-tracker` →
+Settings → Variables and Secrets, nebo `npx wrangler secret put <NÁZEV>`):
+
+| Secret | K čemu |
 | --- | --- |
-| Framework preset | **None** |
-| Build command | *(prázdné)* |
-| Build output directory | `/` |
-| Root directory | *(prázdné)* |
-| Environment variables | *(žádné)* |
+| `FLEX_TOKEN` | IBKR Flex Web Service token (denní import) |
+| `ADMIN_KEY` | ochrana manuálních `/run/*` endpointů (bez něj zavřeno = 403) |
 
-Po prvním deployi dostane projekt URL ve tvaru `akcie-tracker-XYZ.pages.dev`
-nebo `akcie-tracker.pages.dev`.
+Žádné e-mailové notifikace — Resend byl odstraněn (2026-07-23). Fired alerty
+jsou vidět v tabu Alerty, selhání jobů v CF lozích (Worker → Observability).
 
-### 3) Ověření base funkčnosti
+Cron triggery a vars (`PORTFOLIO_ID`, `FLEX_QUERY_ID`, `DRY_RUN`) jsou
+v `wrangler.toml` — deployují se automaticky.
 
-Po `https://akcie-tracker.pages.dev` zkontrolovat:
+## Ověření po deployi
 
-- `/` — načte se index.html (zatím bez Access ochrany)
-- `/api/quote?symbols=AAPL` — vrátí JSON s aktuální cenou Applu
-- `/data/portfolios/plegi-invest-ibkr.json` — vrátí JSON s transakcemi
-- Otevřít DevTools → Network → ověřit, že `/api/quote?symbols=...` vrací 200
-  a všech 23 cen je naplněno
+- `https://akcie-tracker.lukas-pleskot.workers.dev/` — načte se aplikace, pozice spočítané
+- `/api/quote?symbols=AAPL` — JSON s aktuální cenou
+- `/api/portfolio-overlay/plegi-invest-ibkr` — JSON overlay (data z KV)
+- `/run/alerts` bez klíče → 403; s `x-admin-key: <ADMIN_KEY>` a `?dry=1` → JSON triggerů
+- `/CLAUDE.md`, `/worker/index.js` → 404 (`.assetsignore` funguje)
+- Ráno po 7:00: v logu Workeru (Observability → Logs) běh importu v 5:00 UTC
+  (léto) a skip v 6:00 UTC; v 15:00 UTC běh alertů
 
 ## Cloudflare Access — zabezpečit přístup
 
-### 4) Vytvořit Access aplikaci
+Po migraci stačí toggle na Workeru (žádný service token — crony nejdou přes HTTP):
 
-1. `dash.cloudflare.com` → **Zero Trust** → **Access** → **Applications** → **Add an application**
-2. **Self-hosted**
-3. **Application name:** `Akcie tracker`
-4. **Session duration:** `1 month`
-5. **Application domain:**
-   - Subdomain: `akcie-tracker` (nebo skutečný subdoména z pages.dev URL)
-   - Domain: `pages.dev`
-   - Path: *(prázdné = celá doména)*
+1. CF Dashboard → Workers & Pages → `akcie-tracker` → **Settings → Domains & Routes**
+2. U `workers.dev` → **Enable Cloudflare Access**
+3. **Manage Cloudflare Access** → policy: Allow → Emails → `lukas.pleskot@chrudim.cz`
+4. Ověřit: anonymní okno → přihlašovací stránka; `curl -I https://akcie-tracker.lukas-pleskot.workers.dev/` → 302/403
 
-### 5) Policy
+Pozn.: `/run/*` endpointy jsou pak také za Accessem — pro curl je potřeba Access
+service token (Zero Trust → Access → Service Auth) NAVÍC k `x-admin-key`,
+nebo prostě počkat na cron.
 
-Po nastavení aplikace přidat policy:
+## Jednorázový přechod z Pages (checklist migrace)
 
-- **Policy name:** `Pouze já`
-- **Action:** `Allow`
-- **Configure rules:**
-  - **Include:** Selector `Emails` → hodnota `lukas.pleskot@chrudim.cz`
-
-Klik **Save**. Od této chvíle je `akcie-tracker.pages.dev` chráněn — komukoli
-mimo Lukáše se zobrazí přihlašovací stránka Cloudflare a žádost o ověření
-e-mailem (jednorázový kód do mailu).
-
-### 6) Ověření Access
-
-1. Otevřít `akcie-tracker.pages.dev` v anonymním okně
-2. Měla by se zobrazit Cloudflare Access stránka „Sign in with…"
-3. Po zadání e-mailu přijde do schránky kód, který se zadá zpět
-4. Po úspěšném ověření má uživatel přístup po dobu session (1 měsíc)
+1. ✅ Push migračního commitu → Action **Deploy** vytvoří Worker `akcie-tracker`.
+   (Kdyby deploy spadl na kolizi jména s Pages projektem: smazat Pages projekt
+   `akcie-tracker` — krok 4 — a Deploy spustit ručně znovu.)
+2. Nastavit **Worker secrets** (tabulka výše — stejné hodnoty jako dřív).
+3. Ověřit web + API na `akcie-tracker.lukas-pleskot.workers.dev` (checklist výše).
+4. **Smazat staré Workery** `akcie-tracker-cron` a `akcie-tracker-flex-import`
+   (Workers & Pages → worker → Settings → Delete). Jinak poběží crony dvakrát —
+   a staré workery mají pořád Resend kód + secrets, takže by dál posílaly e-maily.
+5. **Smazat Pages projekt** `akcie-tracker` (jeho deploy od teď stejně selhává —
+   root `wrangler.toml` není Pages config). Tím zanikne `akcie-tracker.pages.dev`
+   → aktualizovat záložku na workers.dev URL.
+6. **Zapnout Access** (sekce výše) — priorita č. 1 (R1).
 
 ## Future custom domain
 
-Až bude potřeba vlastní doména (např. `akcie.pleskot.cz`):
+Až bude potřeba vlastní doména (`akcie.plegiholding.cz`):
 
-1. CF Pages → projekt → **Custom domains** → **Set up a custom domain**
-2. Zadat `akcie.pleskot.cz`, potvrdit CNAME / nameservery podle instrukcí
-3. V Access aplikaci změnit doménu z `pages.dev` na novou
-4. Po pár minutách propagace funguje custom doména s Access
+1. Worker → **Settings → Domains & Routes → Add → Custom domain** → `akcie.plegiholding.cz`
+2. V Zero Trust → Access přidat/přesměrovat aplikaci na novou doménu
 
 ## Co dělat při problémech
 
 **`/api/quote` vrací 500 nebo prázdné výsledky:**
-- Yahoo občas zablokuje request bez správného User-Agent → ověřit, že
-  CF Function má User-Agent header (je v `functions/api/quote.js`)
-- Konkrétní symbol může selhat sám — error je v response per symbol,
-  ostatní fungují dál
+- Yahoo občas zablokuje request bez správného User-Agent → je v `worker/api/lib.js`
+- Konkrétní symbol může selhat sám — error je v response per symbol, ostatní fungují
 
-**Stránka po deploy zobrazuje cached starou verzi:**
-- Hard reload (Cmd+Shift+R)
-- Cache pravidla v `_headers` mají pro `/data/` `no-cache`, pro `/assets/`
-  `max-age=3600`
+**Flex import selhává (log ve Worker → Observability):**
+- IBKR WAF občas vrací 530 — job má retry; opakované selhání = zkontrolovat
+  platnost `FLEX_TOKEN` (expiruje ~1× ročně v IBKR Client Portal)
+
+**Stránka po deployi zobrazuje starou verzi:**
+- Hard reload (Cmd+Shift+R); `/data/*` má `no-cache`, `/assets/*` revalidaci
+  (viz `_headers`)
 
 **Access nechce přijít e-mail s kódem:**
-- Zkontrolovat spam složku
-- Ověřit, že v Zero Trust → Settings → Authentication je povolen
+- Zkontrolovat spam; Zero Trust → Settings → Authentication → povolen
   "One-time PIN" provider
+
+**Lokální `wrangler dev` spadne na compatibility date:**
+- Lokální workerd může být starší než `compatibility_date` ve `wrangler.toml`
+  → aktualizovat wrangler (`npx wrangler@latest dev`), případně datum dočasně snížit
