@@ -231,6 +231,15 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ---
 
+## Testy
+
+`tests/{fifo,flex-shared}.test.mjs` — 21 unit testů (`node --test tests/*.test.mjs`),
+ručně spočítané fixtures: FIFO matching + prorace komise, proceeds-authoritative ceny,
+splity (vč. same-day pořadí a 1:25), KB received/removed párování + bonus/cancellation,
+orphan sells, settle data v closed lots, dividendy, Flex transformace (vč. settle_date).
+CI: `.github/workflows/tests.yml` při každém pushi (neblokuje deploy — červený běh
+= signál). Uzavírá REVIZE R9 (2026-07-25).
+
 ## FIFO engine (`assets/js/fifo.js`)
 
 `computePositions(transactions, corporateActions, dividends, withholdingTax)` → mapa
@@ -261,7 +270,8 @@ web/                                    ← repo root = asset složka Workeru
 ├── .assetsignore                       ← co se neservíruje (worker/, *.md, …)
 ├── data/portfolios/{manifest,plegi-invest-ibkr,plegi-invest-kb}.json
 ├── data/portfolio-history-plegi-invest-ibkr.json, data/fx_rates.json
-├── .github/workflows/fx-update-cron.yml    ← jediný GH workflow (ČNB kurzy)
+├── tests/{fifo,flex-shared}.test.mjs   ← unit testy (node --test, R9)
+├── .github/workflows/{fx-update-cron,tests}.yml
 ├── scripts/fx-update.mjs
 ├── _headers                            ← CSP, HSTS, cache
 ├── REVIZE_REPORT.md                    ← zjištění a stav revizí kódu
@@ -274,10 +284,8 @@ web/                                    ← repo root = asset složka Workeru
 
 ## Co ještě není (budoucí iterace)
 
-- Unit testy FIFO enginu (`node --test`, fixtures z validovaných dat) — REVIZE R9.
 - Upload form pro nové broker exporty (zatím import přes Cowork chat — Lukáš nahraje PDF/CSV, Claude parsuje).
 - Q3 2026+ inkrementální import KB.
-- PDF export reportu pro účetní (zatím jen XLSX).
 - Notifikace alertů (e-mail/Telegram) — Resend odstraněn 2026-07-23 (nevyužíval se),
   alerty se zatím jen zapisují jako fired a zobrazují v UI.
 - Custom doména `akcie.plegiholding.cz` (zatím `*.workers.dev`).

@@ -1336,3 +1336,42 @@ footer.app-footer {
     padding: 7px 8px;
   }
 }
+
+/* ---------- Tisk / PDF export Reportu (btn-print-report → window.print) ---------- */
+@media print {
+  body {
+    background: #fff;
+    color: #000;
+  }
+  .app-header,
+  .summary,
+  .toolbar,
+  .filter-bar,
+  .report-intro,
+  #warnings,
+  #status,
+  .app-footer {
+    display: none !important;
+  }
+  /* Jen aktivní tab (tisk se používá z Reportu, ale funguje obecně) */
+  .view {
+    display: none !important;
+  }
+  .view.active {
+    display: block !important;
+  }
+  /* Karty prodejů nelámat přes stránky, tabulky bez scrollbarů */
+  .report-event {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    border: 1px solid #ccc;
+    margin-bottom: 12px;
+  }
+  .table-wrap {
+    overflow: visible !important;
+  }
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+}

@@ -476,6 +476,9 @@ function setupTabs() {
     // "Export pro účetní" jen na Transakce
     const accBtn = document.getElementById("btn-export-accounting");
     if (accBtn) accBtn.hidden = view !== "transactions";
+    // "Tisk / PDF" jen na Reportu — tiskový styl schová vše kromě aktivního tabu
+    const printBtn = document.getElementById("btn-print-report");
+    if (printBtn) printBtn.hidden = view !== "report";
   };
   document.querySelectorAll(".tab").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -503,6 +506,11 @@ function setupRefresh() {
   });
   document.getElementById("btn-export-accounting")?.addEventListener("click", () => {
     exportTransactionsAccountingXlsx();
+  });
+  // PDF export reportu = tisk do PDF (print styl v styles.css schová chrome
+  // aplikace; titulek stránky nese jméno portfolia → objeví se v hlavičce PDF)
+  document.getElementById("btn-print-report")?.addEventListener("click", () => {
+    window.print();
   });
 }
 

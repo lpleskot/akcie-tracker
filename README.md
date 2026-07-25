@@ -54,6 +54,7 @@ Privátní portfolio tracker pro PLEGI invest přes Interactive Brokers a Komer�
 - Per realizovaný prodej v daném roce: FIFO matching nákupních lotů + přepočet na CZK
   kurzem ČNB k datu **vypořádání**
 - Grand total v CZK (nákup / prodej / zisk-ztráta) — podklad pro daňové přiznání
+- XLSX export (barevné řádky, kurz s datem platnosti) + **Tisk / PDF** (tiskový styl)
 
 ### Hodnota portfolia
 - NAV time-series (SVG chart) s deposit markery, dlaždice Celkem vloženo /
@@ -99,6 +100,16 @@ Vrací mapu `symbol → { net_qty, cost_basis, avg_open_price, realized_pnl, tot
 Corporate actions:
 - `type: "split"` (klasický IBKR formát s ratio_from + ratio_to)
 - `type: "received_share"` / `"removed_share"` (KB formát) — preprocessing páruje v okně 30 dnů na stejném `isin_underlying` → auto-detect split, unpaired received = bonus shares, unpaired removed = cancellation
+
+## Testy
+
+```sh
+cd web/
+node --test tests/*.test.mjs
+```
+
+21 unit testů FIFO enginu a Flex transformací (ručně spočítané fixtures).
+Běží i v CI při každém pushi (`.github/workflows/tests.yml`).
 
 ## Lokální vývoj
 

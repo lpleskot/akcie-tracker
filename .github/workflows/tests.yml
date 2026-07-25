@@ -1,0 +1,25 @@
+name: Tests
+
+# Unit testy FIFO enginu a Flex transformací (REVIZE_REPORT.md R9).
+# Neblokují deploy (Workers Builds jede nezávisle) — červený běh je signál,
+# že sdílená výpočetní logika nedělá to, co má.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run unit tests
+        run: node --test tests/*.test.mjs

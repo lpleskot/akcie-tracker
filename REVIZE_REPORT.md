@@ -16,7 +16,7 @@
 | R6 | Duplicity / logika | cron-alerts měl vlastní zjednodušený FIFO a neviděl KV overlay — nehlídal nové Flex pozice, hlídal prodané | cron-alerts | 🟡 | M | Overlay z KV + sdílený `fifo.js` + `flex-shared.js` | **opraveno** |
 | R7 | Robustnost / UX | Tichá degradace: výpadek overlay/NAV jen v console.warn, UI bez indikace | app.js | 🟡 | S | `#warnings` banner + detekce zastaralého importu (>4 dny) | **opraveno + ověřeno v prohlížeči** |
 | R8 | Observabilita | Selhání cronů nikdo neuvidí | workery + fx-update | 🟡 | M | Failure e-maily (Resend) + exit 1 u GH Action | **opraveno** (flex-import maily po přidání `RESEND_API_KEY`) |
-| R9 | Testy | FIFO engine bez automatických testů | fifo.js | 🟡 | M | `node --test` + fixtures z validovaných dat | **odloženo** — samostatná dávka, viz CLAUDE.md „Co ještě není"; do té doby kryto smoke testem z 2026-07-22 |
+| R9 | Testy | FIFO engine bez automatických testů | fifo.js | 🟡 | M | `node --test` + fixtures z validovaných dat | **opraveno 2026-07-25** — 21 testů `tests/*.test.mjs` (FIFO, splity, KB CA, settle data, Flex transformace) + CI workflow `tests.yml` |
 | R10 | Repo | `.wrangler/cache` v gitu, flex-import bez `.gitignore` | repo | 🟡 | S | Gitignores + smazat cache | **opraveno** (commit smaže z repa) |
 | R11 | Konzistence | Hypotéza: nekonzistentní escapeHtml (17× vs. 46 innerHTML) | app.js | 🟢 | S | — | **zamítnuto po ověření** — hloubkový audit: všechny externí stringy (názvy, poznámky, deník, popisy) escapované jsou; poměr byl falešný signál (zbytek = interní symboly/čísla/textContent) |
 | R12 | Chybové stavy | `Object.assign(rule, patch)` bez validace — patch mohl přepsat `id`/`type` | alerts.js | 🟢 | S | Whitelist `armed`/`threshold_pct`/`description` | **opraveno** |
