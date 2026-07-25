@@ -77,9 +77,11 @@ jinak se nedostanou do repa.
   (wrangler/esbuild je při deployi zabalí); `worker/api/lib.js` = Yahoo fetch
   (minor units!) + JSON helper — používá ho API vrstva i job alerts. Jeden Worker
   = vše se deployuje najednou, žádné path-based redeploye.
-- **Vendorovaný SheetJS** `assets/js/vendor/xlsx.mini.min.js` — verze **0.20.3**
-  (zjištěno z bundle při revizi 2026-07-22). Je mimo npm audit — verzi a CVE kontrolovat
-  ručně při revizi (zdroj: cdn.sheetjs.com).
+- **Vendorovaný XLSX** `assets/js/vendor/xlsx-js-style.min.js` — **xlsx-js-style 1.2.0**
+  (fork SheetJS 0.18.5 se zápisem stylů buněk; nahradil SheetJS mini 0.20.3 dne
+  2026-07-25 kvůli barvám v exportu Reportu). Používáme JEN zápis — čtecí CVE SheetJS
+  (prototype pollution / ReDoS při parsování cizích sešitů) se nás netýkají, žádné
+  soubory nečteme. Mimo npm audit — kontrolovat ručně při revizi (zdroj: npm xlsx-js-style).
 
 ### Yahoo ticker mapování
 - Manuální mapa v `instruments[<sym>].yahoo_symbol`. US tituly bez přípony, ostatní
@@ -249,7 +251,7 @@ Cost basis prorataována o proporcionální komisi.
 ```
 web/                                    ← repo root = asset složka Workeru
 ├── index.html                          ← 9 tabů, modaly, #warnings banner
-├── assets/js/{app.js, fifo.js, flex-shared.js, vendor/xlsx.mini.min.js}
+├── assets/js/{app.js, fifo.js, flex-shared.js, vendor/xlsx-js-style.min.js}
 │                                       ← fifo+flex-shared sdílené s cron jobem alerts
 ├── assets/css/styles.css
 ├── worker/index.js                     ← entry: /api/* router + scheduled dispatch

@@ -2126,6 +2126,13 @@ function getFxToCzk(date, currency, opts) {
   return r.rate / r.amount;
 }
 
+// Datum, ke kterému použitý kurz skutečně platí (valid_for). O víkendu/svátku
+// nese záznam poslední vyhlášený kurz — valid_for pak ukazuje den vyhlášení,
+// což je přesně ta jistota, kterou účetní potřebuje vidět vedle kurzu.
+function getFxValidFor(date) {
+  return state.fxRates?.dates?.[date]?.valid_for || null;
+}
+
 // ---------- Overview ----------
 function setupOverviewSearch() {
   setupSearchInput(
@@ -3903,10 +3910,13 @@ function exportReportXlsx() {
   const aoa = [
     [
       "Symbol", "Název", "Měna", "Typ", "Datum vypořádání", "Datum obchodu", "Kusů",
-      "Cena celkem (orig.)", "Kurz ČNB", "Cena celkem v Kč",
+      "Cena celkem (orig.)", "Kurz ČNB", "Kurz ze dne", "Cena celkem v Kč",
     ],
   ];
+  // Paralelně s aoa evidujeme druh řádku kvůli stylům (barvy nákup/prodej)
+  const rowKinds = ["header"];
   let grandCost = 0, grandSell = 0;
+  let anyMissingFx = false;
   for (const ev of events) {
     // Slučit nákupy stejných dat
     const byDate = new Map();
@@ -3918,40 +3928,86 @@ function exportReportXlsx() {
     }
     const buys = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
     let costCzk = 0;
+    let allFxFound = true;
     for (const b of buys) {
       const fx = getFxToCzk(b.date, ev.currency);
       const czk = fx != null ? b.total * fx : null;
       if (czk != null) costCzk += czk;
+      else allFxFound = false;
       aoa.push([
         ev.symbol, ev.name, ev.currency, "Nákup",
-        b.date, b.trade_date, b.qty, b.total, fx, czk,
+        b.date, b.trade_date, b.qty, b.total,
+        fx ?? "chybí kurz", fx != null ? getFxValidFor(b.date) : "", czk ?? "",
       ]);
+      rowKinds.push("buy");
     }
     const sellFx = getFxToCzk(ev.sell_date, ev.currency);
     const sellCzk = sellFx != null ? ev.sell_net_total * sellFx : null;
+    if (sellFx == null) allFxFound = false;
     aoa.push([
       ev.symbol, ev.name, ev.currency, "Prodej",
-      ev.sell_date, ev.sell_trade_date, ev.sell_qty, ev.sell_net_total, sellFx, sellCzk,
+      ev.sell_date, ev.sell_trade_date, ev.sell_qty, ev.sell_net_total,
+      sellFx ?? "chybí kurz", sellFx != null ? getFxValidFor(ev.sell_date) : "", sellCzk ?? "",
     ]);
+    rowKinds.push("sell");
+    // Zisk jen při kompletních kurzech — jinak by chybějící strana dělala
+    // ze ztráty zisk (stejná ochrana jako na obrazovce Reportu)
     aoa.push([
       ev.symbol, ev.name, ev.currency, "── Sumář",
       "", "", "", "",
-      `Nákup: ${fmtNum(costCzk, 2)} CZK · Zisk: ${fmtNum((sellCzk ?? 0) - costCzk, 2)} CZK`,
-      (sellCzk ?? 0) - costCzk,
+      allFxFound
+        ? `Nákup: ${fmtNum(costCzk, 2)} CZK · Zisk: ${fmtNum(sellCzk - costCzk, 2)} CZK`
+        : "⚠️ chybí kurz — nezapočteno do součtů",
+      "",
+      allFxFound ? sellCzk - costCzk : "",
     ]);
+    rowKinds.push("sum");
     aoa.push([]); // prázdný řádek mezi prodejními bloky
-    grandCost += costCzk;
-    grandSell += sellCzk ?? 0;
+    rowKinds.push(null);
+    if (allFxFound) {
+      grandCost += costCzk;
+      grandSell += sellCzk;
+    } else {
+      anyMissingFx = true;
+    }
   }
   if (events.length > 0) {
     aoa.push([]);
-    aoa.push(["GRAND TOTAL", "", "", "", "", "", "", "Nákup CZK", grandCost, ""]);
-    aoa.push(["", "", "", "", "", "", "", "Prodej CZK", grandSell, ""]);
-    aoa.push(["", "", "", "", "", "", "", "Zisk/Ztráta CZK", grandSell - grandCost, ""]);
+    rowKinds.push(null);
+    aoa.push(["GRAND TOTAL", "", "", "", "", "", "", "", "", "Nákup CZK", grandCost]);
+    rowKinds.push("sum");
+    aoa.push(["", "", "", "", "", "", "", "", "", "Prodej CZK", grandSell]);
+    rowKinds.push("sum");
+    aoa.push(["", "", "", "", "", "", "", "", "", "Zisk/Ztráta CZK", grandSell - grandCost]);
+    rowKinds.push("sum");
+    if (anyMissingFx) {
+      aoa.push(["⚠️ Některé kurzy ČNB chybí — prodeje s neúplnými kurzy nejsou v součtech. Doplňte dny do data/fx_rates.json."]);
+      rowKinds.push("sum");
+    }
   }
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(aoa);
+  // Obarvení řádků (xlsx-js-style): nákup zeleně, prodej červeně — klasická
+  // Excel paleta Good/Bad, na kterou je účetní zvyklá; hlavička a sumáře bold.
+  const ROW_STYLES = {
+    header: { font: { bold: true } },
+    buy: { fill: { patternType: "solid", fgColor: { rgb: "C6EFCE" } }, font: { color: { rgb: "006100" } } },
+    sell: { fill: { patternType: "solid", fgColor: { rgb: "FFC7CE" } }, font: { color: { rgb: "9C0006" } } },
+    sum: { font: { bold: true } },
+  };
+  aoa.forEach((row, r) => {
+    const style = ROW_STYLES[rowKinds[r]];
+    if (!style) return;
+    row.forEach((_, c) => {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (ws[ref]) ws[ref].s = style;
+    });
+  });
+  ws["!cols"] = [
+    { wch: 8 }, { wch: 28 }, { wch: 6 }, { wch: 10 }, { wch: 14 }, { wch: 13 },
+    { wch: 7 }, { wch: 16 }, { wch: 10 }, { wch: 12 }, { wch: 16 },
+  ];
   XLSX.utils.book_append_sheet(wb, ws, "Report");
   const fname = `${state.portfolio.id}-report-${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, fname);

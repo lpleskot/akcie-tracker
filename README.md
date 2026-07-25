@@ -128,7 +128,7 @@ web/                           ← repo root = asset složka Workeru
 │       ├── app.js             ← UI, fetch, render
 │       ├── fifo.js            ← FIFO engine (sdílený s cron jobem alerts)
 │       ├── flex-shared.js     ← Flex transformace (sdílené s cron jobem alerts)
-│       └── vendor/xlsx.mini.min.js  ← SheetJS pro XLSX export
+│       └── vendor/xlsx-js-style.min.js  ← XLSX export (SheetJS fork se styly)
 ├── worker/
 │   ├── index.js               ← entry: /api/* router + scheduled dispatch
 │   ├── api/                   ← lib (Yahoo+JSON), quote, watchlist, alerts,
