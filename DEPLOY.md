@@ -76,12 +76,14 @@ nebo prostě počkat na cron.
 7. ✅ **Access zapnut** (2026-07-25) — anonymní curl vrací 302 na
    `lpleskot.cloudflareaccess.com`, R1 z revize uzavřena. Migrace kompletní.
 
-## Future custom domain
+## Custom doména — záměrně NE (rozhodnuto 2026-07-25)
 
-Až bude potřeba vlastní doména (`akcie.plegiholding.cz`):
-
-1. Worker → **Settings → Domains & Routes → Add → Custom domain** → `akcie.plegiholding.cz`
-2. V Zero Trust → Access přidat/přesměrovat aplikaci na novou doménu
+Zůstáváme na workers.dev URL — interní použití, odkazuje se z dashboardu.
+`akcie.plegiholding.cz` nejde: custom domain vyžaduje zónu ve stejném CF účtu
+jako Worker a firemní zóna se stěhovat nebude (jiné projekty). Kdyby se to
+někdy měnilo: zóna do osobního účtu (nebo nová doména) → Worker → Domains &
+Routes → Add Custom domain → **nová self-hosted Access aplikace na tu doménu**
+(toggle chrání jen workers.dev) → `workers_dev = false`.
 
 ## Co dělat při problémech
 

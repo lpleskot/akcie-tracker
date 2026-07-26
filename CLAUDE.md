@@ -296,7 +296,6 @@ web/                                    ← repo root = asset složka Workeru
   a KB PDF vyžadují parsování s konvencemi, které formulář nezvládne.
 - Notifikace alertů (e-mail/Telegram) — Resend odstraněn 2026-07-23 (nevyužíval se),
   alerty se zatím jen zapisují jako fired a zobrazují v UI.
-- Custom doména `akcie.plegiholding.cz` (zatím `*.workers.dev`).
 - **CNE.TO (Canacol)**: až KB akcie formálně odepíše / CCAA restrukturalizace skončí,
   zanést zánik podle výpisu (cancellation, příp. SELL) — teprve tím se realizuje
   daňová ztráta. Do té doby drženo jako otevřená pozice s `delisted` flagem.
