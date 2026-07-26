@@ -291,8 +291,9 @@ web/                                    ← repo root = asset složka Workeru
 
 ## Co ještě není (budoucí iterace)
 
-- Upload form pro nové broker exporty (zatím import přes Cowork chat — Lukáš nahraje PDF/CSV, Claude parsuje).
-- Q3 2026+ inkrementální import KB.
+- Q3 2026+ inkrementální import KB — přes chat (Lukáš nahraje výpisy, Claude parsuje).
+  Upload form záměrně nebude (rozhodnuto 2026-07-25): IBKR jede automaticky Flexem
+  a KB PDF vyžadují parsování s konvencemi, které formulář nezvládne.
 - Notifikace alertů (e-mail/Telegram) — Resend odstraněn 2026-07-23 (nevyužíval se),
   alerty se zatím jen zapisují jako fired a zobrazují v UI.
 - Custom doména `akcie.plegiholding.cz` (zatím `*.workers.dev`).
