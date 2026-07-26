@@ -3360,7 +3360,31 @@ function renderReport() {
   let grandProfitCzk = 0;
   let anyMissingFx = false;
 
+  // Seskupit prodeje per symbol — každá akcie JEDNA karta, prodeje uvnitř
+  // chronologicky (každý se svými FIFO nákupy): nákupy → prodej → další
+  // nákupy → prodej. Karty řazené abecedně, mezisoučet za symbol dole.
+  const bySymbol = new Map();
   for (const ev of events) {
+    if (!bySymbol.has(ev.symbol)) bySymbol.set(ev.symbol, []);
+    bySymbol.get(ev.symbol).push(ev); // events už jsou chronologicky
+  }
+
+  for (const symKey of [...bySymbol.keys()].sort((a, b) => a.localeCompare(b, "cs"))) {
+  const symEvents = bySymbol.get(symKey);
+  const first = symEvents[0];
+  const singleSale = symEvents.length === 1;
+  let symbolProfitCzk = 0;
+  let symbolAllFx = true;
+  const saleInfo = (ev) =>
+    `Prodej vypořádán ${ev.sell_date}${ev.sell_trade_date && ev.sell_trade_date !== ev.sell_date ? ` (obchod ${ev.sell_trade_date})` : ""} · ${fmtNum(ev.sell_qty, 0)} ks @ ${fmtNum(ev.sell_price, 4)}`;
+  let html = `
+    <div class="report-event-header">
+      <span><strong>${first.symbol}</strong> — ${escapeHtml(first.name)} <span class="muted">· ${first.currency}</span></span>
+      <span class="muted">${singleSale ? saleInfo(first) : `${symEvents.length} prodej${symEvents.length < 5 ? "e" : "ů"} chronologicky`}</span>
+    </div>
+  `;
+
+  for (const ev of symEvents) {
     // Slučit duplicitní buy lots (stejné datum) — IBKR někdy dělí intra-day
     const buysByDate = new Map();
     for (const b of ev.buys) {
@@ -3393,21 +3417,22 @@ function renderReport() {
     // jinak tiše sečetl jako nula a ze ztráty udělal zisk (TTD 2026-07).
     const profitCzk = allFxFound ? sellCzk - costCzk : null;
 
-    if (!allFxFound) anyMissingFx = true;
+    if (!allFxFound) {
+      anyMissingFx = true;
+      symbolAllFx = false;
+    }
     if (allFxFound) {
       grandCostCzk += costCzk;
       grandSellCzk += sellCzk;
       grandProfitCzk += profitCzk;
+      symbolProfitCzk += profitCzk;
     }
 
-    // Build HTML
-    const card = document.createElement("div");
-    card.className = "report-event";
-    let html = `
-      <div class="report-event-header">
-        <span><strong>${ev.symbol}</strong> — ${escapeHtml(ev.name)} <span class="muted">· ${ev.currency}</span></span>
-        <span class="muted">Prodej vypořádán ${ev.sell_date}${ev.sell_trade_date && ev.sell_trade_date !== ev.sell_date ? ` (obchod ${ev.sell_trade_date})` : ""} · ${fmtNum(ev.sell_qty, 0)} ks @ ${fmtNum(ev.sell_price, 4)}</span>
-      </div>
+    // U více prodejů dostane každý blok popisek (u jediného je info v hlavičce)
+    if (!singleSale) {
+      html += `<div class="report-sale-caption">${saleInfo(ev)}</div>`;
+    }
+    html += `
       <table>
         <thead>
           <tr>
@@ -3463,8 +3488,18 @@ function renderReport() {
       </tbody>
       </table>
     `;
-    card.innerHTML = html;
-    container.appendChild(card);
+  }
+
+  if (!singleSale) {
+    html += `
+      <div class="report-symbol-total">Za ${first.symbol} celkem (${symEvents.length} prodej${symEvents.length < 5 ? "e" : "ů"}):
+        <strong class="${symbolAllFx ? signClass(symbolProfitCzk) : ""}">${symbolAllFx ? `${fmtNum(symbolProfitCzk, 2)} Kč` : "— (chybí kurz)"}</strong>
+      </div>`;
+  }
+  const card = document.createElement("div");
+  card.className = "report-event";
+  card.innerHTML = html;
+  container.appendChild(card);
   }
 
   // Souhrn pod kartami
@@ -3937,7 +3972,19 @@ function exportReportXlsx() {
   const rowKinds = ["header"];
   let grandCost = 0, grandSell = 0;
   let anyMissingFx = false;
+  // Stejné seskupení jako na obrazovce: bloky per symbol (abecedně),
+  // uvnitř prodeje chronologicky, mezisoučet za symbol
+  const bySymbol = new Map();
   for (const ev of events) {
+    if (!bySymbol.has(ev.symbol)) bySymbol.set(ev.symbol, []);
+    bySymbol.get(ev.symbol).push(ev);
+  }
+  for (const symKey of [...bySymbol.keys()].sort((a, b) => a.localeCompare(b, "cs"))) {
+  const symEvents = bySymbol.get(symKey);
+  const first = symEvents[0];
+  let symbolProfit = 0;
+  let symbolAllFx = true;
+  for (const ev of symEvents) {
     // Slučit nákupy stejných dat
     const byDate = new Map();
     for (const b of ev.buys) {
@@ -3982,14 +4029,26 @@ function exportReportXlsx() {
       allFxFound ? sellCzk - costCzk : "",
     ]);
     rowKinds.push("sum");
-    aoa.push([]); // prázdný řádek mezi prodejními bloky
-    rowKinds.push(null);
     if (allFxFound) {
       grandCost += costCzk;
       grandSell += sellCzk;
+      symbolProfit += sellCzk - costCzk;
     } else {
       anyMissingFx = true;
+      symbolAllFx = false;
     }
+  }
+  if (symEvents.length > 1) {
+    aoa.push([
+      first.symbol, first.name, first.currency,
+      `══ Za symbol celkem (${symEvents.length} prodeje/ů)`,
+      "", "", "", "", "", "",
+      symbolAllFx ? symbolProfit : "chybí kurz",
+    ]);
+    rowKinds.push("sum");
+  }
+  aoa.push([]); // prázdný řádek mezi symboly
+  rowKinds.push(null);
   }
   if (events.length > 0) {
     aoa.push([]);

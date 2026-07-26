@@ -206,7 +206,10 @@ flowchart TD
   dividendy/Total Return + Poznámka), sloupce vč. **Nereal. Z/Z** (jen otevřené loty)
   a **Celkem Z/Z** (real + nereal + dividendy).
 - **Transakce:** filter rok / custom date / search, **Export pro účetní** (CZK přepočet ČNB) jen tady.
-- **Report pro účetní:** per-sell breakdown FIFO matched buys, CZK přepočet dle vypořádání, XLSX export.
+- **Report pro účetní:** seskupený **per ticker** (abecedně, jedna karta na symbol) —
+  uvnitř prodeje chronologicky, každý se svými FIFO matched nákupy a ziskem, dole
+  mezisoučet za symbol (u více prodejů). CZK přepočet dle vypořádání, XLSX export
+  (stejné seskupení, barevné řádky, kurz s datem) + tisk/PDF.
 - **Hodnota portfolia:** NAV time-series (SVG chart), deposit markery, 3 emphasized globální
   dlaždice (Celkem vloženo / Aktuální hodnota / Rozdíl) + period dlaždice + tabulka per day.
 - **Deník investora:** KV-backed text deník, inline editace, search.
