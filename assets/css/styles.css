@@ -36,14 +36,18 @@ body {
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  /* Safari na landscape jinak sám zvětšuje text a rozhodí layout */
+  -webkit-text-size-adjust: 100%;
 }
 
 a {
   color: var(--color-accent);
   text-decoration: none;
 }
-a:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  a:hover {
+    text-decoration: underline;
+  }
 }
 
 /* ------- Layout ------- */
@@ -115,19 +119,23 @@ button,
   cursor: pointer;
   transition: all 0.12s ease;
 }
-button:hover,
-.btn:hover {
-  border-color: #c4c4be;
-  background: #fafaf8;
+/* Hover jen pro myš — na dotyku existence :hover pravidla způsobí, že první
+   ťuknutí jen "obarví" a akce se provede až podruhé (iOS Safari). */
+@media (hover: hover) {
+  button:hover,
+  .btn:hover {
+    border-color: #c4c4be;
+    background: #fafaf8;
+  }
+  button.primary:hover {
+    background: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
+  }
 }
 button.primary {
   background: var(--color-accent);
   color: #fff;
   border-color: var(--color-accent);
-}
-button.primary:hover {
-  background: var(--color-accent-hover);
-  border-color: var(--color-accent-hover);
 }
 
 .tabs {
@@ -304,9 +312,11 @@ button.primary:hover {
   font-family: inherit;
   transition: all 0.12s ease;
 }
-.filter-chip:hover {
-  border-color: #c4c4be;
-  background: #fafaf8;
+@media (hover: hover) {
+  .filter-chip:hover {
+    border-color: #c4c4be;
+    background: #fafaf8;
+  }
 }
 .filter-chip.active {
   background: var(--color-text);
@@ -338,8 +348,10 @@ button.primary:hover {
   padding: 4px 6px;
   font-family: inherit;
 }
-.btn-link:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .btn-link:hover {
+    text-decoration: underline;
+  }
 }
 
 /* Kompaktní action buttons (table cells) */
@@ -362,24 +374,28 @@ button.primary:hover {
 .btn-action + .btn-action {
   margin-left: 4px;
 }
-.btn-action:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-  background: #fafaf8;
-}
-.btn-action.danger:hover {
-  border-color: var(--color-negative);
-  color: var(--color-negative);
+@media (hover: hover) {
+  .btn-action:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    background: #fafaf8;
+  }
+  .btn-action.danger:hover {
+    border-color: var(--color-negative);
+    color: var(--color-negative);
+  }
 }
 .btn-action.primary {
   background: var(--color-accent);
   color: #fff;
   border-color: var(--color-accent);
 }
-.btn-action.primary:hover {
-  background: var(--color-accent-hover);
-  border-color: var(--color-accent-hover);
-  color: #fff;
+@media (hover: hover) {
+  .btn-action.primary:hover {
+    background: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
+    color: #fff;
+  }
 }
 
 /* Deník investora — formulář nového zápisu + seznam karet */
@@ -425,9 +441,11 @@ button.primary:hover {
   opacity: 0.65;
   transition: opacity 0.15s;
 }
-.summary-card:hover .ph-tile-link {
-  opacity: 1;
-  color: var(--color-accent);
+@media (hover: hover) {
+  .summary-card:hover .ph-tile-link {
+    opacity: 1;
+    color: var(--color-accent);
+  }
 }
 
 /* Hodnota portfolia — chart, tiles, table */
@@ -500,8 +518,10 @@ button.primary:hover {
 .ph-row-deposit {
   background: rgba(30, 123, 61, 0.06) !important; /* subtle green tint */
 }
-.ph-row-deposit:hover {
-  background: rgba(30, 123, 61, 0.12) !important;
+@media (hover: hover) {
+  .ph-row-deposit:hover {
+    background: rgba(30, 123, 61, 0.12) !important;
+  }
 }
 .ph-deposit-note {
   font-size: 12px;
@@ -668,9 +688,11 @@ button.primary:hover {
   color: var(--color-text);
   cursor: pointer;
 }
-.action-menu-items button:hover {
-  background: #f0f0eb;
-  color: var(--color-accent);
+@media (hover: hover) {
+  .action-menu-items button:hover {
+    background: #f0f0eb;
+    color: var(--color-accent);
+  }
 }
 .action-menu-items button:disabled {
   color: var(--color-text-muted);
@@ -679,9 +701,11 @@ button.primary:hover {
 .action-menu-items button.danger {
   color: var(--color-negative);
 }
-.action-menu-items button.danger:hover {
-  background: var(--color-negative);
-  color: #fff;
+@media (hover: hover) {
+  .action-menu-items button.danger:hover {
+    background: var(--color-negative);
+    color: #fff;
+  }
 }
 
 /* Smazat (× ikonka) — kompaktní červené tlačítko bez textu */
@@ -704,10 +728,12 @@ button.primary:hover {
   font-family: inherit;
   transition: all 0.12s ease;
 }
-.btn-icon-x:hover {
-  background: var(--color-negative);
-  border-color: var(--color-negative);
-  color: #fff;
+@media (hover: hover) {
+  .btn-icon-x:hover {
+    background: var(--color-negative);
+    border-color: var(--color-negative);
+    color: #fff;
+  }
 }
 
 .benchmark-tooltip {
@@ -741,9 +767,11 @@ button.primary:hover {
   transition: all 0.12s ease;
   font-family: inherit;
 }
-.btn-clear:hover {
-  background: var(--color-border);
-  color: var(--color-text);
+@media (hover: hover) {
+  .btn-clear:hover {
+    background: var(--color-border);
+    color: var(--color-text);
+  }
 }
 
 /* Rule rows v edit modalu */
@@ -981,9 +1009,11 @@ th {
 th.sortable {
   cursor: pointer;
 }
-th.sortable:hover {
-  background: #f0f0eb;
-  color: var(--color-text);
+@media (hover: hover) {
+  th.sortable:hover {
+    background: #f0f0eb;
+    color: var(--color-text);
+  }
 }
 th.sortable.sorted {
   color: var(--color-text);
@@ -1019,9 +1049,11 @@ th.sortable.sorted.desc::after {
   vertical-align: -1px;          /* nepřetlačí výšku řádku */
   transition: all 0.12s ease;
 }
-.hint:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+@media (hover: hover) {
+  .hint:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
 }
 
 /* Note icon — barevně odlišená "i" u tickeru s poznámkou */
@@ -1030,9 +1062,11 @@ th.sortable.sorted.desc::after {
   color: var(--color-accent);
   cursor: pointer;
 }
-.hint-note:hover {
-  background: var(--color-accent);
-  color: #fff;
+@media (hover: hover) {
+  .hint-note:hover {
+    background: var(--color-accent);
+    color: #fff;
+  }
 }
 
 /* Poznámka v rozbaleném detailu */
@@ -1068,8 +1102,10 @@ th.sortable.sorted.desc::after {
 tbody tr:nth-child(even) {
   background: var(--color-zebra);
 }
-tbody tr:hover {
-  background: #f0f0eb;
+@media (hover: hover) {
+  tbody tr:hover {
+    background: #f0f0eb;
+  }
 }
 tbody tr:last-child td {
   border-bottom: none;
@@ -1116,8 +1152,14 @@ td.clickable {
   user-select: none;
   transition: background 0.12s ease;
 }
-td.clickable:hover {
-  background: #ecece6;
+@media (hover: hover) {
+  td.clickable:hover {
+    background: #ecece6;
+  }
+}
+/* Okamžitá odezva na dotyk (na rozdíl od hoveru funguje i na mobilu) */
+td.clickable:active {
+  background: #e4e4de;
 }
 td.clickable .caret {
   font-size: 9px;
@@ -1223,8 +1265,10 @@ table.mini td {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-table.mini tr:hover {
-  background: transparent;
+@media (hover: hover) {
+  table.mini tr:hover {
+    background: transparent;
+  }
 }
 .mini-total {
   margin-top: 6px;
@@ -1323,17 +1367,208 @@ footer.app-footer {
   }
 }
 
-/* ------- Responsive ------- */
+/* ------- Ukotvené sloupce v tabulkách (mobil na výšku i na šířku, malé tablety) -------
+   Breakpoint 1024 px (ne 768) schválně: iPhone na šířku má 812 px a ukotvení
+   tam dává stejný smysl — tabulky jsou široké tak jako tak. */
+@media (max-width: 1024px) {
+  /* ===== Ukotvený první sloupec (symbol / datum) =====
+     Tabulky jsou široké a scrollují uvnitř .table-wrap. První sloupec zůstává
+     na místě, takže při posunu doprava je pořád vidět, o který titul jde.
+     Řádky detailu (colspan) se vynechávají — ukotvit je nedává smysl. */
+  .table-wrap table > thead > tr > th:first-child,
+  .table-wrap table > tbody > tr:not(.detail) > td:first-child {
+    position: sticky;
+    left: 0;
+    background: var(--color-surface);
+    /* Linka + jemný stín: box-shadow místo borderu (ten by při scrollu
+       "ujížděl") a stín naznačuje, že obsah projíždí pod sloupcem */
+    box-shadow:
+      1px 0 0 var(--color-border),
+      4px 0 6px -3px rgba(0, 0, 0, 0.14);
+  }
+  .table-wrap table > tbody > tr:not(.detail) > td:first-child {
+    z-index: 2;
+  }
+  .table-wrap table > thead > tr > th:first-child {
+    z-index: 3; /* nad ukotveným sloupcem i nad sticky hlavičkou */
+    background: #fafaf8;
+  }
+  /* Transakce a Dividendy mají první sloupec datum — ukotvit se musí i symbol,
+     jinak se při posunu doprava ztratí, o jaký titul jde. Datum dostane pevnou
+     šířku, aby offset druhého ukotveného sloupce přesně seděl.
+     Sloupec Čas se na mobilu skryje (nulová hodnota, zabírá šířku).
+     Pozn.: display:none nemění indexy nth-child, proto je symbol u transakcí
+     dál 3. a u dividend 2. */
+  #tbl-transactions th:nth-child(2),
+  #tbl-transactions td:nth-child(2) {
+    display: none;
+  }
+  #tbl-transactions th:first-child,
+  #tbl-transactions td:first-child,
+  #tbl-dividends th:first-child,
+  #tbl-dividends td:first-child {
+    width: 100px;
+    min-width: 100px;
+    max-width: 100px;
+    box-sizing: border-box;
+  }
+  #tbl-transactions > thead > tr > th:nth-child(3),
+  #tbl-transactions > tbody > tr > td:nth-child(3),
+  #tbl-dividends > thead > tr > th:nth-child(2),
+  #tbl-dividends > tbody > tr > td:nth-child(2) {
+    position: sticky;
+    left: 100px;
+    background: var(--color-surface);
+    box-shadow:
+      1px 0 0 var(--color-border),
+      4px 0 6px -3px rgba(0, 0, 0, 0.14);
+    z-index: 2;
+  }
+  #tbl-transactions > thead > tr > th:nth-child(3),
+  #tbl-dividends > thead > tr > th:nth-child(2) {
+    z-index: 3;
+    background: #fafaf8;
+  }
+  #tbl-transactions > tbody > tr:nth-child(even) > td:nth-child(3),
+  #tbl-dividends > tbody > tr:nth-child(even) > td:nth-child(2) {
+    background: var(--color-zebra);
+  }
+
+  /* Zebra a zvýrazněné řádky musí mít pozadí i v ukotveném sloupci,
+     jinak by pod ním prosvítal projíždějící obsah */
+  .table-wrap table > tbody > tr:nth-child(even):not(.detail) > td:first-child {
+    background: var(--color-zebra);
+  }
+  .table-wrap table > tbody > tr.position.expanded > td:first-child {
+    background: #ecece6;
+  }
+}
+
+/* ------- Responsive (mobil) ------- */
 @media (max-width: 768px) {
   .container {
-    padding: 16px;
+    padding: 12px;
   }
   header.app-header h1 {
     font-size: 18px;
   }
+  header.app-header .portfolio-meta {
+    font-size: 12px;
+  }
+  /* Switcher pod hlavičku přes celou šířku — na mobilu není kam ho tlačit vpravo */
+  #portfolio-switcher {
+    margin-left: 0;
+    width: 100%;
+  }
+  #portfolio-switcher select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Dlaždice 2 ve sloupci — 6 dlaždic pod sebou zabralo celou obrazovku */
+  .summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .summary-card {
+    padding: 10px 12px;
+  }
+  .summary-card .label {
+    font-size: 10px;
+    letter-spacing: 0.04em;
+  }
+  .summary-card .value {
+    font-size: 16px;
+  }
+  .summary-card .sub {
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  /* Taby se zalomí (dřív přetékaly mimo obrazovku = vodorovný scroll stránky) */
+  .tabs {
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+  }
+  /* Dotykové cíle ≥ 44 px (u tabů kompromis 42 px — je jich 9 a jinak by
+     navigace zabrala půl obrazovky) */
+  /* :not([hidden]) je nutné — display na class selektoru by jinak přebil
+     display:none, kterým prohlížeč skrývá prvky s atributem hidden
+     (tab-specifická tlačítka Export pro účetní / Tisk PDF). */
+  .tab:not([hidden]) {
+    min-height: 42px;
+    padding: 8px 11px;
+    font-size: 12.5px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .btn:not([hidden]),
+  .toolbar button:not([hidden]) {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .btn-action {
+    min-height: 44px;
+    min-width: 44px;
+    justify-content: center;
+  }
+  .action-menu-items button {
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  /* iOS zoomuje na focus u inputů < 16 px */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  .filter-bar {
+    gap: 8px;
+  }
+
   th,
   td {
-    padding: 7px 8px;
+    padding: 8px 10px;
+  }
+
+  /* Rozbalený detail zůstane v zorném poli i při odscrollované tabulce */
+  tr.detail > td > .detail-card {
+    position: sticky;
+    left: 0;
+    width: calc(100vw - 26px);
+    box-sizing: border-box;
+    padding: 14px 16px 16px;
+    /* Mini tabulky uvnitř jsou nowrap — dlouhý řádek (FIFO matching) se
+       doscrolluje uvnitř karty, místo aby se uťal o okraj obrazovky */
+    overflow-x: auto;
+  }
+  .detail-card table.mini {
+    font-size: 12px;
+  }
+  /* Užší mezery mezi sloupci — většina řádků se pak vejde bez scrollování */
+  .detail-card table.mini td {
+    padding-right: 8px;
+  }
+  .detail-section.summary {
+    padding: 10px 12px;
+    font-size: 12.5px;
+  }
+
+  /* Report pro účetní — užší odsazení, ať se vejde víc do šířky */
+  .report-event-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .modal {
+    padding: 18px 16px 16px;
+  }
+  .modal-overlay {
+    padding: 20px 10px 16px;
   }
 }
 

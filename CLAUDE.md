@@ -217,6 +217,25 @@ flowchart TD
   Summary dlaždice: Hodnota portfolia CZK (klik → Hodnota portfolia tab), Cash (multi-currency),
   Celkový výnos %, P.a., YTD, Dividendy (po dani).
 
+### Mobil (úpravy 2026-08-19, `styles.css`)
+
+- **Ukotvené sloupce v tabulkách** (`@media max-width: 1024px` — schválně ne 768,
+  ať platí i pro mobil na šířku): první sloupec je `position: sticky; left: 0`,
+  takže při posunu doprava je pořád vidět, o který titul jde. Transakce a Dividendy
+  mají první sloupec datum → ukotvený je **i symbol** (`left: 100px`, datum má proto
+  pevnou šířku 100 px; sloupec Čas se na mobilu skrývá). Ukotvené buňky musí mít
+  vlastní pozadí (surface / zebra / expanded), jinak pod nimi prosvítá projíždějící
+  obsah. Řádky detailu (colspan) se vynechávají — místo toho je `.detail-card`
+  sticky přes šířku viewportu, aby rozbalený detail zůstal v zorném poli.
+- **`@media max-width: 768px`**: dlaždice 2 ve sloupci, taby se zalomí (dřív
+  přetékaly → vodorovný scroll stránky), dotykové cíle ≥ 44 px (taby 42),
+  inputy 16 px (jinak iOS zoomuje na focus).
+- **Všechna `:hover` pravidla jsou v `@media (hover: hover)`** — na dotyku by jinak
+  první ťuknutí jen „obarvilo" a akce se provedla až podruhé (iOS). Nová hover
+  pravidla přidávat vždy dovnitř takového bloku.
+- ⚠️ `display` na class selektoru přebije `hidden` atribut → u tab-specifických
+  tlačítek je nutné `:not([hidden])` (naběhlo při této úpravě).
+
 ---
 
 ## API endpointy (`worker/api/*`, router ve `worker/index.js`)
