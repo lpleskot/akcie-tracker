@@ -35,6 +35,7 @@
           <button class="tab" data-view="watchlist">Watchlist</button>
           <button class="tab" data-view="journal">Deník investora</button>
           <button class="tab" data-view="report">Report pro účetní</button>
+          <button class="tab" data-view="positions-at">Pozice k datu</button>
           <button class="tab" data-view="portfolio-history">Hodnota portfolia</button>
         </div>
         <button id="btn-refresh" class="btn">Načíst znovu</button>
@@ -293,6 +294,46 @@
         </div>
         <div id="report-content"></div>
         <div id="report-summary"></div>
+      </section>
+
+      <section id="view-positions-at" class="view">
+        <div class="filter-bar">
+          <span class="filter-label">Ke dni:</span>
+          <input type="date" id="pa-date" class="filter-input" />
+          <button id="pa-build" class="btn primary" type="button">Sestavit</button>
+          <span class="filter-count" id="pa-count"></span>
+        </div>
+        <div class="report-intro muted">
+          Inventurní výpis pozic k rozvahovému dni <strong>přes všechna portfolia</strong>:
+          název, ISIN / ticker, počet kusů a ocenění. Kusy odpovídají obchodům
+          <strong>vypořádaným</strong> do daného dne včetně (stejná konvence jako Report pro
+          účetní). Ocenění = závěrečný kurz burzy k datu × kusy, přepočet kurzem ČNB k datu.
+          Pro účetní použij <strong>Export XLSX</strong> v liště nahoře.
+        </div>
+        <h3 id="pa-title" class="pa-title" hidden></h3>
+        <div id="pa-status" class="status" hidden></div>
+        <div class="table-wrap" id="pa-wrap" hidden>
+          <table id="tbl-positions-at">
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Název</th>
+                <th>ISIN</th>
+                <th>Broker / účet</th>
+                <th class="num">Kusů</th>
+                <th>Měna</th>
+                <th class="num">Cena k datu<span class="hint" title="Závěrečný kurz burzy z posledního obchodního dne ≤ zvolené datum (Yahoo Finance). Yahoo historické ceny jsou přepočtené o pozdější splity — pokud po zvoleném datu proběhl split, cena je o něj zpět vynásobena (viz Pozn.).">i</span></th>
+                <th class="num">Ocenění<br>(měna)</th>
+                <th class="num">Kurz ČNB<span class="hint" title="Kurz ČNB k zvolenému datu (CZK za 1 jednotku měny). O víkendu/svátku poslední vyhlášený kurz — den vyhlášení je uveden v poznámce.">i</span></th>
+                <th class="num">Ocenění<br>v Kč</th>
+                <th class="num">Pořizovací<br>cena v Kč<span class="hint" title="FIFO cost basis otevřených lotů vč. komise, každý lot přepočtený kurzem ČNB k datu svého vypořádání (stejně jako Report pro účetní).">i</span></th>
+                <th>Pozn.</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="pa-summary" class="report-summary-box" hidden></div>
       </section>
 
       <section id="view-dividends" class="view">

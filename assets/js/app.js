@@ -1,5 +1,7 @@
 import {
   computePositions,
+  computePositionsAt,
+  splitFactorAfter,
   unrealizedPnl,
   fmtNum,
   fmtPct,
@@ -37,6 +39,8 @@ const state = {
   quotes: {},
   fxRates: null,
   view: "overview",
+  // Inventurní výpis pozic k datu (tab Pozice k datu) — cache portfolií per session
+  positionsAt: { date: null, rows: null, portfolios: null, fxValidFor: null, loading: false },
   sort: { key: "sym", dir: "asc" },
   txFilter: { from: null, to: null },
   reportFilter: { from: null, to: null },
@@ -139,6 +143,7 @@ async function init() {
   setupJournal();
   setupPortfolioHistory();
   setupPortfolioSwitcher();
+  setupPositionsAt();
 
   // 5) Fetch live quotes
   await refreshQuotes();
@@ -478,7 +483,7 @@ function setupTabs() {
     if (accBtn) accBtn.hidden = view !== "transactions";
     // "Tisk / PDF" jen na Reportu — tiskový styl schová vše kromě aktivního tabu
     const printBtn = document.getElementById("btn-print-report");
-    if (printBtn) printBtn.hidden = view !== "report";
+    if (printBtn) printBtn.hidden = !(view === "report" || view === "positions-at");
   };
   document.querySelectorAll(".tab").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -491,6 +496,10 @@ function setupTabs() {
         v.classList.toggle("active", v.id === `view-${view}`),
       );
       setTabSpecificButtons(view);
+      // Inventura se sestaví až při prvním otevření tabu (načítá obě portfolia + historické ceny)
+      if (view === "positions-at" && !state.positionsAt.rows && !state.positionsAt.loading) {
+        buildPositionsAt();
+      }
     });
   });
   // Initial state
@@ -3560,6 +3569,8 @@ function exportCurrentViewXlsx() {
     filenamePart = "alerty";
   } else if (view === "report") {
     return exportReportXlsx();
+  } else if (view === "positions-at") {
+    return exportPositionsAtXlsx();
   } else if (view === "journal") {
     aoa = buildJournalAoa();
     sheetName = "Deník investora";
@@ -4090,6 +4101,320 @@ function exportReportXlsx() {
   XLSX.utils.book_append_sheet(wb, ws, "Report");
   const fname = `${state.portfolio.id}-report-${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, fname);
+}
+
+// ---------- Pozice k datu (inventurní výpis přes všechna portfolia) ----------
+// Přesné znění nadpisu podle požadavku účetní/auditora — {DATE} = rozvahový den.
+const PA_TITLE_TEMPLATE =
+  "Přesná identifikace jednotlivých pozic cenných papírů a kryptoaktiv držených společnostmi PLEGI invest s.r.o. ke dni {DATE}, tedy název, ISIN nebo ticker, počet kusů a ocenění";
+
+function fmtCzDate(iso) {
+  const [y, m, d] = String(iso).split("-");
+  return `${Number(d)}. ${Number(m)}. ${y}`;
+}
+
+function setupPositionsAt() {
+  const input = document.getElementById("pa-date");
+  if (!input) return;
+  // Default: 31. 12. předchozího roku — typický rozvahový den
+  input.value = `${new Date().getFullYear() - 1}-12-31`;
+  document.getElementById("pa-build")?.addEventListener("click", () => buildPositionsAt());
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") buildPositionsAt();
+  });
+}
+
+// Načte VŠECHNA portfolia z manifestu (statický JSON + KV overlay) nezávisle na
+// aktivním portfoliu — inventura je za celou společnost. Cache per session,
+// data nezávisí na zvoleném datu.
+async function loadAllPortfoliosForSnapshot() {
+  if (state.positionsAt.portfolios) return state.positionsAt.portfolios;
+  const list = [];
+  for (const meta of state.manifest.portfolios) {
+    const [res, overlayRes] = await Promise.all([
+      fetch(`${PORTFOLIO_BASE}${meta.file}`, { cache: "no-cache" }),
+      fetch(`/api/portfolio-overlay/${meta.id}`, { cache: "no-cache" }).catch(() => null),
+    ]);
+    if (!res.ok) continue; // portfolio nemusí existovat
+    const portfolio = await res.json();
+    if (overlayRes && overlayRes.ok) {
+      try {
+        mergeOverlayIntoPortfolio(portfolio, await overlayRes.json());
+      } catch (e) {
+        console.warn(`Overlay ${meta.id} se nepodařilo mergnout: ${e.message}`);
+      }
+    }
+    list.push({ meta, portfolio });
+  }
+  state.positionsAt.portfolios = list;
+  return list;
+}
+
+function fmtSplitFactor(f) {
+  return Number.isInteger(f) ? String(f) : fmtNum(f, 4);
+}
+
+async function buildPositionsAt() {
+  const date = document.getElementById("pa-date").value;
+  const statusEl = document.getElementById("pa-status");
+  const showStatus = (msg, isError = false) => {
+    statusEl.hidden = false;
+    statusEl.classList.toggle("error", isError);
+    statusEl.textContent = msg;
+  };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    showStatus("Zadej datum, ke kterému se má inventura sestavit.", true);
+    return;
+  }
+  if (state.positionsAt.loading) return;
+  state.positionsAt.loading = true;
+  document.getElementById("pa-wrap").hidden = true;
+  document.getElementById("pa-summary").hidden = true;
+  document.getElementById("pa-title").hidden = true;
+  showStatus(`Sestavuji pozice k ${fmtCzDate(date)} — načítám portfolia, historické ceny a kurz ČNB…`);
+
+  try {
+    const portfolios = await loadAllPortfoliosForSnapshot();
+
+    // 1) Pozice ke dni per portfolio — FIFO nad obchody vypořádanými do data
+    const rows = [];
+    for (const { meta, portfolio } of portfolios) {
+      const positions = computePositionsAt(
+        portfolio.transactions || [],
+        portfolio.corporate_actions || [],
+        date,
+      );
+      for (const sym of Object.keys(positions).sort((a, b) => a.localeCompare(b, "cs"))) {
+        const pos = positions[sym];
+        if (!(pos.net_qty > 1e-9)) continue;
+        const inst = portfolio.instruments?.[sym] || {};
+        rows.push({
+          broker: `${meta.broker || meta.name}${portfolio.account ? ` · ${portfolio.account}` : ""}`,
+          sym,
+          name: inst.name || sym,
+          isin: inst.isin || "",
+          currency: inst.currency || "",
+          yahoo: inst.yahoo_symbol || sym,
+          // delisted platí jen pokud stažení z burzy předchází zvolenému datu
+          delistedAt: inst.delisted && inst.delisted <= date ? inst.delisted : null,
+          qty: pos.net_qty,
+          lots: pos.open_lots,
+          costLocal: pos.cost_basis,
+          // Yahoo historické ceny jsou split-adjusted → korekce o splity PO datu
+          splitFactor: splitFactorAfter(portfolio.corporate_actions || [], sym, date),
+        });
+      }
+    }
+
+    // 2) Závěrečné ceny k datu + kurzy ČNB k datu (obojí ze serveru)
+    const symbols = [...new Set(rows.filter((r) => !r.delistedAt).map((r) => r.yahoo))];
+    const [quotesRes, fxRes] = await Promise.all([
+      symbols.length
+        ? fetch(`/api/quote-at?date=${date}&symbols=${encodeURIComponent(symbols.join(","))}`)
+        : null,
+      fetch(`/api/fx-at?date=${date}`),
+    ]);
+    const quotes = quotesRes && quotesRes.ok ? (await quotesRes.json()).quotes || {} : {};
+    const fxData = fxRes.ok ? await fxRes.json() : null;
+    const fxFor = (ccy) => {
+      if (ccy === "CZK") return 1;
+      const r = fxData?.rates?.[ccy];
+      return r ? r.rate / r.amount : null;
+    };
+
+    // 3) Ocenění per pozice
+    for (const r of rows) {
+      const q = quotes[r.yahoo];
+      const notes = [];
+      if (r.delistedAt) {
+        r.price = 0;
+        r.priceDate = null;
+        notes.push(`staženo z burzy ${fmtCzDate(r.delistedAt)} — oceněno 0`);
+      } else if (q && q.close != null) {
+        r.price = q.close * r.splitFactor;
+        r.priceDate = q.price_date;
+        if (q.price_date !== date) notes.push(`kurz burzy z ${fmtCzDate(q.price_date)}`);
+        if (r.splitFactor !== 1) notes.push(`split po datu — cena ×${fmtSplitFactor(r.splitFactor)}`);
+        if (q.currency && r.currency && q.currency !== r.currency) {
+          notes.push(`měna ceny ${q.currency} ≠ ${r.currency}`);
+        }
+      } else {
+        r.price = null;
+        r.priceDate = null;
+        notes.push(q?.error ? `cena nedostupná (${q.error})` : "cena nedostupná");
+      }
+      r.valueLocal = r.price != null ? r.qty * r.price : null;
+      r.fx = fxFor(r.currency);
+      if (r.fx == null) notes.push(`chybí kurz ČNB ${r.currency}`);
+      r.valueCzk = r.valueLocal != null && r.fx != null ? r.valueLocal * r.fx : null;
+
+      // Pořizovací cena v Kč — každý otevřený lot kurzem k datu SVÉHO vypořádání
+      // (stejná metodika jako Report pro účetní), strict — žádné vymýšlení kurzů
+      let costCzk = 0;
+      let costOk = true;
+      for (const lot of r.lots) {
+        const f = getFxToCzk(lot.settle_date || lot.date, r.currency);
+        if (f == null) {
+          costOk = false;
+          break;
+        }
+        costCzk += lot.qty * lot.cost_per_unit * f;
+      }
+      r.costCzk = costOk ? costCzk : null;
+      if (!costOk) notes.push("chybí historický kurz ČNB pro pořizovací cenu");
+      r.note = notes.join("; ");
+    }
+
+    state.positionsAt.date = date;
+    state.positionsAt.rows = rows;
+    state.positionsAt.fxValidFor = fxData?.valid_for || null;
+    state.positionsAt.portfolioCount = portfolios.length;
+    renderPositionsAt();
+  } catch (e) {
+    showStatus(`Sestavení selhalo: ${e.message}`, true);
+  } finally {
+    state.positionsAt.loading = false;
+  }
+}
+
+function renderPositionsAt() {
+  const { date, rows, fxValidFor, portfolioCount } = state.positionsAt;
+  const tbody = document.querySelector("#tbl-positions-at tbody");
+  const titleEl = document.getElementById("pa-title");
+  const statusEl = document.getElementById("pa-status");
+  const summary = document.getElementById("pa-summary");
+  const countEl = document.getElementById("pa-count");
+
+  titleEl.textContent = PA_TITLE_TEMPLATE.replace("{DATE}", fmtCzDate(date));
+  titleEl.hidden = false;
+  statusEl.hidden = true;
+  tbody.innerHTML = "";
+
+  const fmtQty = (q) => (Number.isInteger(q) ? fmtNum(q, 0) : fmtNum(q, 4));
+  const dash = '<span class="muted">—</span>';
+  let totalValue = 0;
+  let totalCost = 0;
+  let missingValue = 0;
+  let missingCost = 0;
+  for (const r of rows) {
+    if (r.valueCzk != null) totalValue += r.valueCzk;
+    else missingValue++;
+    if (r.costCzk != null) totalCost += r.costCzk;
+    else missingCost++;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="symbol">${r.sym}</td>
+      <td>${escapeHtml(r.name)}</td>
+      <td>${r.isin || dash}</td>
+      <td>${escapeHtml(r.broker)}</td>
+      <td class="num">${fmtQty(r.qty)}</td>
+      <td>${r.currency}</td>
+      <td class="num">${r.price != null ? fmtNum(r.price, 4) : dash}</td>
+      <td class="num">${r.valueLocal != null ? fmtNum(r.valueLocal, 2) : dash}</td>
+      <td class="num">${r.fx != null ? fmtNum(r.fx, 4) : dash}</td>
+      <td class="num">${r.valueCzk != null ? fmtNum(r.valueCzk, 2) : dash}</td>
+      <td class="num">${r.costCzk != null ? fmtNum(r.costCzk, 2) : dash}</td>
+      <td class="muted">${escapeHtml(r.note)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+  document.getElementById("pa-wrap").hidden = false;
+
+  if (countEl) {
+    countEl.textContent = `${rows.length} pozic · ${portfolioCount} portfolia`;
+  }
+
+  const diff = totalValue - totalCost;
+  let html = `
+    <div>
+      <div class="total-label">Ocenění celkem (CZK)</div>
+      <div class="total-value">${fmtNum(totalValue, 2)}</div>
+    </div>
+    <div>
+      <div class="total-label">Pořizovací cena celkem (CZK)</div>
+      <div class="total-value">${fmtNum(totalCost, 2)}</div>
+    </div>
+    <div>
+      <div class="total-label">Oceňovací rozdíl (CZK)</div>
+      <div class="total-value ${signClass(diff)}">${fmtNum(diff, 2)}</div>
+    </div>`;
+  const warnings = [];
+  if (missingValue) warnings.push(`${missingValue}× chybí ocenění (cena nebo kurz) — součet je bez těchto pozic.`);
+  if (missingCost) warnings.push(`${missingCost}× chybí pořizovací cena v Kč (historický kurz ČNB).`);
+  if (fxValidFor && fxValidFor !== date) {
+    warnings.push(`Kurz ČNB: k ${fmtCzDate(date)} nebyl vyhlášen (víkend/svátek), použit poslední vyhlášený z ${fmtCzDate(fxValidFor)}.`);
+  }
+  if (warnings.length) {
+    html += `<div class="muted" style="flex-basis:100%;">⚠️ ${warnings.join(" ")}</div>`;
+  }
+  summary.innerHTML = html;
+  summary.hidden = false;
+}
+
+function exportPositionsAtXlsx() {
+  const { date, rows, fxValidFor } = state.positionsAt;
+  if (!rows) {
+    alert("Nejdřív sestav pozice k datu (tlačítko Sestavit v tabu Pozice k datu).");
+    return;
+  }
+  const title = PA_TITLE_TEMPLATE.replace("{DATE}", fmtCzDate(date));
+  const fxNote = fxValidFor && fxValidFor !== date
+    ? ` (k ${fmtCzDate(date)} nevyhlášen — použit poslední vyhlášený z ${fmtCzDate(fxValidFor)})`
+    : "";
+  const subtitle =
+    `Zdroj: evidence akcie-tracker (Interactive Brokers + Komerční banka). Kusy = obchody vypořádané do ${fmtCzDate(date)} včetně, FIFO. ` +
+    `Ocenění = závěrečný kurz burzy k datu × kusy, přepočet kurzem ČNB k datu${fxNote}. ` +
+    `Pořizovací cena = FIFO cost basis vč. komise, kurz ČNB k datu vypořádání každého nákupu. Kryptoaktiva: v evidenci žádná.`;
+  const header = [
+    "Ticker", "Název", "ISIN", "Broker / účet", "Kusů", "Měna", "Cena k datu", "Datum ceny",
+    "Ocenění (měna)", "Kurz ČNB (CZK)", "Ocenění v Kč", "Pořizovací cena v Kč", "Pozn.",
+  ];
+  const aoa = [[title], [subtitle], [], header];
+  let totalValue = 0, totalCost = 0, incomplete = false;
+  for (const r of rows) {
+    if (r.valueCzk != null) totalValue += r.valueCzk; else incomplete = true;
+    if (r.costCzk != null) totalCost += r.costCzk;
+    aoa.push([
+      r.sym, r.name, r.isin, r.broker, r.qty, r.currency,
+      r.price ?? "", r.priceDate ?? "", r.valueLocal ?? "", r.fx ?? "", r.valueCzk ?? "", r.costCzk ?? "", r.note,
+    ]);
+  }
+  aoa.push([]);
+  aoa.push([
+    "Celkem", "", "", "", "", "", "", "", "", "", totalValue, totalCost,
+    incomplete ? "⚠️ některé pozice bez ocenění — nejsou v součtu" : "",
+  ]);
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const lastCol = header.length - 1;
+  const headerRow = 3;
+  const totalRow = aoa.length - 1;
+  // Nadpis + podtitul přes celou šířku, zalomené
+  ws["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: lastCol } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: lastCol } },
+  ];
+  ws["!rows"] = [{ hpt: 34 }, { hpt: 46 }];
+  ws["A1"].s = { font: { bold: true, sz: 12 }, alignment: { wrapText: true, vertical: "top" } };
+  ws["A2"].s = { font: { sz: 10, color: { rgb: "6B6B66" } }, alignment: { wrapText: true, vertical: "top" } };
+  // Formáty čísel pro účetní: kusy, ceny na 4, částky na 2 desetinná místa
+  const numFmt = { 4: "#,##0.####", 6: "#,##0.0000", 8: "#,##0.00", 9: "#,##0.0000", 10: "#,##0.00", 11: "#,##0.00" };
+  for (let r = headerRow; r < aoa.length; r++) {
+    for (let c = 0; c <= lastCol; c++) {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[ref];
+      if (!cell) continue;
+      if (r === headerRow || r === totalRow) cell.s = { font: { bold: true } };
+      if (cell.t === "n" && numFmt[c]) cell.z = numFmt[c];
+    }
+  }
+  ws["!cols"] = [
+    { wch: 10 }, { wch: 32 }, { wch: 14 }, { wch: 28 }, { wch: 9 }, { wch: 6 }, { wch: 12 },
+    { wch: 11 }, { wch: 15 }, { wch: 11 }, { wch: 16 }, { wch: 18 }, { wch: 40 },
+  ];
+  XLSX.utils.book_append_sheet(wb, ws, "Pozice k datu");
+  XLSX.writeFile(wb, `pozice-k-${date}.xlsx`);
 }
 
 // ---------- Notes ----------

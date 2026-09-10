@@ -56,6 +56,12 @@ Privátní portfolio tracker pro PLEGI invest přes Interactive Brokers a Komer�
 - Grand total v CZK (nákup / prodej / zisk-ztráta) — podklad pro daňové přiznání
 - XLSX export (barevné řádky, kurz s datem platnosti) + **Tisk / PDF** (tiskový styl)
 
+### Pozice k datu (inventura)
+- Stav pozic k rozvahovému dni (typicky 31. 12.) přes všechna portfolia: název, ISIN,
+  ticker, kusy, závěrečná cena k datu, ocenění v měně i CZK (kurz ČNB k datu),
+  pořizovací cena v CZK a oceňovací rozdíl
+- XLSX export s přesným zněním požadavku auditora v záhlaví; Tisk / PDF
+
 ### Hodnota portfolia
 - NAV time-series (SVG chart) s deposit markery, dlaždice Celkem vloženo /
   Aktuální hodnota / Rozdíl
@@ -108,7 +114,7 @@ cd web/
 node --test tests/*.test.mjs
 ```
 
-21 unit testů FIFO enginu a Flex transformací (ručně spočítané fixtures).
+25 unit testů FIFO enginu, inventury k datu a Flex transformací (ručně spočítané fixtures).
 Běží i v CI při každém pushi (`.github/workflows/tests.yml`).
 
 ## Lokální vývoj

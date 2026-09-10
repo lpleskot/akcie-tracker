@@ -211,3 +211,45 @@ test("unrealizedPnl počítá tržní hodnotu i procenta", () => {
   const empty = unrealizedPnl(pos, null);
   close(empty.value, 0);
 });
+
+// ---------- Pozice ke dni (inventura) ----------
+import { computePositionsAt, splitFactorAfter } from "../assets/js/fifo.js";
+
+test("computePositionsAt: prodej vypořádaný až po datu se ještě nepočítá", () => {
+  const txs = [
+    tx({ date: "2025-12-29", settle_date: "2025-12-30", quantity: 10, price: 100 }),
+    // obchod 30.12., vypořádání 2.1. — k 31.12. kusy stále držené
+    tx({ date: "2025-12-30", settle_date: "2026-01-02", type: "SELL", quantity: 4, price: 120 }),
+  ];
+  close(computePositionsAt(txs, [], "2025-12-31").AAA.net_qty, 10);
+  close(computePositionsAt(txs, [], "2026-01-02").AAA.net_qty, 6);
+});
+
+test("computePositionsAt: split po datu se neaplikuje, splitFactorAfter ho vrátí", () => {
+  const txs = [tx({ symbol: "BKNG", date: "2025-06-01", quantity: 2, price: 5000 })];
+  const cas = [{ type: "split", date: "2026-04-06", symbol: "BKNG", ratio_from: 1, ratio_to: 25 }];
+  close(computePositionsAt(txs, cas, "2025-12-31").BKNG.net_qty, 2);
+  close(computePositionsAt(txs, cas, "2026-04-06").BKNG.net_qty, 50);
+  close(splitFactorAfter(cas, "BKNG", "2025-12-31"), 25); // Yahoo close × 25 = skutečná cena
+  close(splitFactorAfter(cas, "BKNG", "2026-04-06"), 1); // split už proběhl
+  close(splitFactorAfter(cas, "JINY", "2025-12-31"), 1);
+});
+
+test("splitFactorAfter: KB reverse split (received/removed) → zlomkový faktor", () => {
+  const cas = [
+    { type: "removed_share", date: "2024-04-12", symbol: "SMSI", isin_underlying: "I", quantity: 3824 },
+    { type: "received_share", date: "2024-04-12", symbol: "SMSI", isin_underlying: "I", quantity: 478 },
+  ];
+  close(splitFactorAfter(cas, "SMSI", "2024-03-31"), 478 / 3824);
+});
+
+test("computePositionsAt: KB pár přes hranici data se nerozpadne na cancellation", () => {
+  const txs = [tx({ symbol: "XYZ", date: "2025-06-01", quantity: 100, price: 10 })];
+  // removed 30.12., received 3.1. — je to jeden split (datum received), ne zánik 100 ks
+  const cas = [
+    { type: "removed_share", date: "2025-12-30", symbol: "XYZ", isin_underlying: "I", quantity: 100 },
+    { type: "received_share", date: "2026-01-03", symbol: "XYZ", isin_underlying: "I", quantity: 200 },
+  ];
+  close(computePositionsAt(txs, cas, "2025-12-31").XYZ.net_qty, 100);
+  close(computePositionsAt(txs, cas, "2026-01-03").XYZ.net_qty, 200);
+});

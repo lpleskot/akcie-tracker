@@ -29,14 +29,16 @@
  *   - Unpaired removed_share → CANCELLATION (FIFO konzumace bez realized).
  *   - Pokud je vstup už klasický {type:"split", ratio_from, ratio_to} → projde beze změny.
  */
-function preprocessCorporateActions(corps) {
+export function preprocessCorporateActions(corps) {
   const result = [];
   const consumed = new Set();
   const byIsin = new Map();
   // Index podle isin_underlying pro rychlé párování
   for (let i = 0; i < corps.length; i++) {
     const c = corps[i];
-    if (c.type === "split") {
+    // Už normalizované eventy (split / bonus / cancellation) projdou beze změny —
+    // computePositionsAt normalizuje předem, aby datumový filtr nerozbil párování.
+    if (c.type === "split" || c.type === "bonus_shares" || c.type === "cancellation") {
       result.push(c);
       consumed.add(i);
       continue;
@@ -378,6 +380,38 @@ export function computePositions(
     };
   }
   return result;
+}
+
+/**
+ * Pozice držené KE DNI (inventura / rozvahový den). Účetní konvence projektu:
+ * rozhoduje datum vypořádání — bere se obchod vypořádaný do data včetně.
+ * Corporate actions se nejdřív normalizují nad celou historií (párování
+ * received/removed v 30denním okně nesmí rozbít datumový filtr) a použijí
+ * se jen ty s datem ≤ date. Split PO datu se tedy neaplikuje — kusy odpovídají
+ * stavu k tomu dni (a k ceně z burzy je nutná korekce, viz splitFactorAfter).
+ */
+export function computePositionsAt(transactions, corporateActions, date) {
+  const txs = (transactions || []).filter((t) => (t.settle_date || t.date) <= date);
+  const cas = preprocessCorporateActions(corporateActions || []).filter(
+    (c) => c.date <= date,
+  );
+  return computePositions(txs, cas);
+}
+
+/**
+ * Součin poměrů splitů daného symbolu PO datu. Yahoo historické close jsou
+ * split-adjusted (staré ceny přepočtené na dnešní počet kusů) — skutečná cena
+ * k datu = Yahoo close × tento faktor. Bez korekce by BKNG k 31.12.2025 vyšel
+ * 25× levněji (split 1:25 z dubna 2026).
+ */
+export function splitFactorAfter(corporateActions, symbol, date) {
+  let factor = 1;
+  for (const c of preprocessCorporateActions(corporateActions || [])) {
+    if (c.type !== "split" || c.symbol !== symbol || !(c.date > date)) continue;
+    if (!c.ratio_from || !c.ratio_to) continue;
+    factor *= c.ratio_to / c.ratio_from;
+  }
+  return factor;
 }
 
 /**

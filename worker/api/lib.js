@@ -69,3 +69,56 @@ export function jsonResponse(obj, status = 200, cacheControl) {
     },
   });
 }
+
+// Závěrečná cena k datu = poslední obchodní den ≤ dateISO (Yahoo chart API
+// s period1/period2). Datum baru se čte v časovém pásmu burzy, jinak by se
+// asijská seance 31.12. (UTC 30.12. večer) tvářila jako 30.12.
+// POZOR: Yahoo historické close jsou SPLIT-ADJUSTED — o splity po daném datu
+// musí volající cenu vynásobit (splitFactorAfter ve fifo.js).
+export async function fetchYahooCloseAt(symbol, dateISO) {
+  const end = new Date(`${dateISO}T23:59:59Z`);
+  const start = new Date(end.getTime() - 20 * 86400000); // rezerva na svátky
+  const p1 = Math.floor(start.getTime() / 1000);
+  const p2 = Math.floor(end.getTime() / 1000) + 86400; // +1 den kvůli pásmům
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&period1=${p1}&period2=${p2}`;
+  const res = await fetch(url, {
+    headers: { "User-Agent": YAHOO_UA, Accept: "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(`Yahoo ${res.status} for ${symbol}`);
+  }
+  const data = await res.json();
+  const result = data?.chart?.result?.[0];
+  if (!result) {
+    const err = data?.chart?.error;
+    throw new Error(`No data for ${symbol}: ${err?.description || "unknown"}`);
+  }
+  const m = result.meta;
+  const tz = m.exchangeTimezoneName || "UTC";
+  // en-CA formátuje jako YYYY-MM-DD
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  const ts = result.timestamp || [];
+  const closes = result.indicators?.quote?.[0]?.close || [];
+  let pick = null;
+  for (let i = 0; i < ts.length; i++) {
+    if (closes[i] == null) continue;
+    const d = fmt.format(new Date(ts[i] * 1000));
+    if (d <= dateISO) pick = { date: d, close: closes[i] };
+  }
+  if (!pick) throw new Error(`No close on or before ${dateISO} for ${symbol}`);
+
+  let currency = m.currency;
+  const scale = MINOR_UNITS[currency] ? 100 : 1;
+  if (MINOR_UNITS[currency]) currency = MINOR_UNITS[currency];
+  return {
+    symbol: m.symbol,
+    name: m.longName || m.shortName || null,
+    currency,
+    close: pick.close / scale,
+    price_date: pick.date,
+    requested_date: dateISO,
+    raw_currency: m.currency,
+  };
+}

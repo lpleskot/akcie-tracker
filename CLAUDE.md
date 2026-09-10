@@ -65,6 +65,10 @@ jinak se nedostanou do repa.
   **Flex overlay trades nesou `settle_date` z `settleDateTarget`** (doplněno 2026-07-25 —
   bez toho report u auto-importů tiše používal datum obchodu). Tab Transakce (obrazovka)
   zůstává na datu obchodu. `fx_rates.json` pokrývá settle data všech transakcí.
+- **Yahoo historické ceny jsou split-adjusted** (staré close přepočtené na dnešní počet
+  kusů). Kdekoli se oceňuje k minulému datu, je nutné cenu vynásobit `splitFactorAfter()`
+  (součin poměrů splitů po datu z corporate actions). Inventura k datu to dělá; kdo přidá
+  další historické ocenění, musí taky.
 - **Yahoo Finance** přes neoficiální `query1.finance.yahoo.com`, voláno ze serveru
   (CF Function `/api/quote`), cache 60 s, MINOR_UNITS scale (GBp/100, ZAc/100 atd.).
 - **ČNB kurzy** v `data/fx_rates.json` — denní fetch přes GH Action `fx-update-cron.yml`
@@ -200,7 +204,7 @@ flowchart TD
 
 `overview` Přehled pozic · `transactions` Transakce · `dividends` Dividendy ·
 `allocation` Alokace · `alerts` Alerty · `watchlist` Watchlist · `journal` Deník investora ·
-`report` Report pro účetní · `portfolio-history` Hodnota portfolia
+`report` Report pro účetní · `positions-at` Pozice k datu · `portfolio-history` Hodnota portfolia
 
 - **Přehled pozic:** expandable detail per pozice (nákupy/prodeje/FIFO matching/split/
   dividendy/Total Return + Poznámka), sloupce vč. **Nereal. Z/Z** (jen otevřené loty)
@@ -210,6 +214,15 @@ flowchart TD
   uvnitř prodeje chronologicky, každý se svými FIFO matched nákupy a ziskem, dole
   mezisoučet za symbol (u více prodejů). CZK přepočet dle vypořádání, XLSX export
   (stejné seskupení, barevné řádky, kurz s datem) + tisk/PDF.
+- **Pozice k datu (inventura):** stav pozic k rozvahovému dni **přes všechna portfolia**
+  (načte obě z manifestu + overlay, nezávisle na aktivním) — název, ISIN, ticker, kusy,
+  cena k datu, ocenění v měně i CZK, pořizovací cena CZK (FIFO loty × kurz k vypořádání),
+  oceňovací rozdíl. Kusy = `computePositionsAt` (obchody **vypořádané** ≤ datum, CA ≤ datum).
+  Cena = `/api/quote-at` (Yahoo close posledního obchodního dne ≤ datum, datum baru v pásmu
+  burzy) **× `splitFactorAfter`** — Yahoo historie je split-adjusted, bez korekce by BKNG
+  před splitem 1:25 vyšel 25× levněji. Kurz = `/api/fx-at` (ČNB živě, `valid_for`
+  = poslední vyhlášený). Delisted (`instruments[sym].delisted` ≤ datum) → cena 0.
+  XLSX export má v A1 doslovné znění požadavku auditora (`PA_TITLE_TEMPLATE`, {DATE}).
 - **Hodnota portfolia:** NAV time-series (SVG chart), deposit markery, 3 emphasized globální
   dlaždice (Celkem vloženo / Aktuální hodnota / Rozdíl) + period dlaždice + tabulka per day.
 - **Deník investora:** KV-backed text deník, inline editace, search.
@@ -248,6 +261,8 @@ flowchart TD
 | `GET/POST /api/notes` | KV `notes` — globální mapa symbol → text |
 | `GET/POST /api/journal` | KV `journal` CRUD |
 | `GET /api/portfolio-overlay/[id]` | KV `portfolio-overlay:{id}` read pro frontend merge |
+| `GET /api/quote-at?symbols=…&date=YYYY-MM-DD` | Yahoo závěrečná cena k datu (poslední bar ≤ datum, minor units fix, **split-adjusted!**), cache 7 dní pro data starší 2 dnů |
+| `GET /api/fx-at?date=YYYY-MM-DD` | Kurzy ČNB k datu živě (stejný tvar jako `fx_rates.json` entry, `valid_for`), cache 30 dní |
 
 **KV klíče (sdílené):** `watchlist`, `alerts`, `notes`, `journal`,
 `portfolio-overlay:{id}`, `fired:alert:{ruleId}:{symbol}`, `fired:watch:{itemId}:{ruleId}`.
@@ -262,7 +277,7 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared}.test.mjs` — 21 unit testů (`node --test tests/*.test.mjs`),
+`tests/{fifo,flex-shared}.test.mjs` — 25 unit testů (`node --test tests/*.test.mjs`),
 ručně spočítané fixtures: FIFO matching + prorace komise, proceeds-authoritative ceny,
 splity (vč. same-day pořadí a 1:25), KB received/removed párování + bonus/cancellation,
 orphan sells, settle data v closed lots, dividendy, Flex transformace (vč. settle_date).

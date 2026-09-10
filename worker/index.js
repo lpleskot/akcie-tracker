@@ -13,6 +13,8 @@
 
 import { jsonResponse } from "./api/lib.js";
 import * as quote from "./api/quote.js";
+import * as quoteAt from "./api/quote-at.js";
+import * as fxAt from "./api/fx-at.js";
 import * as watchlist from "./api/watchlist.js";
 import * as alerts from "./api/alerts.js";
 import * as notes from "./api/notes.js";
@@ -26,6 +28,8 @@ const OVERLAY_PREFIX = "/api/portfolio-overlay/";
 // Endpoint → modul s get/post handlery (request, env) → Response
 const API_ROUTES = {
   "/api/quote": quote,
+  "/api/quote-at": quoteAt,
+  "/api/fx-at": fxAt,
   "/api/watchlist": watchlist,
   "/api/alerts": alerts,
   "/api/notes": notes,
