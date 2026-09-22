@@ -21,6 +21,8 @@
  * Při importu z IBKR má SELL `qty` záporné — handluje se přes Math.abs.
  */
 
+import { flexDate } from "./flex-shared.js";
+
 /**
  * Pre-process KB-style corporate actions:
  *   - received_share + removed_share spárované ve 30 dnech na stejném
@@ -412,6 +414,51 @@ export function splitFactorAfter(corporateActions, symbol, date) {
     factor *= c.ratio_to / c.ratio_from;
   }
   return factor;
+}
+
+/**
+ * Hotovost u brokera k datu. Každý broker dává jiné rozlišení:
+ *   IBKR — denní NAV snapshoty z Flex (`cash` v base měně účtu)
+ *   KB   — kvartální snapshoty ze STAV PTF (`cash_history`, po měnách)
+ * Vrací i `asOf` datum snapshotu: když je starší než dotaz, volající to musí
+ * přiznat — jinak by se stav tvářil přesněji, než ve skutečnosti je.
+ *
+ * Hotovost se zásadně NEdopočítává z cash_flows: u KB nejsou v evidenci
+ * poplatky za vedení účtu, takže dopočet by proti výpisu tiše driftoval.
+ */
+export function cashAtDate(portfolio, date) {
+  if (!portfolio || !date) return null;
+
+  // Denní NAV (IBKR): backfill + overlay z cronu, pro stejný den vyhrává overlay
+  const navByDate = new Map();
+  for (const [arr, source] of [
+    [portfolio.static_nav_history, "static"],
+    [portfolio.nav_history, "overlay"],
+  ]) {
+    for (const n of arr || []) {
+      const d = flexDate(n.reportDate);
+      const cash = parseFloat(n.cash);
+      if (!d || d > date || !Number.isFinite(cash)) continue;
+      if (!navByDate.has(d) || source === "overlay") {
+        navByDate.set(d, { cash, currency: n.currency || portfolio.base_currency || "USD" });
+      }
+    }
+  }
+  if (navByDate.size) {
+    const asOf = [...navByDate.keys()].sort().pop();
+    const n = navByDate.get(asOf);
+    return { asOf, cash: { [n.currency]: n.cash }, daily: true, source: "IBKR Flex NAV" };
+  }
+
+  // Kvartální snapshoty (KB) — poslední s datem ≤ dotaz
+  let snap = null;
+  for (const s of portfolio.cash_history || []) {
+    if (s.date <= date && (!snap || s.date > snap.date)) snap = s;
+  }
+  if (snap) {
+    return { asOf: snap.date, cash: { ...snap.cash }, daily: false, source: snap.source };
+  }
+  return null;
 }
 
 /**

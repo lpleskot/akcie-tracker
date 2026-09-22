@@ -6393,6 +6393,99 @@
   "GBP": 65.5,
   "USD": 1196.94
  },
+ "cash_history": [
+  {
+   "date": "2024-12-31",
+   "source": "KB STAV PTF 2024",
+   "cash": {
+    "CAD": 216.83,
+    "CZK": 100000.28,
+    "EUR": 43.15,
+    "GBP": 0.88,
+    "PLN": 0.55,
+    "USD": 860.89
+   }
+  },
+  {
+   "date": "2025-03-31",
+   "source": "KB STAV PTF 2025-Q1",
+   "cash": {
+    "CAD": 272.97,
+    "CZK": 813.31,
+    "EUR": 335.3,
+    "GBP": 0.88,
+    "SEK": 710.52,
+    "USD": 9388.84
+   }
+  },
+  {
+   "date": "2025-06-30",
+   "source": "KB STAV PTF 2025-Q2",
+   "cash": {
+    "AUD": 1368.12,
+    "CAD": 6569.77,
+    "CZK": 36998.04,
+    "EUR": 506.82,
+    "GBP": 39.56,
+    "SEK": 1270.37,
+    "USD": 7712.11
+   }
+  },
+  {
+   "date": "2025-09-30",
+   "source": "KB STAV PTF 2025-Q3",
+   "cash": {
+    "AUD": 1531.24,
+    "CAD": 267.11,
+    "CZK": 317696.25,
+    "DKK": 574.88,
+    "EUR": 1262.53,
+    "GBP": 39.56,
+    "PLN": 1603.8,
+    "SEK": 1270.37,
+    "USD": 48189.36
+   }
+  },
+  {
+   "date": "2025-12-31",
+   "source": "KB STAV PTF 2025-Q4",
+   "cash": {
+    "AUD": 1531.24,
+    "CAD": 13972.38,
+    "CZK": 216632.29,
+    "DKK": 574.88,
+    "EUR": 2830.71,
+    "GBP": 17.2,
+    "PLN": 1603.8,
+    "SEK": 72261.12,
+    "USD": 495.21
+   }
+  },
+  {
+   "date": "2026-03-31",
+   "source": "KB STAV PTF 2026-Q1",
+   "cash": {
+    "CZK": 0.03,
+    "DKK": 574.88,
+    "EUR": 0.81,
+    "GBP": 8.8,
+    "USD": 112.37
+   }
+  },
+  {
+   "date": "2026-06-30",
+   "source": "KB STAV PTF 2026-Q2",
+   "cash": {
+    "AUD": 320.98,
+    "CAD": 128.21,
+    "CZK": 0.03,
+    "DKK": 574.88,
+    "EUR": 667.67,
+    "GBP": 65.5,
+    "USD": 1196.94
+   }
+  }
+ ],
  "_notes": [
   "17 synthetic opening transakcí pro pozice s pre-2023 historií. Cost basis je odhadnut na tržní cenu k 31.3.2023.",
   "TRN CP 2023 Q2 chybí — Q2 2023 transakce nejsou v importu.",

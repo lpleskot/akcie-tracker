@@ -253,3 +253,55 @@ test("computePositionsAt: KB pár přes hranici data se nerozpadne na cancellati
   close(computePositionsAt(txs, cas, "2025-12-31").XYZ.net_qty, 100);
   close(computePositionsAt(txs, cas, "2026-01-03").XYZ.net_qty, 200);
 });
+
+import { cashAtDate } from "../assets/js/fifo.js";
+
+test("cashAtDate: IBKR denní NAV — poslední snapshot k datu", () => {
+  const p = {
+    base_currency: "USD",
+    static_nav_history: [
+      { reportDate: "20251230", currency: "USD", cash: 44042.74 },
+      { reportDate: "20251231", currency: "USD", cash: 44055.9 },
+      { reportDate: "20260102", currency: "USD", cash: 44074.01 },
+    ],
+  };
+  const r = cashAtDate(p, "2025-12-31");
+  assert.equal(r.asOf, "2025-12-31");
+  assert.equal(r.daily, true);
+  close(r.cash.USD, 44055.9);
+  // Mezi snapshoty (svátek/víkend) platí poslední předchozí
+  assert.equal(cashAtDate(p, "2026-01-01").asOf, "2025-12-31");
+});
+
+test("cashAtDate: overlay má přednost před backfillem pro stejný den", () => {
+  const p = {
+    base_currency: "USD",
+    static_nav_history: [{ reportDate: "20260605", currency: "USD", cash: 111 }],
+    nav_history: [{ reportDate: "20260605", currency: "USD", cash: 222 }],
+  };
+  close(cashAtDate(p, "2026-06-05").cash.USD, 222);
+});
+
+test("cashAtDate: KB kvartální snapshot — přizná datum, ze kterého pochází", () => {
+  const p = {
+    cash_history: [
+      { date: "2025-09-30", source: "KB STAV PTF 2025-Q3", cash: { CZK: 317696.25, USD: 48189.36 } },
+      { date: "2025-12-31", source: "KB STAV PTF 2025-Q4", cash: { CZK: 216632.29, USD: 495.21 } },
+    ],
+  };
+  const r = cashAtDate(p, "2025-12-31");
+  assert.equal(r.asOf, "2025-12-31");
+  assert.equal(r.daily, false);
+  close(r.cash.CZK, 216632.29);
+  // Uprostřed kvartálu se vrací starší snapshot — volající to musí zobrazit
+  const mid = cashAtDate(p, "2025-11-15");
+  assert.equal(mid.asOf, "2025-09-30");
+  close(mid.cash.USD, 48189.36);
+});
+
+test("cashAtDate: před prvním snapshotem a bez dat → null", () => {
+  const p = { cash_history: [{ date: "2024-12-31", cash: { CZK: 1 } }] };
+  assert.equal(cashAtDate(p, "2024-06-30"), null);
+  assert.equal(cashAtDate({}, "2025-12-31"), null);
+  assert.equal(cashAtDate(null, "2025-12-31"), null);
+});

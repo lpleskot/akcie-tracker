@@ -965,6 +965,11 @@ tfoot td {
   line-height: 1.45;
 }
 
+/* Podnadpis druhé tabulky (hotovost) — odsazení od tabulky nad ní */
+.pa-subtitle {
+  margin-top: 20px;
+}
+
 /* ------- Tables ------- */
 .table-wrap {
   background: var(--color-surface);

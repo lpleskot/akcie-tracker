@@ -5,6 +5,7 @@
 # Jméno musí sedět s Workers Builds projektem v CF — jinak ho CI při buildu
 # přepíše a otevírá PR na "opravu" configu.
 name = "akcie-tracker"
+account_id = "20091577c7377c278960a1808ca175ba"
 main = "worker/index.js"
 compatibility_date = "2026-05-01"
 workers_dev = true

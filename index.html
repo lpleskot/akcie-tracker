@@ -308,7 +308,9 @@
           název, ISIN / ticker, počet kusů a ocenění. Kusy odpovídají obchodům
           <strong>vypořádaným</strong> do daného dne včetně (stejná konvence jako Report pro
           účetní). Ocenění = závěrečný kurz burzy k datu × kusy, přepočet kurzem ČNB k datu.
-          Pro účetní použij <strong>Export XLSX</strong> v liště nahoře.
+          Součástí je i <strong>hotovost u brokerů</strong> ke stejnému dni, takže
+          „Majetek celkem“ odpovídá rozvaze. Pro účetní použij
+          <strong>Export XLSX</strong> v liště nahoře.
         </div>
         <h3 id="pa-title" class="pa-title" hidden></h3>
         <div id="pa-status" class="status" hidden></div>
@@ -332,6 +334,24 @@
             </thead>
             <tbody></tbody>
           </table>
+        </div>
+        <div id="pa-cash-wrap" hidden>
+          <h4 class="pa-title pa-subtitle">Hotovost u brokerů ke dni</h4>
+          <div class="table-wrap">
+            <table id="tbl-pa-cash">
+              <thead>
+                <tr>
+                  <th>Broker / účet</th>
+                  <th>Měna</th>
+                  <th class="num">Částka</th>
+                  <th class="num">Kurz ČNB<span class="hint" title="Kurz ČNB k zvolenému datu (CZK za 1 jednotku měny). O víkendu/svátku poslední vyhlášený kurz.">i</span></th>
+                  <th class="num">Hodnota v Kč</th>
+                  <th>Pozn.<span class="hint" title="Zdroj hotovosti: Interactive Brokers dává denní snapshot (Flex NAV), Komerční banka kvartální (STAV PTF). Když snapshot neodpovídá přesně zvolenému dni, je tu jeho datum.">i</span></th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </div>
         <div id="pa-summary" class="report-summary-box" hidden></div>
       </section>

@@ -1,4 +1,5 @@
 import {
+  cashAtDate,
   computePositions,
   computePositionsAt,
   splitFactorAfter,
@@ -40,7 +41,10 @@ const state = {
   fxRates: null,
   view: "overview",
   // Inventurní výpis pozic k datu (tab Pozice k datu) — cache portfolií per session
-  positionsAt: { date: null, rows: null, portfolios: null, fxValidFor: null, loading: false },
+  positionsAt: {
+    date: null, rows: null, cashRows: null, cashMissing: null,
+    portfolios: null, fxValidFor: null, loading: false,
+  },
   sort: { key: "sym", dir: "asc" },
   txFilter: { from: null, to: null },
   reportFilter: { from: null, to: null },
@@ -4131,9 +4135,14 @@ async function loadAllPortfoliosForSnapshot() {
   if (state.positionsAt.portfolios) return state.positionsAt.portfolios;
   const list = [];
   for (const meta of state.manifest.portfolios) {
-    const [res, overlayRes] = await Promise.all([
+    const [res, overlayRes, histRes] = await Promise.all([
       fetch(`${PORTFOLIO_BASE}${meta.file}`, { cache: "no-cache" }),
       fetch(`/api/portfolio-overlay/${meta.id}`, { cache: "no-cache" }).catch(() => null),
+      // NAV backfill drží denní hotovost i pro dny před spuštěním Flex cronu —
+      // overlay sahá jen do startu cronu, bez backfillu by starší data chyběla.
+      fetch(`${PORTFOLIO_BASE.replace("portfolios/", "")}portfolio-history-${meta.id}.json`, {
+        cache: "no-cache",
+      }).catch(() => null),
     ]);
     if (!res.ok) continue; // portfolio nemusí existovat
     const portfolio = await res.json();
@@ -4142,6 +4151,13 @@ async function loadAllPortfoliosForSnapshot() {
         mergeOverlayIntoPortfolio(portfolio, await overlayRes.json());
       } catch (e) {
         console.warn(`Overlay ${meta.id} se nepodařilo mergnout: ${e.message}`);
+      }
+    }
+    if (histRes && histRes.ok) {
+      try {
+        portfolio.static_nav_history = (await histRes.json()).nav_history || [];
+      } catch (e) {
+        console.warn(`NAV historie ${meta.id} se nepodařilo načíst: ${e.message}`);
       }
     }
     list.push({ meta, portfolio });
@@ -4169,6 +4185,7 @@ async function buildPositionsAt() {
   if (state.positionsAt.loading) return;
   state.positionsAt.loading = true;
   document.getElementById("pa-wrap").hidden = true;
+  document.getElementById("pa-cash-wrap").hidden = true;
   document.getElementById("pa-summary").hidden = true;
   document.getElementById("pa-title").hidden = true;
   showStatus(`Sestavuji pozice k ${fmtCzDate(date)} — načítám portfolia, historické ceny a kurz ČNB…`);
@@ -4265,8 +4282,47 @@ async function buildPositionsAt() {
       r.note = notes.join("; ");
     }
 
+    // 4) Hotovost u brokerů — druhá složka majetku vedle cenných papírů
+    const cashRows = [];
+    const cashMissing = [];
+    for (const { meta, portfolio } of portfolios) {
+      const broker = `${meta.broker || meta.name}${portfolio.account ? ` · ${portfolio.account}` : ""}`;
+      const c = cashAtDate(portfolio, date);
+      if (!c) {
+        cashMissing.push(broker);
+        continue;
+      }
+      for (const [ccy, amount] of Object.entries(c.cash)) {
+        // Měny s nulovým zůstatkem broker ve výpisu neuvádí — nezobrazovat ani my
+        if (!Number.isFinite(amount) || Math.abs(amount) < 0.005) continue;
+        const fx = fxFor(ccy);
+        const notes = [];
+        if (c.asOf !== date) {
+          notes.push(
+            c.daily
+              ? `poslední snapshot z ${fmtCzDate(c.asOf)}`
+              : `kvartální snapshot k ${fmtCzDate(c.asOf)}`,
+          );
+        }
+        if (fx == null) notes.push(`chybí kurz ČNB ${ccy}`);
+        cashRows.push({
+          broker,
+          ccy,
+          amount,
+          fx,
+          czk: fx != null ? amount * fx : null,
+          asOf: c.asOf,
+          daily: c.daily,
+          source: c.source,
+          note: notes.join("; "),
+        });
+      }
+    }
+
     state.positionsAt.date = date;
     state.positionsAt.rows = rows;
+    state.positionsAt.cashRows = cashRows;
+    state.positionsAt.cashMissing = cashMissing;
     state.positionsAt.fxValidFor = fxData?.valid_for || null;
     state.positionsAt.portfolioCount = portfolios.length;
     renderPositionsAt();
@@ -4278,7 +4334,7 @@ async function buildPositionsAt() {
 }
 
 function renderPositionsAt() {
-  const { date, rows, fxValidFor, portfolioCount } = state.positionsAt;
+  const { date, rows, cashRows, cashMissing, fxValidFor, portfolioCount } = state.positionsAt;
   const tbody = document.querySelector("#tbl-positions-at tbody");
   const titleEl = document.getElementById("pa-title");
   const statusEl = document.getElementById("pa-status");
@@ -4320,15 +4376,47 @@ function renderPositionsAt() {
   }
   document.getElementById("pa-wrap").hidden = false;
 
+  // Hotovost u brokerů — samostatná tabulka, aby šla do rozvahy zvlášť od CP
+  const cashBody = document.querySelector("#tbl-pa-cash tbody");
+  let totalCash = 0;
+  let missingCash = 0;
+  if (cashBody) {
+    cashBody.innerHTML = "";
+    for (const c of cashRows || []) {
+      if (c.czk != null) totalCash += c.czk;
+      else missingCash++;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(c.broker)}</td>
+        <td>${c.ccy}</td>
+        <td class="num">${fmtNum(c.amount, 2)}</td>
+        <td class="num">${c.fx != null ? fmtNum(c.fx, 4) : dash}</td>
+        <td class="num">${c.czk != null ? fmtNum(c.czk, 2) : dash}</td>
+        <td class="muted">${escapeHtml(c.note)}</td>
+      `;
+      cashBody.appendChild(tr);
+    }
+    document.getElementById("pa-cash-wrap").hidden = (cashRows || []).length === 0;
+  }
+
   if (countEl) {
     countEl.textContent = `${rows.length} pozic · ${portfolioCount} portfolia`;
   }
 
   const diff = totalValue - totalCost;
+  const totalAssets = totalValue + totalCash;
   let html = `
     <div>
-      <div class="total-label">Ocenění celkem (CZK)</div>
+      <div class="total-label">Ocenění cenných papírů (CZK)</div>
       <div class="total-value">${fmtNum(totalValue, 2)}</div>
+    </div>
+    <div>
+      <div class="total-label">Hotovost u brokerů (CZK)</div>
+      <div class="total-value">${fmtNum(totalCash, 2)}</div>
+    </div>
+    <div>
+      <div class="total-label">Majetek celkem (CZK)</div>
+      <div class="total-value">${fmtNum(totalAssets, 2)}</div>
     </div>
     <div>
       <div class="total-label">Pořizovací cena celkem (CZK)</div>
@@ -4339,6 +4427,15 @@ function renderPositionsAt() {
       <div class="total-value ${signClass(diff)}">${fmtNum(diff, 2)}</div>
     </div>`;
   const warnings = [];
+  if (missingCash) warnings.push(`${missingCash}× chybí kurz ČNB k hotovosti — není v součtu.`);
+  if (cashMissing?.length) {
+    warnings.push(`Hotovost není k dispozici pro: ${cashMissing.join(", ")} (k datu chybí snapshot).`);
+  }
+  const staleCash = (cashRows || []).filter((c) => c.asOf !== date);
+  if (staleCash.length) {
+    const byDate = [...new Set(staleCash.map((c) => `${c.broker} — ${fmtCzDate(c.asOf)}`))];
+    warnings.push(`Hotovost z bližšího staršího snapshotu: ${byDate.join("; ")}.`);
+  }
   if (missingValue) warnings.push(`${missingValue}× chybí ocenění (cena nebo kurz) — součet je bez těchto pozic.`);
   if (missingCost) warnings.push(`${missingCost}× chybí pořizovací cena v Kč (historický kurz ČNB).`);
   if (fxValidFor && fxValidFor !== date) {
@@ -4352,7 +4449,7 @@ function renderPositionsAt() {
 }
 
 function exportPositionsAtXlsx() {
-  const { date, rows, fxValidFor } = state.positionsAt;
+  const { date, rows, cashRows, fxValidFor } = state.positionsAt;
   if (!rows) {
     alert("Nejdřív sestav pozice k datu (tlačítko Sestavit v tabu Pozice k datu).");
     return;
@@ -4364,7 +4461,8 @@ function exportPositionsAtXlsx() {
   const subtitle =
     `Zdroj: evidence akcie-tracker (Interactive Brokers + Komerční banka). Kusy = obchody vypořádané do ${fmtCzDate(date)} včetně, FIFO. ` +
     `Ocenění = závěrečný kurz burzy k datu × kusy, přepočet kurzem ČNB k datu${fxNote}. ` +
-    `Pořizovací cena = FIFO cost basis vč. komise, kurz ČNB k datu vypořádání každého nákupu. Kryptoaktiva: v evidenci žádná.`;
+    `Pořizovací cena = FIFO cost basis vč. komise, kurz ČNB k datu vypořádání každého nákupu. Kryptoaktiva: v evidenci žádná. ` +
+    `Hotovost u brokerů je na samostatném listu „Hotovost“ včetně součtu majetku.`;
   const header = [
     "Ticker", "Název", "ISIN", "Broker / účet", "Kusů", "Měna", "Cena k datu", "Datum ceny",
     "Ocenění (měna)", "Kurz ČNB (CZK)", "Ocenění v Kč", "Pořizovací cena v Kč", "Pozn.",
@@ -4414,6 +4512,52 @@ function exportPositionsAtXlsx() {
     { wch: 11 }, { wch: 15 }, { wch: 11 }, { wch: 16 }, { wch: 18 }, { wch: 40 },
   ];
   XLSX.utils.book_append_sheet(wb, ws, "Pozice k datu");
+
+  // Hotovost na samostatný list — do rozvahy jde zvlášť od cenných papírů,
+  // a sloupce (měna, kurz) se do tabulky pozic stejně nevejdou.
+  if (cashRows?.length) {
+    const cashHeader = ["Broker / účet", "Měna", "Částka", "Kurz ČNB (CZK)", "Hodnota v Kč", "Pozn."];
+    const cashAoa = [
+      [`Hotovost u brokerů ke dni ${fmtCzDate(date)}`],
+      [
+        "Zdroj: Interactive Brokers — denní snapshot (Flex NAV); Komerční banka — kvartální snapshot (STAV PTF). " +
+          "Přepočet kurzem ČNB k datu. Měny s nulovým zůstatkem broker neuvádí.",
+      ],
+      [],
+      cashHeader,
+    ];
+    let totalCash = 0;
+    for (const c of cashRows) {
+      if (c.czk != null) totalCash += c.czk;
+      cashAoa.push([c.broker, c.ccy, c.amount, c.fx ?? "", c.czk ?? "", c.note]);
+    }
+    cashAoa.push([]);
+    cashAoa.push(["Hotovost celkem", "", "", "", totalCash, ""]);
+    cashAoa.push(["Cenné papíry celkem", "", "", "", totalValue, ""]);
+    cashAoa.push(["Majetek celkem", "", "", "", totalValue + totalCash, ""]);
+
+    const cws = XLSX.utils.aoa_to_sheet(cashAoa);
+    const cLast = cashHeader.length - 1;
+    cws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: cLast } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: cLast } },
+    ];
+    cws["!rows"] = [{ hpt: 20 }, { hpt: 32 }];
+    cws["A1"].s = { font: { bold: true, sz: 12 }, alignment: { wrapText: true, vertical: "top" } };
+    cws["A2"].s = { font: { sz: 10, color: { rgb: "6B6B66" } }, alignment: { wrapText: true, vertical: "top" } };
+    const cashNumFmt = { 2: "#,##0.00", 3: "#,##0.0000", 4: "#,##0.00" };
+    for (let r = 3; r < cashAoa.length; r++) {
+      for (let c = 0; c <= cLast; c++) {
+        const cell = cws[XLSX.utils.encode_cell({ r, c })];
+        if (!cell) continue;
+        if (r === 3 || r >= cashAoa.length - 3) cell.s = { font: { bold: true } };
+        if (cell.t === "n" && cashNumFmt[c]) cell.z = cashNumFmt[c];
+      }
+    }
+    cws["!cols"] = [{ wch: 28 }, { wch: 6 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 40 }];
+    XLSX.utils.book_append_sheet(wb, cws, "Hotovost");
+  }
+
   XLSX.writeFile(wb, `pozice-k-${date}.xlsx`);
 }
 
