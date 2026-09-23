@@ -301,6 +301,10 @@ flowchart TD
 - **Auth:** secret `MCP_TOKEN` jako `Authorization: Bearer <token>` **nebo** `?token=<token>`
   (claude.ai konektor umí jen URL). Porovnání v konstantním čase (SHA-256 +
   `timingSafeEqual`). Bez tokenu / bez nastaveného secretu → 401.
+- **403 „error code: 1010" není z Workeru:** Cloudflare na workers.dev odmítne výchozí
+  User-Agent Pythonu `Python-urllib/*` dřív, než požadavek dojde do Workeru (ověřeno
+  2026-09-23; `curl`, `python-requests` i prázdný User-Agent projdou). Ranní úloha
+  PLEGINu proto posílá vlastní User-Agent. `/mcp` sám vrací jen 401 (token).
 - **Nástroj `akcie_den`** (`datum` YYYY-MM-DD, výchozí včera Europe/Prague;
   `portfolio` = id z manifestu nebo `vse`): stav k **závěru obchodního dne** — pozice
   podle **data obchodu** (`computePositionsAt` s `dateField: "date"` + dividendy k datu),
