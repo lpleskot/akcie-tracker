@@ -1,7 +1,7 @@
 # CLAUDE.md — akcie-tracker
 
-> Aktualizováno 2026-07-23 (migrace Pages → jeden Worker; revize kódu 2026-07-22 viz
-> `REVIZE_REPORT.md`). Jediný projektový brief pro Claude (Cowork i Claude Code ho čtou
+> Aktualizováno 2026-09-23 (MCP konektor pro PLEGIN + sdílený výpočet portfolia; migrace
+> Pages → jeden Worker 2026-07-23; revize kódu 2026-07-22 viz `REVIZE_REPORT.md`). Jediný projektový brief pro Claude (Cowork i Claude Code ho čtou
 > automaticky). Obecná workflow pravidla viz `PROJECT_PLAYBOOK.md` (root projektu, mimo repo).
 
 ---
@@ -37,6 +37,9 @@ Ověřeno anonymním curl: `/`, `/data/*`, `/api/*` i `/run/*` → 302 na
 vlastní doménu — ASSETS binding). Manuální `/run/*` přes curl vyžaduje Access
 **service token** (Zero Trust → Service Auth) NAVÍC k `x-admin-key` — nebo
 prostě počkat na ranní cron. Druhá vrstva ochrany: `noindex` + `robots.txt`.
+**Výjimka `/mcp`** (MCP konektor pro PLEGIN, 2026-09): samostatná Access aplikace
+pro cestu `/mcp` s politikou **Bypass** — ověřuje až Worker tokenem `MCP_TOKEN`.
+Zbytek webu dál za Accessem (ověřit anonymním curl: `/` a `/api/*` → 302, `/mcp` → 401).
 
 **Repo:** `lpleskot/akcie-tracker` (private, GitHub). **Git root je subfolder `web/`**,
 ne kořen projektu — `workers/`, `.github/`, `scripts/` musí být **uvnitř** `web/`,
@@ -56,7 +59,7 @@ jinak se nedostanou do repa.
 - **Hybridní data model:**
   - **Statický JSON** v gitu = historický snapshot, manuálně commitnutý
   - **KV overlay** = denní auto-import přes IBKR Flex (Worker `flex-import` → KV `portfolio-overlay:{id}`)
-  - Frontend `mergeOverlayIntoPortfolio()` přidává overlay eventy ke statickému JSON,
+  - `mergeOverlayIntoPortfolio()` (`portfolio-shared.js`, volá frontend i Worker) přidává overlay eventy ke statickému JSON,
     dedupe podle `flex_id` (= IBKR `tradeID` / `transactionID` / `actionID`)
 - **Účetně rozhoduje datum VYPOŘÁDÁNÍ (settle_date)**, ne datum obchodu — určuje rok
   i kurz ČNB. Prodej s obchodem 30.12. a vypořádáním 2.1. patří do nového roku.
@@ -71,16 +74,26 @@ jinak se nedostanou do repa.
   další historické ocenění, musí taky.
 - **Yahoo Finance** přes neoficiální `query1.finance.yahoo.com`, voláno ze serveru
   (CF Function `/api/quote`), cache 60 s, MINOR_UNITS scale (GBp/100, ZAc/100 atd.).
+  Historická řada (`fetchYahooCloseAt`, period1/period2) má ráno po obchodním dni
+  u US a evropských burz bar za včerejšek ještě s `close: null` (zjištěno 2026-09-23
+  ve 4:45) — závěr posledního dne se proto doplní z `meta.regularMarketPrice/Time`,
+  bar z řady má přednost. `chartPreviousClose` NENÍ předchozí závěr (je to závěr
+  před začátkem stahovaného okna).
 - **ČNB kurzy** v `data/fx_rates.json` — denní fetch přes GH Action `fx-update-cron.yml`
   (14:35 UTC). `getFxToCzk(date, ccy)` je strict by default (vrátí null pokud chybí),
   opt-in `{ allowFallback: true }` použije nejbližší předchozí. Důležité pro daňový
   report — žádné vymýšlení kurzů. Skript je **fail-fast**: při chybě fetche nejde dál
   (exit 1 → červený workflow), aby za dírou nevznikl trvale přeskočený den.
-- **Sdílené moduly místo kopií** (R5/R6): FIFO engine `assets/js/fifo.js` a Flex
-  transformace `assets/js/flex-shared.js` importuje frontend i cron job alerts
-  (wrangler/esbuild je při deployi zabalí); `worker/api/lib.js` = Yahoo fetch
-  (minor units!) + JSON helper — používá ho API vrstva i job alerts. Jeden Worker
-  = vše se deployuje najednou, žádné path-based redeploye.
+- **Sdílené moduly místo kopií** (R5/R6): FIFO engine `assets/js/fifo.js` (vč.
+  `positionTotalReturn` = sloupec Celkem Z/Z), Flex transformace `assets/js/flex-shared.js`
+  a **`assets/js/portfolio-shared.js`** (merge overlay `mergeOverlayIntoPortfolio`,
+  kurzy `fxToCzk`/`amountToUsd`, hotovost `cashToCzk`, Celkový výnos
+  `portfolioTotalReturn` — kurzy parametrem, žádný globální stav) importuje frontend,
+  cron job alerts i MCP konektor (wrangler/esbuild je při deployi zabalí).
+  **Kdo potřebuje číslo, které appka ukazuje, volá tyhle funkce — žádné kopie vzorců**
+  (export XLSX přehledu měl vlastní kopii Total Return bez dividend, opraveno 2026-09).
+  `worker/api/lib.js` = Yahoo fetch (minor units!), `fetchAssetJson` (ASSETS binding)
+  + JSON helper. Jeden Worker = vše se deployuje najednou, žádné path-based redeploye.
 - **Vendorovaný XLSX** `assets/js/vendor/xlsx-js-style.min.js` — **xlsx-js-style 1.2.0**
   (fork SheetJS 0.18.5 se zápisem stylů buněk; nahradil SheetJS mini 0.20.3 dne
   2026-07-25 kvůli barvám v exportu Reportu). Používáme JEN zápis — čtecí CVE SheetJS
@@ -90,7 +103,7 @@ jinak se nedostanou do repa.
 ### Yahoo ticker mapování
 - Manuální mapa v `instruments[<sym>].yahoo_symbol`. US tituly bez přípony, ostatní
   s burzovní příponou (`.TO`, `.ST`, `.PA`, `.DE`, `.AS`, `.AX`, `.WA`, `.MI`, `.L` …).
-- **Auto-přidané instrumenty z Flex overlay** (funkce `ensureInstrument` v `app.js`)
+- **Auto-přidané instrumenty z Flex overlay** (funkce `ensureInstrument` ve `flex-shared.js`)
   odvozují příponu z IBKR `listingExchange` přes mapu `IBKR_EXCHANGE_SUFFIX`
   (`deriveYahooSymbol`): `AEB→.AS`, `SBF→.PA`, `IBIS→.DE`, `SFB→.ST`, `TSE→.TO`, …
   Bez toho Yahoo napáruje holý symbol (např. „CSG") na cizí US titul a vrátí null cenu.
@@ -132,8 +145,8 @@ flowchart TD
 - **alerts**: čte watchlist + alerts + **portfolio-overlay přímo z KV**, statický
   portfolio JSON přes **ASSETS binding** a ceny přímo sdílenou `fetchYahooQuote` —
   žádné HTTP přes vlastní doménu, Cloudflare Access se jobu netýká. Overlay merguje
-  sdílenými transformacemi a FIFO počítá sdíleným enginem (`fifo.js`) — vidí tedy
-  i pozice z auto-importu (R6). **Bez notifikací** — e-maily (Resend) odstraněny
+  sdíleným `mergeOverlayIntoPortfolio` (stejný jako frontend) a FIFO počítá sdíleným
+  enginem (`fifo.js`) — vidí tedy i pozice z auto-importu (R6). **Bez notifikací** — e-maily (Resend) odstraněny
   2026-07-23; splněná pravidla zapíše jako `fired:*` flagy a UI je zobrazí v tabu
   Alerty (deduplikace: fired pravidlo se znovu nevyhodnotí do manuálního Re-arm).
   Selhání jobu je vidět jen v CF lozích. Manuální `/run/alerts` s `x-admin-key`;
@@ -263,12 +276,34 @@ flowchart TD
 | `GET /api/portfolio-overlay/[id]` | KV `portfolio-overlay:{id}` read pro frontend merge |
 | `GET /api/quote-at?symbols=…&date=YYYY-MM-DD` | Yahoo závěrečná cena k datu (poslední bar ≤ datum, minor units fix, **split-adjusted!**), cache 7 dní pro data starší 2 dnů |
 | `GET /api/fx-at?date=YYYY-MM-DD` | Kurzy ČNB k datu živě (stejný tvar jako `fx_rates.json` entry, `valid_for`), cache 30 dní |
+| `POST /mcp` | **MCP server pro PLEGIN** (mimo `/api`, vlastní Access výjimka) — viz níže |
+
+### MCP konektor (`/mcp`, `worker/mcp/`)
+
+- **Transport:** Streamable HTTP, JSON-RPC 2.0, bez SSE a bez SDK (`initialize`,
+  `tools/list`, `tools/call`, `ping`, notifikace → 202; GET/DELETE → 405). Stateless.
+- **Auth:** secret `MCP_TOKEN` jako `Authorization: Bearer <token>` **nebo** `?token=<token>`
+  (claude.ai konektor umí jen URL). Porovnání v konstantním čase (SHA-256 +
+  `timingSafeEqual`). Bez tokenu / bez nastaveného secretu → 401.
+- **Nástroj `akcie_den`** (`datum` YYYY-MM-DD, výchozí včera Europe/Prague;
+  `portfolio` = id z manifestu nebo `vse`): stav k **závěru obchodního dne** — pozice
+  podle **data obchodu** (`computePositionsAt` s `dateField: "date"` + dividendy k datu),
+  ceny = uzavřené denní závěry Yahoo × `splitFactorAfter`, kurz ČNB k datu s fallbackem,
+  hotovost `cashAtDate` (IBKR denní NAV, KB kvartální STAV PTF, jinak `cash_balance`),
+  Total Return a Celkový výnos sdílenými funkcemi. Denní změna souhrnu jen z titulů
+  s `obchodovano: true`; % = změna / (hodnota pozic − změna). JSON v `content[0].text`
+  (~17 kB). Chyby vstupu → `isError: true` s textem pro model.
+- **Záměrné rozdíly proti obrazovce:** IBKR hotovost z NAV (dlaždice Cash bere
+  `cash_balance` — k 2026-05-15 se lišily o 134 USD), ceny závěr vs. živá.
+- **Časování:** flex-import běží 7:00 Prahy; PLEGIN čte ve 4:45 → IBKR overlay (obchody,
+  NAV hotovost) je v tu chvíli o obchodní den pozadu (`cash_k` = předvčerejšek,
+  `overlay.nav_do` to ukazuje). Ceny i KB jsou aktuální.
 
 **KV klíče (sdílené):** `watchlist`, `alerts`, `notes`, `journal`,
 `portfolio-overlay:{id}`, `fired:alert:{ruleId}:{symbol}`, `fired:watch:{itemId}:{ruleId}`.
 
 **Secrets:** Worker `akcie-tracker` (CF Dashboard → Settings → Variables and Secrets):
-`FLEX_TOKEN`, `ADMIN_KEY`. Deploy běží přes Workers Builds pod CF účtem — GitHub
+`FLEX_TOKEN`, `ADMIN_KEY`, `MCP_TOKEN` (bez něj je `/mcp` zavřený — 401). Deploy běží přes Workers Builds pod CF účtem — GitHub
 secrets `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` už nejsou potřeba (možno
 smazat). Access service token není potřeba; Resend odstraněn (žádné e-maily).
 Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží vždy.
@@ -277,12 +312,21 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared}.test.mjs` — 25 unit testů (`node --test tests/*.test.mjs`),
-ručně spočítané fixtures: FIFO matching + prorace komise, proceeds-authoritative ceny,
-splity (vč. same-day pořadí a 1:25), KB received/removed párování + bonus/cancellation,
-orphan sells, settle data v closed lots, dividendy, Flex transformace (vč. settle_date).
-CI: `.github/workflows/tests.yml` při každém pushi (neblokuje deploy — červený běh
-= signál). Uzavírá REVIZE R9 (2026-07-25).
+`tests/{fifo,flex-shared,portfolio-shared,akcie-den}.test.mjs` — 51 unit testů
+(`node --test tests/*.test.mjs`), ručně spočítané fixtures: FIFO matching + prorace komise,
+proceeds-authoritative ceny, splity (vč. same-day pořadí a 1:25), KB received/removed
+párování + bonus/cancellation, orphan sells, settle data v closed lots, dividendy, Flex
+transformace (vč. settle_date), hotovost k datu, Total Return pozice, `computePositionsAt`
+volby (výchozí chování inventury beze změny), merge overlay (dedupe, forex, vklady),
+kurzy, Celkový výnos, MCP report (split po datu, neobchodovaný den, chybějící cena,
+delisted, součty `vse`). CI: `.github/workflows/tests.yml` při každém pushi (neblokuje
+deploy — červený běh = signál). Uzavírá REVIZE R9 (2026-07-25).
+
+**Lokální `wrangler dev`:** stav persistovat MIMO repo
+(`--persist-to ../.wrangler-state`). Asset složka je celé repo, zápisy do
+`.wrangler/state` jinak spustí nekonečnou smyčku restartů — GET se zopakují, POST
+(watchlist, alerty, `/mcp`) padají „worker restarted mid-request". Token pro `/mcp`
+lokálně přes `--var MCP_TOKEN:…`.
 
 ## FIFO engine (`assets/js/fifo.js`)
 
@@ -304,17 +348,18 @@ Cost basis prorataována o proporcionální komisi.
 ```
 web/                                    ← repo root = asset složka Workeru
 ├── index.html                          ← 9 tabů, modaly, #warnings banner
-├── assets/js/{app.js, fifo.js, flex-shared.js, vendor/xlsx-js-style.min.js}
-│                                       ← fifo+flex-shared sdílené s cron jobem alerts
+├── assets/js/{app.js, fifo.js, flex-shared.js, portfolio-shared.js, vendor/xlsx-js-style.min.js}
+│                                       ← fifo+flex-shared+portfolio-shared sdílené s Workerem
 ├── assets/css/styles.css
-├── worker/index.js                     ← entry: /api/* router + scheduled dispatch
-├── worker/api/{lib,quote,watchlist,alerts,notes,journal,portfolio-overlay}.js
+├── worker/index.js                     ← entry: /api/* + /mcp router + scheduled dispatch
+├── worker/api/{lib,quote,quote-at,fx-at,watchlist,alerts,notes,journal,portfolio-overlay}.js
+├── worker/mcp/{server,akcie-den}.js    ← MCP konektor pro PLEGIN (protokol + nástroj)
 ├── worker/jobs/{alerts,flex-import}.js ← cron joby
 ├── wrangler.toml                       ← name, assets, crony, KV binding, vars
 ├── .assetsignore                       ← co se neservíruje (worker/, *.md, …)
 ├── data/portfolios/{manifest,plegi-invest-ibkr,plegi-invest-kb}.json
 ├── data/portfolio-history-plegi-invest-ibkr.json, data/fx_rates.json
-├── tests/{fifo,flex-shared}.test.mjs   ← unit testy (node --test, R9)
+├── tests/*.test.mjs                    ← unit testy (node --test, R9)
 ├── .github/workflows/{fx-update-cron,tests}.yml
 ├── scripts/fx-update.mjs
 ├── _headers                            ← CSP, HSTS, cache

@@ -305,3 +305,92 @@ test("cashAtDate: před prvním snapshotem a bez dat → null", () => {
   assert.equal(cashAtDate({}, "2025-12-31"), null);
   assert.equal(cashAtDate(null, "2025-12-31"), null);
 });
+
+import { positionTotalReturn } from "../assets/js/fifo.js";
+
+// BUY 10 @ 100 (komise 10 → 101/ks), SELL 4 @ 120 (komise 8 → 118/ks):
+// realized 4 × 17 = 68, otevřeno 6 ks za 606, uzavřeno 404 → investováno 1010
+function trFixture(divs = [], taxes = []) {
+  return computePositions(
+    [
+      tx({ proceeds: -1000, commission: -10 }),
+      tx({ date: "2026-02-01", type: "SELL", quantity: 4, price: 120, commission: -8 }),
+    ],
+    [],
+    divs,
+    taxes,
+  ).AAA;
+}
+
+test("positionTotalReturn: kapitálová Z/Z + čisté dividendy ve stejné měně", () => {
+  const pos = trFixture(
+    [{ symbol: "AAA", date: "2026-03-01", amount: 20, currency: "USD" }],
+    [{ symbol: "AAA", date: "2026-03-01", amount: -3, currency: "USD" }],
+  );
+  const r = positionTotalReturn(pos, "USD", 110);
+  close(r.marketValue, 660);
+  close(r.unrealizedPnl, 660 - 606);
+  close(r.capitalPnl, 68 + 54);
+  close(r.totalPnl, 122 + 17);
+  close(r.totalPct, (139 / 1010) * 100);
+  close(r.capitalPct, (122 / 1010) * 100);
+  assert.equal(r.divSameCcy, true);
+  assert.equal(r.hasDividends, true);
+});
+
+test("positionTotalReturn: dividendy v jiné měně se nepřičítají", () => {
+  const pos = trFixture([{ symbol: "AAA", date: "2026-03-01", amount: 50, currency: "DKK" }]);
+  const r = positionTotalReturn(pos, "EUR", 110);
+  close(r.totalPnl, r.capitalPnl);
+  assert.equal(r.divSameCcy, false);
+  assert.deepEqual(r.dividendCurrencies, ["DKK"]);
+  // smíšené měny (USD + DKK) u USD pozice — taky nesčítat
+  const mixed = trFixture(
+    [{ symbol: "AAA", date: "2026-03-01", amount: 5, currency: "USD" }],
+    [{ symbol: "AAA", date: "2026-03-01", amount: -1, currency: "DKK" }],
+  );
+  assert.equal(positionTotalReturn(mixed, "USD", 110).divSameCcy, false);
+});
+
+test("positionTotalReturn: bez ceny jen realizovaná Z/Z, bez dividend divSameCcy", () => {
+  const r = positionTotalReturn(trFixture(), "USD", undefined);
+  close(r.unrealizedPnl, 0);
+  close(r.capitalPnl, 68);
+  close(r.totalPnl, 68);
+  assert.equal(r.divSameCcy, true);
+  assert.equal(r.hasDividends, false);
+});
+
+test("computePositionsAt: výchozí chování (vypořádání, bez dividend) se nemění", () => {
+  // nákup 22. 9., vypořádání 23. 9.
+  const txs = [tx({ date: "2026-09-22", settle_date: "2026-09-23", quantity: 7 })];
+  assert.equal(computePositionsAt(txs, [], "2026-09-22").AAA, undefined);
+  close(computePositionsAt(txs, [], "2026-09-23").AAA.net_qty, 7);
+  assert.deepEqual(
+    computePositionsAt(txs, [], "2026-09-23", {}),
+    computePositionsAt(txs, [], "2026-09-23"),
+  );
+  // bez opts dividendy do FIFO nejdou
+  close(computePositionsAt(txs, [], "2026-09-23").AAA.net_dividend_local, 0);
+});
+
+test("computePositionsAt: dateField date + dividendy oříznuté k datu", () => {
+  const txs = [tx({ date: "2026-09-22", settle_date: "2026-09-23", quantity: 7 })];
+  const opts = {
+    dateField: "date",
+    dividends: [
+      { symbol: "AAA", date: "2026-09-10", amount: 5, currency: "USD" },
+      { symbol: "AAA", date: "2026-09-25", amount: 7, currency: "USD" },
+    ],
+    withholdingTax: [
+      { symbol: "AAA", date: "2026-09-10", amount: -0.75, currency: "USD" },
+      { symbol: "AAA", date: "2026-09-25", amount: -1.05, currency: "USD" },
+    ],
+  };
+  const pos = computePositionsAt(txs, [], "2026-09-22", opts).AAA;
+  // nákup z 22. 9. hýbe hodnotou už 22. 9., i když se vypořádá až 23. 9.
+  close(pos.net_qty, 7);
+  close(pos.net_dividend_local, 5 - 0.75);
+  assert.equal(pos.dividend_records.length, 1);
+  assert.equal(computePositionsAt(txs, [], "2026-09-21", opts).AAA?.net_qty ?? 0, 0);
+});

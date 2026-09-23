@@ -21,18 +21,13 @@
  * a ceny přímo sdílenou funkcí fetchYahooQuote, žádné HTTP na vlastní URL.
  * Cloudflare Access na doméně se jobu netýká (nepotřebuje service token).
  *
- * FIFO počítá sdílený engine ../../assets/js/fifo.js a overlay transformace
- * ../../assets/js/flex-shared.js — stejný kód jako frontend, žádná
+ * FIFO počítá sdílený engine ../../assets/js/fifo.js a overlay merguje
+ * ../../assets/js/portfolio-shared.js — stejný kód jako frontend, žádná
  * divergentní kopie. (Wrangler/esbuild je zabalí při deployi.)
  */
 
 import { computePositions } from "../../assets/js/fifo.js";
-import {
-  ensureInstrument,
-  isForexConversion,
-  transformFlexTrade,
-  transformFlexCorpAction,
-} from "../../assets/js/flex-shared.js";
+import { mergeOverlayIntoPortfolio } from "../../assets/js/portfolio-shared.js";
 import { fetchYahooQuote } from "../api/lib.js";
 import { DEFAULT_RULES } from "../api/alerts.js";
 
@@ -49,7 +44,9 @@ export async function runAlertEvaluation(env, source, dryRun = false) {
       `portfolio-overlay:${env.PORTFOLIO_ID}`,
       "json",
     );
-    mergeOverlayForAlerts(portfolio, overlay);
+    // Kurzy se nepředávají: ovlivní jen total_deposits_usd, se kterým alerty
+    // nepracují.
+    mergeOverlayIntoPortfolio(portfolio, overlay, null);
 
     // 2) Watchlist + alert pravidla z KV
     const watchlistData =
@@ -190,39 +187,6 @@ async function fetchQuotes(symbols) {
         : { error: String(r.reason?.message || r.reason || "fetch failed") };
   });
   return quotes;
-}
-
-/**
- * Mergne KV overlay do portfolia — jen část potřebná pro alerty
- * (transakce → pozice, corporate actions → splity, instrumenty).
- * Zrcadlí mergeOverlayIntoPortfolio v app.js; transformace jsou sdílené
- * z flex-shared.js, tady je jen dedupe smyčka.
- */
-function mergeOverlayForAlerts(portfolio, overlay) {
-  portfolio.transactions = portfolio.transactions || [];
-  portfolio.corporate_actions = portfolio.corporate_actions || [];
-  portfolio.instruments = portfolio.instruments || {};
-  if (!overlay) return;
-
-  const txIds = new Set(
-    portfolio.transactions.map((t) => t.flex_id).filter(Boolean),
-  );
-  for (const t of overlay.trades || []) {
-    if (!t.tradeID || txIds.has(t.tradeID)) continue;
-    if (isForexConversion(t)) continue; // konverze měn nejsou pozice
-    ensureInstrument(portfolio, t.symbol, t);
-    portfolio.transactions.push(transformFlexTrade(t));
-    txIds.add(t.tradeID);
-  }
-
-  const caIds = new Set(
-    portfolio.corporate_actions.map((a) => a.flex_id).filter(Boolean),
-  );
-  for (const a of overlay.corporate_actions || []) {
-    if (!a.actionID || caIds.has(a.actionID)) continue;
-    portfolio.corporate_actions.push(transformFlexCorpAction(a));
-    caIds.add(a.actionID);
-  }
 }
 
 // ---------- Evaluace pravidel ----------

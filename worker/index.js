@@ -5,6 +5,8 @@
  *   z [assets] konfigurace — fetch handler se volá jen pro cesty, které
  *   žádnému assetu neodpovídají (tj. /api/*, /run/* a 404).
  * - /api/*  → routovací tabulka níže (worker/api/*.js).
+ * - /mcp    → MCP server pro PLEGIN (worker/mcp/server.js), token MCP_TOKEN;
+ *   v Cloudflare Access vyjmutý politikou Bypass.
  * - /run/*  → manuální spuštění cron jobů, vyžaduje header x-admin-key
  *   = secret ADMIN_KEY (bez nastaveného secretu trvale zavřeno).
  * - Jediný cron trigger "0 5 * * *" (= 7:00 Prahy v létě / 6:00 v zimě):
@@ -20,6 +22,7 @@ import * as alerts from "./api/alerts.js";
 import * as notes from "./api/notes.js";
 import * as journal from "./api/journal.js";
 import * as portfolioOverlay from "./api/portfolio-overlay.js";
+import { handleMcp } from "./mcp/server.js";
 import { runImport } from "./jobs/flex-import.js";
 import { runAlertEvaluation } from "./jobs/alerts.js";
 
@@ -55,6 +58,9 @@ export default {
 
     if (path.startsWith("/api/")) {
       return handleApi(request, env, url);
+    }
+    if (path === "/mcp") {
+      return handleMcp(request, env);
     }
     if (path.startsWith("/run/")) {
       return handleRun(request, env, url);

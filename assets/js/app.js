@@ -2,22 +2,21 @@ import {
   cashAtDate,
   computePositions,
   computePositionsAt,
+  positionTotalReturn,
   splitFactorAfter,
   unrealizedPnl,
   fmtNum,
   fmtPct,
   fmtMoney,
 } from "./fifo.js";
+import { flexDate } from "./flex-shared.js";
 import {
-  ensureInstrument,
-  isForexConversion,
-  flexDate,
-  transformFlexTrade,
-  transformFlexDividend,
-  transformFlexWithholding,
-  transformFlexCashFlow,
-  transformFlexCorpAction,
-} from "./flex-shared.js";
+  amountToUsd,
+  cashToCzk,
+  fxToCzk,
+  mergeOverlayIntoPortfolio,
+  portfolioTotalReturn,
+} from "./portfolio-shared.js";
 
 const MANIFEST_URL = "./data/portfolios/manifest.json";
 const PORTFOLIO_BASE = "./data/portfolios/";
@@ -186,7 +185,7 @@ async function loadActivePortfolio() {
   if (overlayRes && overlayRes.ok) {
     try {
       const overlay = await overlayRes.json();
-      state.overlayStats = mergeOverlayIntoPortfolio(state.portfolio, overlay);
+      state.overlayStats = mergeOverlayIntoPortfolio(state.portfolio, overlay, state.fxRates);
     } catch (e) {
       console.warn(`Overlay merge selhal: ${e.message}`);
       state.loadWarnings.push(
@@ -239,170 +238,11 @@ async function loadActivePortfolio() {
   renderLoadWarnings();
 }
 
-/**
- * Mergne KV overlay (Flex API import) do načteného portfolia.
- * Overlay obsahuje data z IBKR Flex Web Service v jejich nativním
- * tvaru. Tahle funkce je transformuje do shape, který používá
- * statický JSON + FIFO engine, a dedupuje proti existujícím IDs.
- *
- * Vrací { trades, dividends, withholding, corp_actions, cash_flows }
- * — počty NOVĚ přidaných záznamů pro UI indikátor.
- */
-function mergeOverlayIntoPortfolio(portfolio, overlay) {
-  const stats = {
-    trades: 0,
-    dividends: 0,
-    withholding: 0,
-    corp_actions: 0,
-    cash_flows: 0,
-    last_import: overlay.last_import || null,
-  };
-
-  // Zajistit existenci polí na portfolio objektu
-  portfolio.transactions = portfolio.transactions || [];
-  portfolio.dividends = portfolio.dividends || [];
-  portfolio.withholding_tax = portfolio.withholding_tax || [];
-  portfolio.corporate_actions = portfolio.corporate_actions || [];
-  portfolio.cash_flows = portfolio.cash_flows || [];
-  portfolio.instruments = portfolio.instruments || {};
-  portfolio.cash_balance = { ...(portfolio.cash_balance || {}) };
-
-  // NAV snapshot historie z overlay (denní hodnoty z IBKR Flex)
-  // — pro graf "Hodnota portfolia v čase"
-  portfolio.nav_history = overlay.nav_snapshot || [];
-
-  // Indexy pro dedupe podle Flex ID (uložené v `flex_id` poli)
-  const existingTradeIds = new Set(
-    portfolio.transactions.map((t) => t.flex_id).filter(Boolean),
-  );
-  const existingDivIds = new Set(
-    portfolio.dividends.map((d) => d.flex_id).filter(Boolean),
-  );
-  const existingWithholdingIds = new Set(
-    portfolio.withholding_tax.map((w) => w.flex_id).filter(Boolean),
-  );
-  const existingCaIds = new Set(
-    portfolio.corporate_actions.map((a) => a.flex_id).filter(Boolean),
-  );
-  const existingCfIds = new Set(
-    portfolio.cash_flows.map((f) => f.flex_id).filter(Boolean),
-  );
-
-  // Tracking delt na cash balance, aplikované jen pro Flex-imported události
-  // (static cash_balance je už zafixovaný snapshot, nové eventy se k němu přičítají).
-  const addCash = (ccy, amount) => {
-    if (!ccy || !Number.isFinite(amount)) return;
-    if (portfolio.cash_balance[ccy] == null) portfolio.cash_balance[ccy] = 0;
-    portfolio.cash_balance[ccy] += amount;
-  };
-
-  // 1) Trades — cash impact = netCash (signed: + sell, − buy, již po komisi)
-  for (const t of overlay.trades || []) {
-    if (!t.tradeID || existingTradeIds.has(t.tradeID)) continue;
-    const symbol = t.symbol;
-    if (!symbol) continue;
-
-    // Forex konverze (IBKR automaticky mění měny při nákupu titulů v cizí měně)
-    // NEJSOU pozice — assetCategory="CASH", symbol je měnový pár "BASE.QUOTE"
-    // (např. EUR.USD, USD.DKK). Nezakládat instrument ani transakci, jen
-    // promítnout obě nohy konverze do multi-currency cash zůstatku:
-    //   base měna  = symbol před tečkou, delta = quantity (signed)
-    //   quote měna = t.currency (za tečkou), delta = netCash (signed, po komisi)
-    if (isForexConversion(t)) {
-      existingTradeIds.add(t.tradeID);
-      const [baseCcy] = symbol.split(".");
-      const qty = parseFloat(t.quantity);
-      const netCash = parseFloat(t.netCash);
-      if (Number.isFinite(qty)) addCash(baseCcy, qty);
-      if (Number.isFinite(netCash)) addCash(t.currency, netCash);
-      continue;
-    }
-
-    ensureInstrument(portfolio, symbol, t);
-    portfolio.transactions.push(transformFlexTrade(t));
-    existingTradeIds.add(t.tradeID);
-    stats.trades++;
-    // Cash delta — netCash je už proceeds + commission (signed)
-    const netCash = parseFloat(t.netCash);
-    if (Number.isFinite(netCash)) addCash(t.currency, netCash);
-  }
-
-  // 2) Cash transactions — split do dividends / withholding / cash_flows
-  for (const c of overlay.cash_transactions || []) {
-    if (!c.transactionID) continue;
-    const type = c.type || "";
-    const amt = parseFloat(c.amount);
-    if (/Dividends/i.test(type)) {
-      if (existingDivIds.has(c.transactionID)) continue;
-      ensureInstrument(portfolio, c.symbol, c);
-      portfolio.dividends.push(transformFlexDividend(c));
-      existingDivIds.add(c.transactionID);
-      stats.dividends++;
-      addCash(c.currency, amt); // dividenda = inflow
-    } else if (/Withholding/i.test(type)) {
-      if (existingWithholdingIds.has(c.transactionID)) continue;
-      portfolio.withholding_tax.push(transformFlexWithholding(c));
-      existingWithholdingIds.add(c.transactionID);
-      stats.withholding++;
-      addCash(c.currency, amt); // withholding amount je už negativní (outflow)
-    } else {
-      // Deposits/Withdrawals, Other Fees, Broker Interest, … → cash_flows
-      if (existingCfIds.has(c.transactionID)) continue;
-      portfolio.cash_flows.push(transformFlexCashFlow(c));
-      existingCfIds.add(c.transactionID);
-      stats.cash_flows++;
-      addCash(c.currency, amt); // amount je už signed
-
-      // Pokud je to deposit/withdrawal, aktualizovat i total_deposits_usd —
-      // bez tohoto by se procento výnosu uměle nafouklo (cash by se přičetl
-      // do current value, ale jmenovatel deposits by zůstal stejný).
-      if (
-        /Deposits.*Withdrawals|Account Transfers|Internal Transfers/i.test(type)
-      ) {
-        const date = flexDate(c.dateTime || c.reportDate);
-        const usdAmt = convertToUsd(amt, c.currency, date);
-        if (Number.isFinite(usdAmt)) {
-          portfolio.total_deposits_usd =
-            (portfolio.total_deposits_usd || 0) + usdAmt;
-        }
-      }
-    }
-  }
-
-  // 3) Corporate actions
-  for (const a of overlay.corporate_actions || []) {
-    if (!a.actionID || existingCaIds.has(a.actionID)) continue;
-    ensureInstrument(portfolio, a.symbol, a);
-    portfolio.corporate_actions.push(transformFlexCorpAction(a));
-    existingCaIds.add(a.actionID);
-    stats.corp_actions++;
-    // Některé CA mají cash složku (cash-in-lieu apod.)
-    const proc = parseFloat(a.proceeds);
-    if (Number.isFinite(proc) && proc !== 0) addCash(a.currency, proc);
-  }
-
-  return stats;
-}
-
-// Mapa burz, deriveYahooSymbol, ensureInstrument a transformFlex* žijí
-// v ./flex-shared.js — sdílené s workerem cron-alerts (jeden zdroj pravdy).
-
-// Přepočet částky z lokální měny na USD pomocí ČNB kurzů.
-// Pokud kurz pro dané datum neexistuje, fallback na nejnovější dostupný.
-// Pokud měna je USD nebo kurzy nemáme, vrátí původní amount.
+// Merge overlay, kurzy a přepočty žijí v ./portfolio-shared.js, Flex
+// transformace v ./flex-shared.js — sdílené s Workerem (alerty, MCP konektor).
+// Tady jen tenký obal nad kurzy načtenými appkou.
 function convertToUsd(amount, currency, date) {
-  if (!Number.isFinite(amount)) return NaN;
-  if (currency === "USD") return amount;
-  if (!state.fxRates?.dates) return NaN;
-  const allDates = Object.keys(state.fxRates.dates).sort();
-  if (allDates.length === 0) return NaN;
-  // Použít kurz k datu transakce, jinak nejnovější
-  const useDate =
-    date && state.fxRates.dates[date] ? date : allDates[allDates.length - 1];
-  const ccyToCzk = getFxToCzk(useDate, currency);
-  const usdToCzk = getFxToCzk(useDate, "USD");
-  if (!ccyToCzk || !usdToCzk) return NaN;
-  return (amount * ccyToCzk) / usdToCzk;
+  return amountToUsd(state.fxRates, amount, currency, date);
 }
 
 function makeEmptyPortfolio(meta) {
@@ -2137,24 +1977,7 @@ function renderAllocation() {
 // nejbližší předchozí datum (vhodné jen pro interní hrubé přepočty,
 // např. odhad USD ekvivalentu).
 function getFxToCzk(date, currency, opts) {
-  if (currency === "CZK") return 1;
-  const fx = state.fxRates;
-  if (!fx || !fx.dates) return null;
-
-  const day = fx.dates[date];
-  if (day?.rates?.[currency]) {
-    const r = day.rates[currency];
-    return r.rate / r.amount;
-  }
-
-  if (!opts?.allowFallback) return null;
-
-  const candidates = Object.keys(fx.dates).filter((d) => d < date).sort();
-  if (candidates.length === 0) return null;
-  const fallbackDate = candidates[candidates.length - 1];
-  const r = fx.dates[fallbackDate]?.rates?.[currency];
-  if (!r) return null;
-  return r.rate / r.amount;
+  return fxToCzk(state.fxRates, date, currency, opts);
 }
 
 // Datum, ke kterému použitý kurz skutečně platí (valid_for). O víkendu/svátku
@@ -2203,60 +2026,7 @@ function renderOverview() {
   tbody.innerHTML = "";
 
   // 1) Sesbírat řádky s vypočtenými hodnotami
-  const rows = [];
-  const searchQuery = state.searches.overview;
-  for (const sym of Object.keys(state.portfolio.instruments)) {
-    const inst = state.portfolio.instruments[sym];
-    const pos = state.positions[sym];
-    if (!pos || pos.net_qty === 0) continue;
-    // Search filter
-    if (searchQuery) {
-      const haystack = `${sym} ${inst.name}`.toLowerCase();
-      if (!haystack.includes(searchQuery)) continue;
-    }
-
-    const quote = state.quotes[inst.yahoo_symbol] || {};
-    const currentPrice = quote.price;
-    const hasPrice = currentPrice != null && !quote.error;
-    const isDelisted = !!quote.delisted;
-    const u = unrealizedPnl(pos, currentPrice);
-
-    // Kapitálová Z/Z = realizovaná + nerealizovaná (jen kapitálové pohyby)
-    const capitalPnl = pos.realized_pnl + u.value;
-
-    // Total Return = kapitálová Z/Z + čistý dividendový výnos
-    // (jen pokud je dividenda ve stejné měně jako pozice; NOV: EUR pozice, DKK
-    // dividendy → nesčítáme, zobrazí se jen kapitálová Z/Z s indikátorem)
-    const divCcys = new Set([
-      ...(pos.dividend_records || []).map((dRec) => dRec.currency),
-      ...(pos.withholding_records || []).map((t) => t.currency),
-    ]);
-    const divSameCcy =
-      divCcys.size === 0 ||
-      (divCcys.size === 1 && divCcys.has(inst.currency));
-    const totalPnl = divSameCcy
-      ? capitalPnl + (pos.net_dividend_local || 0)
-      : capitalPnl;
-    const totalPct =
-      pos.total_invested > 0 ? (totalPnl / pos.total_invested) * 100 : 0;
-
-    rows.push({
-      sym,
-      inst,
-      pos,
-      currentPrice,
-      hasPrice,
-      marketValue: u.market_value,
-      unrealizedPnl: u.value,    // jen otevřené loty — bez realizovaných a dividend
-      capitalPnl,
-      totalPnl,
-      totalPct,
-      divSameCcy,
-      hasDividends: divCcys.size > 0,
-      hasRealized: (pos.realized_pnl || 0) !== 0, // pro tooltip / vizuál
-      isDelisted,
-    });
-  }
+  const rows = getFilteredOverviewRows();
 
   // 2) Setřídit
   const getter = sortGetters[state.sort.key] || sortGetters.sym;
@@ -2577,20 +2347,15 @@ function buildDetailRow(sym) {
     html.push(`</div>`);
   }
 
-  // Sumář — kapitálová Z/Z + dividendy = Total Return
+  // Sumář — kapitálová Z/Z + dividendy = Total Return (stejný výpočet jako
+  // sloupec Celkem Z/Z v přehledu i MCP konektor)
   if (hasPrice) {
-    const capitalPnl = pos.realized_pnl + u.value;
-    const capitalPct =
-      pos.total_invested > 0 ? (capitalPnl / pos.total_invested) * 100 : 0;
-
-    // Zkontrolovat, zda všechny dividendy a daně jsou ve stejné měně jako pozice.
-    // Pokud ano, můžeme sčítat. Pokud ne (např. NOV: EUR pozice, DKK dividendy),
-    // ukážeme čísla separátně bez sumarizace.
-    const divCcys = new Set([
-      ...(pos.dividend_records || []).map((d) => d.currency),
-      ...(pos.withholding_records || []).map((t) => t.currency),
-    ]);
-    const sameCcy = divCcys.size <= 1 && (divCcys.size === 0 || divCcys.has(ccy));
+    const tr = positionTotalReturn(pos, ccy, currentPrice);
+    const { capitalPnl, capitalPct } = tr;
+    // Dividendy v jiné měně než pozice (NOV: EUR pozice, DKK dividendy)
+    // se nesčítají — čísla se ukážou separátně.
+    const sameCcy = tr.divSameCcy;
+    const divCcys = new Set(tr.dividendCurrencies);
 
     // FX přepočet do CZK (pro zobrazení Total Return i v Kč)
     const fxDates = state.fxRates?.dates
@@ -2612,11 +2377,8 @@ function buildDetailRow(sym) {
       `<div>Kapitálová Z/Z: <span class="${signClass(capitalPnl)}"><strong>${fmtNum(capitalPnl, 2)} ${ccy}</strong> (${fmtPct(capitalPct)})</span>${capitalCzkSuffix}</div>`,
     );
     if (hasDividends && sameCcy) {
-      const totalReturn = capitalPnl + pos.net_dividend_local;
-      const totalReturnPct =
-        pos.total_invested > 0
-          ? (totalReturn / pos.total_invested) * 100
-          : 0;
+      const totalReturn = tr.totalPnl;
+      const totalReturnPct = tr.totalPct;
       const totalReturnCzk =
         fxLocalToCzk != null ? totalReturn * fxLocalToCzk : null;
       const czkSuffix =
@@ -2977,18 +2739,14 @@ function renderSummary() {
     : null;
 
   // === 2) Cash zůstatek — sumovat všechny měny do CZK ===
+  // Bez načtených kurzů se nesčítá nic (ani CZK) — dlaždice by jinak
+  // ukázala jen korunovou část hotovosti, jako by byla celá.
   const cashBalance = p.cash_balance || {};
-  let cashCzkTotal = 0;
-  const cashBreakdown = [];
-  for (const ccy of Object.keys(cashBalance).sort()) {
-    const amt = cashBalance[ccy];
-    if (amt == null) continue;
-    const rate = todayFxDateEarly ? getFxToCzk(todayFxDateEarly, ccy) : null;
-    if (rate != null) {
-      cashCzkTotal += amt * rate;
-      cashBreakdown.push(`${fmtNum(amt, 2)} ${ccy}`);
-    }
-  }
+  const cash = todayFxDateEarly
+    ? cashToCzk(cashBalance, state.fxRates, todayFxDateEarly)
+    : { czk: 0, items: [] };
+  const cashCzkTotal = cash.czk;
+  const cashBreakdown = cash.items.map((it) => `${fmtNum(it.amount, 2)} ${it.currency}`);
   if (Object.keys(cashBalance).length > 0) {
     const subText = cashBreakdown.join(" · ");
     wrap.appendChild(
@@ -3043,25 +2801,23 @@ function renderSummary() {
   const cashUsdAll =
     fxUsdToCzk && cashCzkTotal ? cashCzkTotal / fxUsdToCzk : 0;
   const totalAssetsUsd = currentValueUsd + cashUsdAll;
-  const totalDeposits = p.total_deposits_usd || 0;
-  const totalReturnUsd =
-    totalDeposits > 0 ? totalAssetsUsd - totalDeposits : 0;
-  const totalReturnPct =
-    totalDeposits > 0 ? (totalReturnUsd / totalDeposits) * 100 : 0;
 
-  // Inception (od první aktivity)
+  // Celkový výnos + P.a. — sdílený výpočet (portfolio-shared.js), stejný
+  // jako v MCP konektoru
   const inception = p.inception_date || "2025-11-24";
   const today = new Date();
-  const inceptionDt = new Date(inception);
-  const daysSince = Math.max(
-    1,
-    (today.getTime() - inceptionDt.getTime()) / 86400000,
-  );
-  const yearsSince = daysSince / 365.25;
-  const paPct =
-    yearsSince > 0
-      ? (Math.pow(1 + totalReturnPct / 100, 1 / yearsSince) - 1) * 100
-      : 0;
+  const ret = portfolioTotalReturn({
+    assetsUsd: totalAssetsUsd,
+    totalDepositsUsd: p.total_deposits_usd,
+    inceptionDate: inception,
+    asOf: today,
+    usdToCzk: fxUsdToCzk,
+  });
+  const totalReturnUsd = ret.usd;
+  const totalReturnPct = ret.pct;
+  const daysSince = ret.days;
+  const yearsSince = ret.years;
+  const paPct = ret.paPct;
 
   // === Doplnit Hodnotu portfolia (1. dlaždice — placeholder výše) ===
   // Total = pozice (tržní hodnota) + cash. Odpovídá IBKR Net Liquidity.
@@ -3095,7 +2851,7 @@ function renderSummary() {
   }
 
   // === 3) Total Return % od inception (primary = %, sub = absolutní hodnoty) ===
-  const totalReturnCzk = fxUsdToCzk ? totalReturnUsd * fxUsdToCzk : null;
+  const totalReturnCzk = ret.czk;
   const absLine =
     totalReturnCzk != null
       ? `${fmtNum(totalReturnCzk, 0)} Kč (${fmtNum(totalReturnUsd, 0)} USD)`
@@ -3609,6 +3365,9 @@ function exportTransactionsAccountingXlsx() {
   XLSX.writeFile(wb, filename);
 }
 
+// Řádky přehledu po search filtru — jeden zdroj pro tabulku i XLSX export,
+// aby export ukazoval stejná čísla jako obrazovka. Total Return počítá
+// sdílený positionTotalReturn (fifo.js), stejně jako MCP konektor.
 function getFilteredOverviewRows() {
   const rows = [];
   const q = state.searches.overview;
@@ -3622,14 +3381,22 @@ function getFilteredOverviewRows() {
     }
     const quote = state.quotes[inst.yahoo_symbol] || {};
     const currentPrice = quote.price;
-    const hasPrice = currentPrice != null && !quote.error;
-    const u = unrealizedPnl(pos, currentPrice);
-    const totalPnl = pos.realized_pnl + u.value;
-    const totalPct =
-      pos.total_invested > 0 ? (totalPnl / pos.total_invested) * 100 : 0;
+    const tr = positionTotalReturn(pos, inst.currency, currentPrice);
     rows.push({
-      sym, inst, pos, currentPrice, hasPrice,
-      marketValue: u.market_value, totalPnl, totalPct,
+      sym,
+      inst,
+      pos,
+      currentPrice,
+      hasPrice: currentPrice != null && !quote.error,
+      marketValue: tr.marketValue,
+      unrealizedPnl: tr.unrealizedPnl, // jen otevřené loty — bez realizovaných a dividend
+      capitalPnl: tr.capitalPnl,
+      totalPnl: tr.totalPnl,
+      totalPct: tr.totalPct,
+      divSameCcy: tr.divSameCcy,
+      hasDividends: tr.hasDividends,
+      hasRealized: (pos.realized_pnl || 0) !== 0, // pro tooltip / vizuál
+      isDelisted: !!quote.delisted,
     });
   }
   return rows;
@@ -4148,7 +3915,7 @@ async function loadAllPortfoliosForSnapshot() {
     const portfolio = await res.json();
     if (overlayRes && overlayRes.ok) {
       try {
-        mergeOverlayIntoPortfolio(portfolio, await overlayRes.json());
+        mergeOverlayIntoPortfolio(portfolio, await overlayRes.json(), state.fxRates);
       } catch (e) {
         console.warn(`Overlay ${meta.id} se nepodařilo mergnout: ${e.message}`);
       }

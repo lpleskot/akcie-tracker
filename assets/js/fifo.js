@@ -385,19 +385,30 @@ export function computePositions(
 }
 
 /**
- * Pozice držené KE DNI (inventura / rozvahový den). Účetní konvence projektu:
- * rozhoduje datum vypořádání — bere se obchod vypořádaný do data včetně.
+ * Pozice držené KE DNI. Výchozí je účetní konvence projektu (inventura,
+ * rozvahový den): rozhoduje datum vypořádání — bere se obchod vypořádaný
+ * do data včetně, dividendy se do FIFO nepředávají.
+ *
+ * `opts.dateField: "date"` přepne na datum obchodu — co bylo drženo při
+ * závěru dne pro ocenění (nákup 22. 9. s vypořádáním 23. 9. hýbe hodnotou
+ * portfolia už 22. 9.). `opts.dividends` / `opts.withholdingTax` se
+ * ořežou na datum ≤ date a jdou do FIFO (net_dividend_local, …).
+ *
  * Corporate actions se nejdřív normalizují nad celou historií (párování
  * received/removed v 30denním okně nesmí rozbít datumový filtr) a použijí
  * se jen ty s datem ≤ date. Split PO datu se tedy neaplikuje — kusy odpovídají
  * stavu k tomu dni (a k ceně z burzy je nutná korekce, viz splitFactorAfter).
  */
-export function computePositionsAt(transactions, corporateActions, date) {
-  const txs = (transactions || []).filter((t) => (t.settle_date || t.date) <= date);
+export function computePositionsAt(transactions, corporateActions, date, opts = {}) {
+  const byTradeDate = opts.dateField === "date";
+  const txs = (transactions || []).filter(
+    (t) => (byTradeDate ? t.date : t.settle_date || t.date) <= date,
+  );
   const cas = preprocessCorporateActions(corporateActions || []).filter(
     (c) => c.date <= date,
   );
-  return computePositions(txs, cas);
+  const upTo = (arr) => (arr || []).filter((x) => x.date <= date);
+  return computePositions(txs, cas, upTo(opts.dividends), upTo(opts.withholdingTax));
 }
 
 /**
@@ -472,6 +483,39 @@ export function unrealizedPnl(position, currentPrice) {
   const value = market_value - position.cost_basis;
   const pct = position.cost_basis > 0 ? (value / position.cost_basis) * 100 : 0;
   return { value, pct, market_value };
+}
+
+/**
+ * Total Return pozice při dané ceně — sloupec „Celkem Z/Z" v přehledu:
+ * kapitálová Z/Z (realizovaná + nerealizovaná) + čisté dividendy, v %
+ * z celkové investice (total_invested = otevřené i uzavřené loty).
+ * Dividendy se přičtou jen ve stejné měně jako pozice — jinak by se sčítaly
+ * různé měny (NOV: EUR pozice, DKK dividendy). Pak je totalPnl jen kapitálová
+ * Z/Z a divSameCcy = false.
+ */
+export function positionTotalReturn(pos, currency, price) {
+  const u = unrealizedPnl(pos, price);
+  const capitalPnl = pos.realized_pnl + u.value;
+  const divCcys = new Set([
+    ...(pos.dividend_records || []).map((d) => d.currency),
+    ...(pos.withholding_records || []).map((t) => t.currency),
+  ]);
+  const divSameCcy =
+    divCcys.size === 0 || (divCcys.size === 1 && divCcys.has(currency));
+  const totalPnl = divSameCcy ? capitalPnl + (pos.net_dividend_local || 0) : capitalPnl;
+  const pctOfInvested = (x) =>
+    pos.total_invested > 0 ? (x / pos.total_invested) * 100 : 0;
+  return {
+    marketValue: u.market_value,
+    unrealizedPnl: u.value,
+    capitalPnl,
+    capitalPct: pctOfInvested(capitalPnl),
+    totalPnl,
+    totalPct: pctOfInvested(totalPnl),
+    divSameCcy,
+    hasDividends: divCcys.size > 0,
+    dividendCurrencies: [...divCcys],
+  };
 }
 
 /**
