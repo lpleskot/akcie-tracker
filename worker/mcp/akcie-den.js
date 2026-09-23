@@ -243,6 +243,15 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
     if (cash.missing.length) {
       varovani.push(`${meta.id}: hotovost v ${cash.missing.join(", ")} bez kurzu ČNB — není v součtu.`);
     }
+    // Zůstatek po měnách tak, jak ho vede broker — i měna bez kurzu (czk null),
+    // aby byl stav účtu vidět celý
+    const cashMeny = [
+      ...cash.items.map((i) => ({ mena: i.currency, castka: i.amount, czk: i.czk })),
+      ...cash.missing.map((ccy) => ({ mena: ccy, castka: cashMap[ccy], czk: null })),
+    ]
+      .filter((i) => Math.abs(i.castka) >= 0.005)
+      .sort((a, b) => a.mena.localeCompare(b.mena))
+      .map((i) => ({ mena: i.mena, castka: round(i.castka, 2), czk: round(i.czk, 0) }));
     const celkem = pozice + cash.czk;
 
     // Celkový výnos od založení — vzorec dlaždice, jen k datu
@@ -272,6 +281,7 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
       cash_k: c ? c.asOf : null,
       cash_denni: c ? c.daily : false,
       cash_zdroj: c ? c.source : "cash_balance — poslední známý zůstatek z evidence, ne k datu",
+      cash_meny: cashMeny,
       den: denOut(zmena, pozice, obchodovalo, neobchodovalo, chybi),
       celkovy_vynos: vynos && {
         pct: round(vynos.pct, 2),

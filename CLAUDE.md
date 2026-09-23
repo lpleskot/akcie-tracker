@@ -291,13 +291,15 @@ flowchart TD
   ceny = uzavřené denní závěry Yahoo × `splitFactorAfter`, kurz ČNB k datu s fallbackem,
   hotovost `cashAtDate` (IBKR denní NAV, KB kvartální STAV PTF, jinak `cash_balance`),
   Total Return a Celkový výnos sdílenými funkcemi. Denní změna souhrnu jen z titulů
-  s `obchodovano: true`; % = změna / (hodnota pozic − změna). JSON v `content[0].text`
+  s `obchodovano: true`; % = změna / (hodnota pozic − změna). Hotovost i po měnách
+  (`cash_meny`: měna, částka, Kč — stejný zdroj jako `cash_czk`). JSON v `content[0].text`
   (~17 kB). Chyby vstupu → `isError: true` s textem pro model.
 - **Záměrné rozdíly proti obrazovce:** IBKR hotovost z NAV (dlaždice Cash bere
   `cash_balance` — k 2026-05-15 se lišily o 134 USD), ceny závěr vs. živá.
-- **Časování:** flex-import běží 7:00 Prahy; PLEGIN čte ve 4:45 → IBKR overlay (obchody,
-  NAV hotovost) je v tu chvíli o obchodní den pozadu (`cash_k` = předvčerejšek,
-  `overlay.nav_do` to ukazuje). Ceny i KB jsou aktuální.
+- **Časování (rozhodnuto 2026-09-23):** flex-import běží 7:00 Prahy (6:00 v zimě), report
+  akcií v PLEGINu proto až **po 7:15** — dřív by IBKR overlay (obchody, NAV hotovost) byl
+  o obchodní den pozadu. Kontrola: `overlay.last_import` z dnešního rána, `overlay.nav_do`
+  = včerejšek.
 
 **KV klíče (sdílené):** `watchlist`, `alerts`, `notes`, `journal`,
 `portfolio-overlay:{id}`, `fired:alert:{ruleId}:{symbol}`, `fired:watch:{itemId}:{ruleId}`.
@@ -373,6 +375,16 @@ web/                                    ← repo root = asset složka Workeru
 
 ## Co ještě není (budoucí iterace)
 
+- **Vklady KB jsou špatně → Celkový výnos a P.a. KB nesmyslné** (zjištěno 2026-09-23):
+  `total_deposits_usd` (75 814,64) = jen USD + EUR vklady od 2024 (55 900 USD + 17 950 EUR
+  × 1,1095) — chybí vklady v CZK, celý rok 2023 a **všech 9 výběrů 12/2025–3/2026**
+  (≈ 174 854 USD, převody na IBKR; v `cash_flows` nejsou vůbec). Nechybí žádný podklad —
+  vklady i výběry jsou ve výpisech (Výpisy 2023, TRN CASH). Navíc KB nezačíná od nuly:
+  14 syntetických pozic k 30. 12. 2022 ≈ 79 071 USD. Bilance k 22. 9. 2026: hodnota
+  ≈ 172 292 USD + výběry 174 854 − počátek 79 071 − vklady 162 612 = zisk ≈ 105 463 USD;
+  XIRR ≈ 16,7 % p.a. (appka ukazuje +127 % / p.a. 24,6 %). Oprava = doplnit výběry do
+  `cash_flows`, vklady počítat z `cash_flows` + počáteční kapitál, pro KB ukazovat XIRR.
+  Do opravy PLEGIN celkový výnos KB (a `vse`) nepoužívá.
 - Q3 2026+ inkrementální import KB — přes chat (Lukáš nahraje výpisy, Claude parsuje).
   Upload form záměrně nebude (rozhodnuto 2026-07-25): IBKR jede automaticky Flexem
   a KB PDF vyžadují parsování s konvencemi, které formulář nezvládne.

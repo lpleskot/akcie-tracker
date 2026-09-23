@@ -134,6 +134,7 @@ test("akcie_den: souhrn portfolia — denní změna jen z obchodovaných, hotovo
   assert.equal(a.cash_czk, 2000);
   assert.equal(a.cash_k, DATUM);
   assert.equal(a.cash_denni, true);
+  assert.deepEqual(a.cash_meny, [{ mena: "USD", castka: 100, czk: 2000 }]);
   assert.equal(a.hodnota_celkem_czk, 31200);
   // (31200/20 − 2000) / 2000 = −22 %
   assert.equal(a.celkovy_vynos.usd, -440);
@@ -150,6 +151,21 @@ test("akcie_den: souhrn portfolia — denní změna jen z obchodovaných, hotovo
   assert.equal(b.cash_k, null);
   assert.equal(b.cash_denni, false);
   assert.match(b.cash_zdroj, /cash_balance/);
+  assert.deepEqual(b.cash_meny, [{ mena: "EUR", castka: 40, czk: 1000 }]);
+});
+
+test("akcie_den: hotovost po měnách ukáže i měnu bez kurzu, nulové vynechá", () => {
+  const p = portfolioB();
+  p.cash_balance = { EUR: 40, XXX: 5, CZK: 0 };
+  const loaded = [{ meta: { id: "b" }, portfolio: p, lastImport: null }];
+  loaded[0].open = openPositionsAt(p, DATUM);
+  const r = buildAkcieDenReport({ datum: DATUM, today: "2026-09-23", loaded, quotes: QUOTES, fxRates: FX, origin: null });
+  assert.deepEqual(r.portfolia[0].cash_meny, [
+    { mena: "EUR", castka: 40, czk: 1000 },
+    { mena: "XXX", castka: 5, czk: null },
+  ]);
+  assert.equal(r.portfolia[0].cash_czk, 1000); // bez kurzu se nesčítá
+  assert.ok(r.varovani.some((v) => v.includes("XXX")));
 });
 
 test("akcie_den: vse sčítá v Kč, výnos = Σ USD / Σ vkladů", () => {
