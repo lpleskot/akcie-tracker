@@ -1,7 +1,7 @@
 /**
  * Unit testy FIFO enginu (REVIZE_REPORT.md R9).
  *
- * Spuštění: node --test tests/
+ * Spuštění: node --test tests/*.test.mjs
  * Fixtures jsou ručně spočítané malé případy zrcadlící chování ověřené
  * na reálných datech (revizní smoke test 2026-07-22 + validace vs IBKR/KB).
  */

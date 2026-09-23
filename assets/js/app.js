@@ -12,6 +12,7 @@ import {
 import { flexDate } from "./flex-shared.js";
 import {
   amountToUsd,
+  capitalFlowsUsd,
   cashToCzk,
   fxToCzk,
   mergeOverlayIntoPortfolio,
@@ -2808,7 +2809,7 @@ function renderSummary() {
   const today = new Date();
   const ret = portfolioTotalReturn({
     assetsUsd: totalAssetsUsd,
-    totalDepositsUsd: p.total_deposits_usd,
+    flows: capitalFlowsUsd(p, state.fxRates),
     inceptionDate: inception,
     asOf: today,
     usdToCzk: fxUsdToCzk,
@@ -2856,22 +2857,32 @@ function renderSummary() {
     totalReturnCzk != null
       ? `${fmtNum(totalReturnCzk, 0)} Kč (${fmtNum(totalReturnUsd, 0)} USD)`
       : `${fmtNum(totalReturnUsd, 0)} USD`;
-  wrap.appendChild(
-    cardHtml(
-      `Celkový výnos`,
-      `<span class="${signClass(totalReturnPct)}">${fmtPct(totalReturnPct)}</span>`,
-      `${absLine}<br>od založení ${inception} (${Math.round(daysSince)} dní)`,
-    ),
+  const capitalLine = ret.vybrano > 0
+    ? `vloženo ${fmtNum(ret.vlozeno, 0)} · vybráno ${fmtNum(ret.vybrano, 0)} USD`
+    : `vloženo ${fmtNum(ret.vlozeno, 0)} USD`;
+  const returnCard = cardHtml(
+    `Celkový výnos`,
+    `<span class="${signClass(totalReturnPct)}">${fmtPct(totalReturnPct)}</span>`,
+    `${absLine}<br>${capitalLine}<br>od založení ${inception} (${Math.round(daysSince)} dní)`,
   );
+  returnCard.title =
+    `Zisk = hodnota + vybráno − vloženo = ${fmtNum(totalAssetsUsd, 0)} + ${fmtNum(ret.vybrano, 0)} − ` +
+    `${fmtNum(ret.vlozeno, 0)} = ${fmtNum(totalReturnUsd, 0)} USD\n` +
+    `Výnos = zisk / vloženo = ${fmtPct(totalReturnPct)}\n` +
+    `Vloženo = počáteční kapitál + vklady; výběry základ nezmenšují.`;
+  wrap.appendChild(returnCard);
 
-  // === 4) P.a. ===
-  wrap.appendChild(
-    cardHtml(
-      `P.a. (anualizováno)`,
-      `<span class="${signClass(paPct)}">${fmtPct(paPct)}</span>`,
-      `průměrný roční výnos<br>${yearsSince.toFixed(2)} let od založení`,
-    ),
+  // === 4) P.a. — XIRR, počítá s tím, kdy peníze přišly a odešly ===
+  const paCard = cardHtml(
+    `P.a. (anualizováno)`,
+    `<span class="${signClass(paPct)}">${fmtPct(paPct)}</span>`,
+    `roční výnos vážený penězi (XIRR)<br>${fmtNum(yearsSince, 2)} let od založení`,
   );
+  paCard.title =
+    "XIRR: roční sazba, při které se vyrovnají všechny vklady a výběry (k jejich datu) " +
+    "s dnešní hodnotou portfolia. Na rozdíl od prosté anualizace nepřeceňuje peníze, " +
+    "které přišly později nebo odešly.";
+  wrap.appendChild(paCard);
 
   // === 5) YTD % ===
   // Pro IBKR: použít předpočítaný M2M YTD z Activity Statement.

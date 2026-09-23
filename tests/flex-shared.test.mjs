@@ -1,6 +1,6 @@
 /**
  * Unit testy sdílených Flex transformací (REVIZE_REPORT.md R9).
- * Spuštění: node --test tests/
+ * Spuštění: node --test tests/*.test.mjs
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

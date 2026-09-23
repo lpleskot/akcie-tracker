@@ -6382,6 +6382,78 @@
    "amount": -40.79,
    "description": "Externí poplatek za CA c. 102051",
    "amount_usd": -40.79
+  },
+  {
+   "date": "2025-12-01",
+   "type": "withdrawal",
+   "currency": "USD",
+   "amount": -10000.0,
+   "description": "01.12.2025 Výběr z klientského účtu 3135927 -10 000.00 01.12.2025",
+   "amount_usd": -10000.0
+  },
+  {
+   "date": "2025-12-08",
+   "type": "withdrawal",
+   "currency": "USD",
+   "amount": -70000.0,
+   "description": "08.12.2025 Výběr z klientského účtu 3139944 -70 000.00 08.12.2025",
+   "amount_usd": -70000.0
+  },
+  {
+   "date": "2025-12-16",
+   "type": "withdrawal",
+   "currency": "USD",
+   "amount": -49000.0,
+   "description": "16.12.2025 Výběr z klientského účtu 3147788 -49 000.00 16.12.2025",
+   "amount_usd": -49000.0
+  },
+  {
+   "date": "2026-01-20",
+   "type": "withdrawal",
+   "currency": "CZK",
+   "amount": -200000.0,
+   "description": "20.01.2026 Výběr z klientského účtu 3166137 -200 000.00 20.01.2026",
+   "amount_usd": -9639.4833
+  },
+  {
+   "date": "2026-02-04",
+   "type": "withdrawal",
+   "currency": "CZK",
+   "amount": -16350.0,
+   "description": "04.02.2026 Výběr z klientského účtu 3178100 -16 350.00 04.02.2026",
+   "amount_usd": -793.5738
+  },
+  {
+   "date": "2026-02-04",
+   "type": "withdrawal",
+   "currency": "EUR",
+   "amount": -2830.0,
+   "description": "04.02.2026 Výběr z klientského účtu 3178104 -2 830.00 04.02.2026",
+   "amount_usd": -3346.0564
+  },
+  {
+   "date": "2026-02-06",
+   "type": "withdrawal",
+   "currency": "USD",
+   "amount": -19539.0,
+   "description": "06.02.2026 Výběr z klientského účtu 3179873 -19 539.00 06.02.2026",
+   "amount_usd": -19539.0
+  },
+  {
+   "date": "2026-03-03",
+   "type": "withdrawal",
+   "currency": "EUR",
+   "amount": -7965.0,
+   "description": "03.03.2026 Výběr z klientského účtu 3199822 -7 965.00 03.03.2026",
+   "amount_usd": -9242.5845
+  },
+  {
+   "date": "2026-03-03",
+   "type": "withdrawal",
+   "currency": "USD",
+   "amount": -3293.0,
+   "description": "03.03.2026 Výběr z klientského účtu 3199823 -3 293.00 03.03.2026",
+   "amount_usd": -3293.0
   }
  ],
  "cash_balance": {
@@ -6486,6 +6558,17 @@
    }
   }
  ],
+ "opening_cash": {
+  "date": "2022-12-30",
+  "balances": {
+   "CAD": 109.1,
+   "CZK": 7406.5,
+   "EUR": 40.0,
+   "GBP": 78.27,
+   "USD": 92.78
+  },
+  "source": "KB výpisy peněžních transakcí 1.1.–31.3.2023 — počáteční zůstatky (AUD 0)"
+ },
  "_notes": [
   "17 synthetic opening transakcí pro pozice s pre-2023 historií. Cost basis je odhadnut na tržní cenu k 31.3.2023.",
   "TRN CP 2023 Q2 chybí — Q2 2023 transakce nejsou v importu.",
@@ -6493,15 +6576,10 @@
   "7 synthetic Q2 2023 transakcí ze STAV PTF rozdílu (TRN CP Q2 2023 chybí).",
   "Corporate actions s datem ≤ 2023-03-31 jsou již zahrnuty v synthetic opening transakcích k tomuto datu.",
   "TRN CASH naimportováno: 114 dividend, 91 withholding tax, 83 cash flows. Unmatched: 0 divs, 0 taxes.",
-  "Q2 2026 (KB) naimportováno z TRN CASH (01.04–30.06.2026): 15 dividend, 9 withholding, 3 external_fee. Datum = vypořádání (připsání na účet). Žádné obchody (TRN CP Q2 neexistuje). Poplatky za správu + DPH vynechány (řeší účetní, nepromítá se do ceny akcií). cash_balance + period k 30.06.2026, 18/18 pozic match STAV PTF Q2. ČNB kurzy Q2 dnů doplněny do fx_rates.json."
+  "Q2 2026 (KB) naimportováno z TRN CASH (01.04–30.06.2026): 15 dividend, 9 withholding, 3 external_fee. Datum = vypořádání (připsání na účet). Žádné obchody (TRN CP Q2 neexistuje). Poplatky za správu + DPH vynechány (řeší účetní, nepromítá se do ceny akcií). cash_balance + period k 30.06.2026, 18/18 pozic match STAV PTF Q2. ČNB kurzy Q2 dnů doplněny do fx_rates.json.",
+  "Kapitál KB (oprava 2026-09-23): výnos se počítá z evidence toků — počáteční kapitál (opening_cash + 14 synthetic_opening pozic k 30. 12. 2022), vklady (cash_flows deposit) a výběry (cash_flows withdrawal; doplněno 9 výběrů 12/2025–3/2026 z TRN CASH, převody na IBKR). Odstraněny chybné souhrny total_deposits_usd / total_deposits_by_ccy (obsahovaly jen USD+EUR vklady od 2024, bez CZK, bez roku 2023 a bez výběrů)."
  ],
  "synthetic_cutoff_date": "2023-03-31",
- "total_deposits_by_ccy": {
-  "CZK": 800000.0,
-  "EUR": 17950.0,
-  "USD": 55900.0
- },
- "total_deposits_usd": 75814.64,
  "ytd_mark_to_market_usd": 0,
  "realized_ytd_usd": 284.06,
  "statement_period_end": "2026-06-30"

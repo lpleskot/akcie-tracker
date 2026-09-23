@@ -1,6 +1,7 @@
 # CLAUDE.md — akcie-tracker
 
-> Aktualizováno 2026-09-23 (MCP konektor pro PLEGIN + sdílený výpočet portfolia; migrace
+> Aktualizováno 2026-09-23 (MCP konektor pro PLEGIN + sdílený výpočet portfolia; Celkový
+> výnos z toků kapitálu + XIRR, výběry KB doplněny; migrace
 > Pages → jeden Worker 2026-07-23; revize kódu 2026-07-22 viz `REVIZE_REPORT.md`). Jediný projektový brief pro Claude (Cowork i Claude Code ho čtou
 > automaticky). Obecná workflow pravidla viz `PROJECT_PLAYBOOK.md` (root projektu, mimo repo).
 
@@ -87,8 +88,9 @@ jinak se nedostanou do repa.
 - **Sdílené moduly místo kopií** (R5/R6): FIFO engine `assets/js/fifo.js` (vč.
   `positionTotalReturn` = sloupec Celkem Z/Z), Flex transformace `assets/js/flex-shared.js`
   a **`assets/js/portfolio-shared.js`** (merge overlay `mergeOverlayIntoPortfolio`,
-  kurzy `fxToCzk`/`amountToUsd`, hotovost `cashToCzk`, Celkový výnos
-  `portfolioTotalReturn` — kurzy parametrem, žádný globální stav) importuje frontend,
+  kurzy `fxToCzk`/`amountToUsd`, hotovost `cashToCzk`, toky kapitálu `capitalFlowsUsd`,
+  Celkový výnos `portfolioTotalReturn` + `xirrPct` — kurzy parametrem, žádný globální
+  stav) importuje frontend,
   cron job alerts i MCP konektor (wrangler/esbuild je při deployi zabalí).
   **Kdo potřebuje číslo, které appka ukazuje, volá tyhle funkce — žádné kopie vzorců**
   (export XLSX přehledu měl vlastní kopii Total Return bez dividend, opraveno 2026-09).
@@ -176,14 +178,19 @@ flowchart TD
 - Období 2022-12-30 → 2026-06-30 (inception = synthetic).
 - **47 instrumentů** v 9 měnách (USD, EUR, CAD, SEK, PLN, GBP, AUD, DKK, CZK).
 - **140 transakcí:**
-  - 17 synthetic pre-2023 openings ze STAV PTF 31.3.2023 (cost basis = tržní cena k datu,
+  - 14 synthetic pre-2023 openings ze STAV PTF 31.3.2023 (cost basis = tržní cena k datu,
     skutečná pre-2023 nákupní cena neznámá — starší KB výpisy v MiFID formátu bez transakčních dat).
   - 123 reálných BUY/SELL z TRN CP 2023–2026-Q1. (Původních 7 synthetic Q2 2023 nahrazeno
     reálnými — Q2 2023 výpisy existují, jen jsou ve složce podkladů pod chybným názvem
     `Výpis 1.7.-30.9.2023-9.pdf` … `-12.pdf`.)
 - **23 corporate actions** (Vklad/Výběr CP) — splity, rights issues, restructurings.
   Q1 2023 CAs filtrovány (`synthetic_cutoff_date = 2023-03-31`).
-- **155 dividend** + 121 withholding tax, **118 cash flows**.
+- **155 dividend** + 121 withholding tax, **127 cash flows** (vč. 9 výběrů `withdrawal`
+  12/2025–3/2026 = převody na IBKR, doplněny 2026-09-23 z TRN CASH).
+- **Počáteční kapitál:** `opening_cash` (hotovost k 30. 12. 2022 z počátečních zůstatků
+  výpisů Q1 2023) + 14 syntetických pozic. `total_deposits_usd` KB nemá — vklady, výběry
+  i počáteční kapitál se počítají z evidence (`capitalFlowsUsd`). **Výběry i vklady se při
+  kvartálním importu zapisují vždy** (typ `withdrawal` / `deposit`), jinak Celkový výnos lže.
 - **Q2 2026 import** (dividendy/daně/externí CA poplatky z TRN CASH; žádné obchody — TRN CP Q2
   neexistuje): datum = **vypořádání (= připsání na účet)**, ne splatnost. Důkaz: HUYA dividenda
   (splatnost 01.07, vypořádání 30.06) je v Q2 výpisu a v zůstatku k 30.06. Poplatky za vedení
@@ -242,6 +249,15 @@ flowchart TD
 - **Společné:** Search s ×, sort klikem na th, XLSX export per tab (SheetJS self-hosted).
   Summary dlaždice: Hodnota portfolia CZK (klik → Hodnota portfolia tab), Cash (multi-currency),
   Celkový výnos %, P.a., YTD, Dividendy (po dani).
+- **Celkový výnos a P.a. (od 2026-09-23):** toky kapitálu z evidence (`capitalFlowsUsd`) =
+  `opening_cash` + syntetické počáteční pozice (cost basis, kurz k vypořádání) + `cash_flows`
+  typu `deposit`/`withdrawal` a Flex `Deposits/Withdrawals`, vše v USD kurzem ČNB k datu
+  toku. `total_deposits_usd` jen jako fallback pro portfolio bez jakýchkoli toků.
+  Zisk = hodnota + vybráno − vloženo; **% = zisk / vloženo** (výběry základ nezmenšují);
+  **P.a. = XIRR** (peněžně vážený roční výnos, řeší vklady i výběry v čase). U IBKR (jen
+  vklady) je % stejné jako dřív, P.a. se od prosté anualizace liší. Dřívější vzorec
+  (hodnota − vklady) / vklady s neúplnými vklady dával KB +127 % / p.a. 24,6 %, správně
+  je ≈ +43 % / XIRR ≈ 16,6 % (k 2026-09-23).
 
 ### Mobil (úpravy 2026-08-19, `styles.css`)
 
@@ -292,7 +308,11 @@ flowchart TD
   hotovost `cashAtDate` (IBKR denní NAV, KB kvartální STAV PTF, jinak `cash_balance`),
   Total Return a Celkový výnos sdílenými funkcemi. Denní změna souhrnu jen z titulů
   s `obchodovano: true`; % = změna / (hodnota pozic − změna). Hotovost i po měnách
-  (`cash_meny`: měna, částka, Kč — stejný zdroj jako `cash_czk`). JSON v `content[0].text`
+  (`cash_meny`: měna, částka, Kč — stejný zdroj jako `cash_czk`). `celkovy_vynos` =
+  výpočet dlaždice s toky kapitálu ≤ datum (`pct`, `czk`, `usd`, `pa_pct` = XIRR, `od`,
+  `vlozeno_usd`, `vybrano_usd`); `vse`: % = Σ zisků / (vloženo − vybráno), protože převod
+  KB → IBKR je výběr v jednom a vklad v druhém portfoliu (hrubé vloženo by ho počítalo
+  dvakrát), `pa_pct` = XIRR přes toky obou účtů. JSON v `content[0].text`
   (~17 kB). Chyby vstupu → `isError: true` s textem pro model.
 - **Záměrné rozdíly proti obrazovce:** IBKR hotovost z NAV (dlaždice Cash bere
   `cash_balance` — k 2026-05-15 se lišily o 134 USD), ceny závěr vs. živá.
@@ -314,13 +334,14 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared,portfolio-shared,akcie-den}.test.mjs` — 51 unit testů
+`tests/{fifo,flex-shared,portfolio-shared,akcie-den}.test.mjs` — 58 unit testů
 (`node --test tests/*.test.mjs`), ručně spočítané fixtures: FIFO matching + prorace komise,
 proceeds-authoritative ceny, splity (vč. same-day pořadí a 1:25), KB received/removed
 párování + bonus/cancellation, orphan sells, settle data v closed lots, dividendy, Flex
 transformace (vč. settle_date), hotovost k datu, Total Return pozice, `computePositionsAt`
 volby (výchozí chování inventury beze změny), merge overlay (dedupe, forex, vklady),
-kurzy, Celkový výnos, MCP report (split po datu, neobchodovaný den, chybějící cena,
+kurzy, toky kapitálu + XIRR (proti sazbě spočtené předem), Celkový výnos s výběry,
+MCP report (split po datu, neobchodovaný den, chybějící cena,
 delisted, součty `vse`). CI: `.github/workflows/tests.yml` při každém pushi (neblokuje
 deploy — červený běh = signál). Uzavírá REVIZE R9 (2026-07-25).
 
@@ -375,16 +396,6 @@ web/                                    ← repo root = asset složka Workeru
 
 ## Co ještě není (budoucí iterace)
 
-- **Vklady KB jsou špatně → Celkový výnos a P.a. KB nesmyslné** (zjištěno 2026-09-23):
-  `total_deposits_usd` (75 814,64) = jen USD + EUR vklady od 2024 (55 900 USD + 17 950 EUR
-  × 1,1095) — chybí vklady v CZK, celý rok 2023 a **všech 9 výběrů 12/2025–3/2026**
-  (≈ 174 854 USD, převody na IBKR; v `cash_flows` nejsou vůbec). Nechybí žádný podklad —
-  vklady i výběry jsou ve výpisech (Výpisy 2023, TRN CASH). Navíc KB nezačíná od nuly:
-  14 syntetických pozic k 30. 12. 2022 ≈ 79 071 USD. Bilance k 22. 9. 2026: hodnota
-  ≈ 172 292 USD + výběry 174 854 − počátek 79 071 − vklady 162 612 = zisk ≈ 105 463 USD;
-  XIRR ≈ 16,7 % p.a. (appka ukazuje +127 % / p.a. 24,6 %). Oprava = doplnit výběry do
-  `cash_flows`, vklady počítat z `cash_flows` + počáteční kapitál, pro KB ukazovat XIRR.
-  Do opravy PLEGIN celkový výnos KB (a `vse`) nepoužívá.
 - Q3 2026+ inkrementální import KB — přes chat (Lukáš nahraje výpisy, Claude parsuje).
   Upload form záměrně nebude (rozhodnuto 2026-07-25): IBKR jede automaticky Flexem
   a KB PDF vyžadují parsování s konvencemi, které formulář nezvládne.

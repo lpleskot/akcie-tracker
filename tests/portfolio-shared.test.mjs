@@ -2,18 +2,20 @@
  * Unit testy sdíleného výpočtu portfolia (merge overlay, kurzy, hotovost,
  * Celkový výnos) — stejný kód používá appka i MCP konektor.
  *
- * Spuštění: node --test tests/
+ * Spuštění: node --test tests/*.test.mjs
  * Fixtures jsou ručně spočítané malé případy.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   amountToUsd,
+  capitalFlowsUsd,
   cashToCzk,
   fxDateFor,
   fxToCzk,
   mergeOverlayIntoPortfolio,
   portfolioTotalReturn,
+  xirrPct,
 } from "../assets/js/portfolio-shared.js";
 
 function close(actual, expected, eps = 1e-9) {
@@ -150,10 +152,67 @@ test("cashToCzk: součet v Kč, měna bez kurzu se přizná v missing", () => {
   assert.deepEqual(r.items.map((i) => i.currency), ["CZK", "EUR", "USD"]);
 });
 
-test("portfolioTotalReturn: výnos z vkladů v USD, převod do Kč, anualizace", () => {
+test("capitalFlowsUsd: počáteční kapitál, vklady a výběry z evidence, podle data", () => {
+  const p = {
+    inception_date: "2026-09-18",
+    opening_cash: { date: "2026-09-18", balances: { USD: 50 } },
+    transactions: [
+      // počáteční pozice: cost basis v EUR, kurz k datu vypořádání
+      { symbol: "X", date: "2026-09-18", settle_date: "2026-09-21", type: "BUY", quantity: 2, price: 100, proceeds: -200, currency: "EUR", synthetic_opening: true },
+      // běžný nákup není tok kapitálu
+      { symbol: "Y", date: "2026-09-19", type: "BUY", quantity: 1, price: 10, proceeds: -10, currency: "USD" },
+    ],
+    cash_flows: [
+      { date: "2026-09-21", type: "deposit", currency: "USD", amount: 1000 },
+      { date: "2026-09-21", type: "withdrawal", currency: "EUR", amount: -100 },
+      { date: "2026-09-21", type: "Deposits/Withdrawals", currency: "USD", amount: 300 }, // Flex overlay
+      { date: "2026-09-21", type: "interest", currency: "USD", amount: 2.6 },
+      { date: "2026-09-21", type: "fx_conversion", currency: "USD", amount: 500 },
+    ],
+    total_deposits_usd: 999999, // s evidencí toků se nepoužije
+  };
+  const eurUsd = 24.3 / 20.8;
+  const f = capitalFlowsUsd(p, FX);
+  assert.deepEqual(f.map((x) => [x.date, x.kind]), [
+    ["2026-09-18", "opening"], ["2026-09-18", "opening"],
+    ["2026-09-21", "deposit"], ["2026-09-21", "withdrawal"], ["2026-09-21", "deposit"],
+  ]);
+  close(f[0].usd, 50);
+  close(f[1].usd, 200 * eurUsd);
+  close(f[3].usd, -100 * eurUsd);
+  // výnos k datu nevidí pozdější toky
+  assert.equal(capitalFlowsUsd(p, FX, { upTo: "2026-09-20" }).length, 2);
+  assert.equal(capitalFlowsUsd(p, FX, { upTo: "2026-09-17" }).length, 0);
+});
+
+test("capitalFlowsUsd: bez evidence toků total_deposits_usd k datu založení", () => {
+  const f = capitalFlowsUsd({ inception_date: "2025-11-24", total_deposits_usd: 5000, cash_flows: [] }, FX);
+  assert.deepEqual(f, [{ date: "2025-11-24", usd: 5000, kind: "deposit" }]);
+});
+
+// Toky postavené ze známé sazby 10 % p. a. — XIRR ji musí zpětně najít
+const yearsBetween = (a, b) => (Date.parse(b) - Date.parse(a)) / 86400000 / 365.25;
+
+test("xirrPct: jediný vklad = prostá anualizace", () => {
+  const t = yearsBetween("2025-01-01", "2027-01-01");
+  close(xirrPct([{ date: "2025-01-01", usd: 100 }], 121, "2027-01-01"), (Math.pow(1.21, 1 / t) - 1) * 100, 1e-8);
+});
+
+test("xirrPct: najde sazbu u postupných vkladů i u výběru", () => {
+  const [t0, t1, t2] = ["2021-01-01", "2022-01-01", "2023-01-01"];
+  const grow = (from) => Math.pow(1.1, yearsBetween(from, t2));
+  const twoDeposits = 100 * grow(t0) + 100 * grow(t1);
+  close(xirrPct([{ date: t0, usd: 100 }, { date: t1, usd: 100 }], twoDeposits, t2), 10, 1e-8);
+  const withWithdrawal = 100 * grow(t0) - 50 * grow(t1);
+  close(xirrPct([{ date: t0, usd: 100 }, { date: t1, usd: -50 }], withWithdrawal, t2), 10, 1e-8);
+  // bez řešení (hodnota záporná) → null, ne vymyšlené číslo
+  assert.equal(xirrPct([{ date: t0, usd: 100 }], -10, t2), null);
+});
+
+test("portfolioTotalReturn: jen vklady (IBKR) = (hodnota − vklady) / vklady", () => {
   const r = portfolioTotalReturn({
     assetsUsd: 110000,
-    totalDepositsUsd: 100000,
+    flows: [{ date: "2025-01-01", usd: 100000 }],
     inceptionDate: "2025-01-01",
     asOf: "2026-01-01",
     usdToCzk: 20,
@@ -162,19 +221,41 @@ test("portfolioTotalReturn: výnos z vkladů v USD, převod do Kč, anualizace",
   close(r.pct, 10);
   close(r.czk, 200000);
   close(r.days, 365);
-  close(r.paPct, (Math.pow(1.1, 365.25 / 365) - 1) * 100);
-  // Date i ISO datum dávají stejný počet dní
+  close(r.vlozeno, 100000);
+  close(r.vybrano, 0);
+  close(r.paPct, (Math.pow(1.1, 365.25 / 365) - 1) * 100, 1e-8);
+  // Date i ISO datum dávají stejný počet dní; bez kurzu USD žádné Kč
   const d = portfolioTotalReturn({
-    assetsUsd: 110000, totalDepositsUsd: 100000,
+    assetsUsd: 110000, flows: [{ date: "2025-01-01", usd: 100000 }],
     inceptionDate: "2025-01-01", asOf: new Date("2026-01-01T00:00:00Z"),
   });
   close(d.days, 365);
-  assert.equal(d.czk, null); // bez kurzu USD žádné Kč
+  assert.equal(d.czk, null);
+});
+
+test("portfolioTotalReturn: výběry nezmenšují základ (KB)", () => {
+  // počátek 100, vklad 100, výběr 150, dnes 120 → zisk 70 z vložených 200
+  const r = portfolioTotalReturn({
+    assetsUsd: 120,
+    flows: [
+      { date: "2023-01-01", usd: 100 },
+      { date: "2024-01-01", usd: 100 },
+      { date: "2025-01-01", usd: -150 },
+    ],
+    inceptionDate: "2023-01-01",
+    asOf: "2026-01-01",
+  });
+  close(r.vlozeno, 200);
+  close(r.vybrano, 150);
+  close(r.usd, 70);
+  close(r.pct, 35); // starý vzorec (hodnota − čisté vklady) / čisté vklady by dal 140 %
+  assert.ok(r.paPct > 0 && r.paPct < 35);
 });
 
 test("portfolioTotalReturn: nulové vklady → 0 %, minimálně 1 den", () => {
-  const r = portfolioTotalReturn({ assetsUsd: 5, totalDepositsUsd: 0, inceptionDate: "2026-09-22", asOf: "2026-09-22" });
+  const r = portfolioTotalReturn({ assetsUsd: 5, flows: [], inceptionDate: "2026-09-22", asOf: "2026-09-22" });
   assert.equal(r.usd, 0);
   assert.equal(r.pct, 0);
+  assert.equal(r.paPct, 0);
   assert.equal(r.days, 1);
 });

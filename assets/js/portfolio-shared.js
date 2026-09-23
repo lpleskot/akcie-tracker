@@ -52,7 +52,8 @@ export function fxDateFor(fxRates, date) {
 /**
  * Částka v měně → USD přes CZK kurzy ČNB. Chybí-li kurz k datu, bere se
  * NEJNOVĚJŠÍ den v kurzech (ne poslední předchozí jako u fxToCzk) — takhle
- * se historicky přepočítávají vklady z overlay do total_deposits_usd.
+ * se přepočítávají vklady z overlay do total_deposits_usd i toky kapitálu
+ * v capitalFlowsUsd, aby oba součty vyšly stejně.
  */
 export function amountToUsd(fxRates, amount, currency, date) {
   if (!Number.isFinite(amount)) return NaN;
@@ -218,20 +219,100 @@ export function cashToCzk(cash, fxRates, date, opts) {
   return { czk, items, missing };
 }
 
+const toMs = (d) => (d instanceof Date ? d.getTime() : new Date(d).getTime());
+
+// Vklady a výběry v evidenci: statické JSON je vedou jako deposit/withdrawal,
+// Flex overlay pod typy IBKR (stejný test jako vklady v mergeOverlayIntoPortfolio).
+const CAPITAL_FLOW = /^(deposit|withdrawal)$|Deposits.*Withdrawals|Account Transfers|Internal Transfers/i;
+
 /**
- * Celkový výnos portfolia od založení — vzorec dlaždice „Celkový výnos":
- * (pozice + hotovost − vklady) / vklady. Vklady se evidují v USD
- * (total_deposits_usd), proto se počítá v USD a do Kč se převádí výsledek.
- * P.a. = geometrická anualizace přes roky od inception do `asOf`
- * (Date, nebo ISO datum — pak se počítá k půlnoci UTC toho dne).
+ * Toky kapitálu portfolia v USD (+ přišlo do portfolia, − odešlo) podle data:
+ * počáteční kapitál, se kterým portfolio vstoupilo do evidence (opening_cash
+ * + pozice se synthetic_opening, oceněné jako jejich cost basis), vklady
+ * a výběry z cash_flows. Portfolio bez evidence toků spadne na
+ * total_deposits_usd k datu založení. `upTo` odřízne toky po datu — výnos
+ * k datu nesmí vidět pozdější vklady.
  */
-export function portfolioTotalReturn({ assetsUsd, totalDepositsUsd, inceptionDate, asOf, usdToCzk }) {
-  const deposits = totalDepositsUsd || 0;
-  const usd = deposits > 0 ? assetsUsd - deposits : 0;
-  const pct = deposits > 0 ? (usd / deposits) * 100 : 0;
-  const asOfMs = asOf instanceof Date ? asOf.getTime() : new Date(asOf).getTime();
-  const days = Math.max(1, (asOfMs - new Date(inceptionDate).getTime()) / 86400000);
+export function capitalFlowsUsd(portfolio, fxRates, { upTo } = {}) {
+  const flows = [];
+  const add = (date, usd, kind) => {
+    if (date && Number.isFinite(usd) && usd !== 0) flows.push({ date, usd, kind });
+  };
+  const oc = portfolio.opening_cash;
+  for (const [ccy, amount] of Object.entries(oc?.balances || {})) {
+    add(oc.date, amountToUsd(fxRates, amount, ccy, oc.date), "opening");
+  }
+  for (const t of portfolio.transactions || []) {
+    if (!t.synthetic_opening) continue;
+    const value = t.proceeds != null ? Math.abs(t.proceeds) : t.quantity * t.price;
+    add(t.date, amountToUsd(fxRates, value, t.currency, t.settle_date || t.date), "opening");
+  }
+  for (const f of portfolio.cash_flows || []) {
+    if (!CAPITAL_FLOW.test(f.type || "")) continue;
+    const amount = parseFloat(f.amount);
+    add(f.date, amountToUsd(fxRates, amount, f.currency, f.date), amount < 0 ? "withdrawal" : "deposit");
+  }
+  if (flows.length === 0 && portfolio.total_deposits_usd) {
+    add(portfolio.inception_date, portfolio.total_deposits_usd, "deposit");
+  }
+  return flows
+    .filter((f) => !upTo || f.date <= upTo)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * Roční výnos vážený penězi (XIRR) v %: sazba, při které se vyrovnají vložené
+ * a vybrané peníze s hodnotou portfolia k `asOf`. Počítá s tím, kdy peníze
+ * skutečně přišly a odešly — anualizace prostého výnosu by přecenila
+ * portfolio, kam se vkládalo postupně nebo odkud se vybíralo. Při jediném
+ * vkladu je totožná s (hodnota / vklad)^(1 / roky) − 1. Bez řešení → null.
+ */
+export function xirrPct(flows, valueUsd, asOf) {
+  if (!flows.length || !Number.isFinite(valueUsd)) return null;
+  const t0 = Math.min(...flows.map((f) => toMs(f.date)));
+  const years = (ms) => Math.max(0, ms - t0) / 86400000 / 365.25;
+  // Z pohledu investora: vklad je výdaj, výběr a konečná hodnota příjem
+  const cash = flows.map((f) => ({ t: years(toMs(f.date)), v: -f.usd }));
+  cash.push({ t: Math.max(1 / 365.25, years(toMs(asOf))), v: valueUsd });
+  const npv = (r) => cash.reduce((s, c) => s + c.v / Math.pow(1 + r, c.t), 0);
+
+  let lo = -0.9999;
+  let hi = 100; // −99,99 % až +10 000 % ročně
+  let fLo = npv(lo);
+  const fHi = npv(hi);
+  if (!Number.isFinite(fLo) || !Number.isFinite(fHi) || fLo * fHi > 0) return null;
+  for (let i = 0; i < 200; i++) {
+    const mid = (lo + hi) / 2;
+    const fMid = npv(mid);
+    if (fLo * fMid <= 0) hi = mid;
+    else {
+      lo = mid;
+      fLo = fMid;
+    }
+  }
+  return ((lo + hi) / 2) * 100;
+}
+
+/**
+ * Celkový výnos portfolia od založení (dlaždice „Celkový výnos" a „P.a."):
+ *   zisk = hodnota + vybráno − vloženo, % = zisk / vloženo, p.a. = XIRR,
+ * kde vloženo = počáteční kapitál + vklady. Výběry základ nezmenšují —
+ * jinak by po vybrání většiny peněz výnos v % narostl nesmyslně (KB).
+ * Bez výběrů a počátečních pozic (IBKR) je to totéž co
+ * (hodnota − vklady) / vklady. Počítá se v USD (vklady se evidují v USD),
+ * do Kč se převádí výsledek. `asOf`: Date, nebo ISO datum (půlnoc UTC).
+ */
+export function portfolioTotalReturn({ assetsUsd, flows, inceptionDate, asOf, usdToCzk }) {
+  let vlozeno = 0;
+  let vybrano = 0;
+  for (const f of flows) {
+    if (f.usd > 0) vlozeno += f.usd;
+    else vybrano -= f.usd;
+  }
+  const usd = vlozeno > 0 ? assetsUsd + vybrano - vlozeno : 0;
+  const pct = vlozeno > 0 ? (usd / vlozeno) * 100 : 0;
+  const days = Math.max(1, (toMs(asOf) - new Date(inceptionDate).getTime()) / 86400000);
   const years = days / 365.25;
-  const paPct = years > 0 ? (Math.pow(1 + pct / 100, 1 / years) - 1) * 100 : 0;
-  return { usd, pct, paPct, days, years, czk: usdToCzk ? usd * usdToCzk : null };
+  const paPct = vlozeno > 0 ? xirrPct(flows, assetsUsd, asOf) : 0;
+  return { usd, pct, paPct, days, years, vlozeno, vybrano, czk: usdToCzk ? usd * usdToCzk : null };
 }

@@ -17,11 +17,13 @@
 
 import { computePositionsAt, positionTotalReturn, splitFactorAfter, cashAtDate } from "../../assets/js/fifo.js";
 import {
+  capitalFlowsUsd,
   cashToCzk,
   fxDateFor,
   fxToCzk,
   mergeOverlayIntoPortfolio,
   portfolioTotalReturn,
+  xirrPct,
 } from "../../assets/js/portfolio-shared.js";
 import { flexDate } from "../../assets/js/flex-shared.js";
 import { fetchAssetJson, fetchYahooCloseAt } from "../api/lib.js";
@@ -209,7 +211,10 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
   const currencies = new Set(["USD"]);
 
   const portfolia = [];
-  const sum = { pozice: 0, cash: 0, zmena: 0, obchodovalo: 0, neobchodovalo: 0, chybi: 0, usd: 0, vklady: 0, usdOk: true };
+  const sum = {
+    pozice: 0, cash: 0, zmena: 0, obchodovalo: 0, neobchodovalo: 0, chybi: 0,
+    usd: 0, vlozeno: 0, vybrano: 0, assetsUsd: 0, flows: [], usdOk: true,
+  };
   const traded = [];
   let lastImport = null;
   let navDo = null;
@@ -254,19 +259,23 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
       .map((i) => ({ mena: i.mena, castka: round(i.castka, 2), czk: round(i.czk, 0) }));
     const celkem = pozice + cash.czk;
 
-    // Celkový výnos od založení — vzorec dlaždice, jen k datu
+    // Celkový výnos od založení — výpočet dlaždice, jen s toky kapitálu k datu
     let vynos = null;
     if (usdToCzk && portfolio.inception_date) {
-      const ret = portfolioTotalReturn({
-        assetsUsd: celkem / usdToCzk,
-        totalDepositsUsd: portfolio.total_deposits_usd,
+      const flows = capitalFlowsUsd(portfolio, fxRates, { upTo: datum });
+      const assetsUsd = celkem / usdToCzk;
+      vynos = portfolioTotalReturn({
+        assetsUsd,
+        flows,
         inceptionDate: portfolio.inception_date,
         asOf: datum,
         usdToCzk,
       });
-      vynos = { ...ret, vklady: portfolio.total_deposits_usd || 0 };
-      sum.usd += ret.usd;
-      sum.vklady += vynos.vklady;
+      sum.usd += vynos.usd;
+      sum.vlozeno += vynos.vlozeno;
+      sum.vybrano += vynos.vybrano;
+      sum.assetsUsd += assetsUsd;
+      sum.flows.push(...flows);
     } else {
       sum.usdOk = false;
     }
@@ -289,7 +298,8 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
         usd: round(vynos.usd, 0),
         pa_pct: round(vynos.paPct, 2),
         od: portfolio.inception_date,
-        vklady_usd: round(vynos.vklady, 0),
+        vlozeno_usd: round(vynos.vlozeno, 0),
+        vybrano_usd: round(vynos.vybrano, 0),
       },
       nejlepsi: extreme(portTraded, 1, false),
       nejhorsi: extreme(portTraded, -1, false),
@@ -308,14 +318,20 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
     varovani.push("datum je dnešek — závěrečné ceny burz, které ještě obchodují, nemusí být finální.");
   }
 
-  // vse = součet v Kč (nikdy ne přes různé měny); výnos = Σ USD / Σ vkladů
+  // vse = součet v Kč (nikdy ne přes různé měny). Výběr z jednoho účtu
+  // a vklad na druhý (převod KB → IBKR) jsou tytéž peníze: v součtu zisků
+  // i v XIRR přes toky obou účtů se ruší, a proto je základ % čistý kapitál
+  // (vloženo − vybráno), ne hrubé vloženo — to by převody počítalo dvakrát.
+  const netto = sum.vlozeno - sum.vybrano;
   const vseVynos =
-    sum.usdOk && sum.vklady > 0
+    sum.usdOk && netto > 0
       ? {
-          pct: round((sum.usd / sum.vklady) * 100, 2),
+          pct: round((sum.usd / netto) * 100, 2),
           czk: round(sum.usd * usdToCzk, 0),
           usd: round(sum.usd, 0),
-          vklady_usd: round(sum.vklady, 0),
+          pa_pct: round(xirrPct(sum.flows, sum.assetsUsd, datum), 2),
+          vlozeno_usd: round(sum.vlozeno, 0),
+          vybrano_usd: round(sum.vybrano, 0),
         }
       : null;
 
