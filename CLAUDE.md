@@ -3,7 +3,7 @@
 > Aktualizováno 2026-09-23 (MCP konektor pro PLEGIN + sdílený výpočet portfolia; Celkový
 > výnos z toků kapitálu + XIRR, výběry KB doplněny; migrace
 > Pages → jeden Worker 2026-07-23; revize kódu 2026-07-22 viz `REVIZE_REPORT.md`). Jediný projektový brief pro Claude (Cowork i Claude Code ho čtou
-> automaticky). Obecná workflow pravidla viz `PROJECT_PLAYBOOK.md` (root projektu, mimo repo).
+> automaticky). Obecná pravidla (`OBECNA_PRAVIDLA.md`) se načítají automaticky.
 
 ---
 
@@ -175,18 +175,18 @@ flowchart TD
 
 ### `plegi-invest-kb.json` (Komerční banka, account 1609386)
 - **Zdroj:** KB TRN CP (PDF) + KB TRN CASH (PDF) + KB STAV PTF (snapshoty).
-- Období 2022-12-30 → 2026-06-30 (inception = synthetic).
+- Období 2022-12-30 → 2026-09-30 (inception = synthetic).
 - **47 instrumentů** v 9 měnách (USD, EUR, CAD, SEK, PLN, GBP, AUD, DKK, CZK).
-- **140 transakcí:**
+- **144 transakcí:**
   - 14 synthetic pre-2023 openings ze STAV PTF 31.3.2023 (cost basis = tržní cena k datu,
     skutečná pre-2023 nákupní cena neznámá — starší KB výpisy v MiFID formátu bez transakčních dat).
-  - 123 reálných BUY/SELL z TRN CP 2023–2026-Q1. (Původních 7 synthetic Q2 2023 nahrazeno
+  - 127 reálných BUY/SELL z TRN CP 2023–2026-Q3 (Q2 2026 bez obchodů). (Původních 7 synthetic Q2 2023 nahrazeno
     reálnými — Q2 2023 výpisy existují, jen jsou ve složce podkladů pod chybným názvem
     `Výpis 1.7.-30.9.2023-9.pdf` … `-12.pdf`.)
 - **23 corporate actions** (Vklad/Výběr CP) — splity, rights issues, restructurings.
   Q1 2023 CAs filtrovány (`synthetic_cutoff_date = 2023-03-31`).
-- **155 dividend** + 121 withholding tax, **127 cash flows** (vč. 9 výběrů `withdrawal`
-  12/2025–3/2026 = převody na IBKR, doplněny 2026-09-23 z TRN CASH).
+- **160 dividend** + 124 withholding tax, **129 cash flows** (vč. 10 výběrů `withdrawal`
+  12/2025–7/2026 = převody na IBKR; 9 doplněno 2026-09-23 z TRN CASH, 59 800 USD 8. 7. 2026 z Q3).
 - **Počáteční kapitál:** `opening_cash` (hotovost k 30. 12. 2022 z počátečních zůstatků
   výpisů Q1 2023) + 14 syntetických pozic. `total_deposits_usd` KB nemá — vklady, výběry
   i počáteční kapitál se počítají z evidence (`capitalFlowsUsd`). **Výběry i vklady se při
@@ -198,7 +198,13 @@ flowchart TD
   **Celá historie přerovnána na vypořádání** (audit 2026-07 přes reparsing všech TRN CASH + 2023
   Výpisů): 74 záznamů (2023–2026-Q1) posunuto o 1–5 dní, **žádná změna daňového roku**, celkový
   FX dopad +534 CZK. Re-audit: 0 záznamů zbývá na datu splatnosti.
-- **18/18 otevřených pozic** match KB statementu (30.6.2026). Validace vs Sharesight
+- **Q3 2026 import** (2026-10-04): 4 prodeje (ACN, CRST.L, GOOG, UNH), 5 dividend, 3 daně,
+  1 výběr, 1 externí poplatek. **Settle u obchodů = „Datum vypořádání“ z TRN CP** (konvence všech
+  importů). Pozor: TRN CASH u GOOG/UNH připsal peníze s vypořádáním 06.07., TRN CP uvádí 07.07.
+  (US svátek 3. 7. + český svátek 6. 7.) — ponechán TRN CP; kdyby to účetní chtěla podle
+  připsání, změnit `settle_date` obou prodejů na 2026-07-06 (kurz ČNB 21,13 místo 21,191).
+- **14/14 otevřených pozic** match KB statementu (30.9.2026); hotovost 7 měn zrekonciliována na cent.
+  KB ve STAV PTF oceňuje Canacol 0,75 CAD/ks (app ho jako delisted oceňuje 0). Validace vs Sharesight
   Sold Securities: 32/34 prodejů match (2 nesoulady = CNE 1890 ks Sharesight chyba, IPO 1 ks zaokrouhlení).
 - **Delisted konvence** (`instruments[sym].delisted = "YYYY-MM-DD"`): CNE.TO (Canacol,
   TSX suspend 17.11.2025, CCAA). Frontend se neptá Yahoo a přiřadí syntetickou cenu 0
@@ -393,7 +399,7 @@ web/                                    ← repo root = asset složka Workeru
 ├── REVIZE_REPORT.md                    ← zjištění a stav revizí kódu
 └── CLAUDE.md                           ← TENTO soubor
 
-~/Projects/akcie-tracker/  (mimo git)   PROJECT_PLAYBOOK.md, podklady/, inspirace/
+~/Projects/akcie-tracker/  (mimo git)   podklady/, inspirace/ (PROJECT_PLAYBOOK.md = stará kopie)
 ```
 
 ---
@@ -433,7 +439,7 @@ web/                                    ← repo root = asset složka Workeru
 **Privacy:**
 - Repo private (finanční data), CF Access chrání URL. Žádný telemetry/analytics/cookie banner.
 
-**Workflow (per PROJECT_PLAYBOOK.md sekce 2 & 6):**
+**Workflow (per OBECNA_PRAVIDLA.md):**
 - **Claude píše, Lukáš commituje** přes GitHub Desktop. **ŽÁDNÉ `git` CLI od Claude.**
 - Po úpravě dodat: (1) seznam změněných souborů, (2) Summary + Description ve **dvou
   samostatných code blocích**, (3) co testovat po deployi.
@@ -441,3 +447,8 @@ web/                                    ← repo root = asset složka Workeru
 - Před rizikovou/infra změnou (workery, KV, schéma) upozornit a počkat na schválení.
 - Po dokončení bloku nabídnout patch „Stav projektu" do tohoto souboru (dokumentačně
   významné změny: nové business pravidlo/metrika, nový API kontrakt, nová konfigurace/worker).
+
+
+## Zadání od PLEGINu (od 23. 9. 2026)
+
+Platí obecné pravidlo „Zadání od PLEGINu — společná složka“ v `~/Projects/projekty_zacatek/OBECNA_PRAVIDLA.md`. Tady: zadání leží v kořeni projektu `~/Projects/akcie-tracker/` (o úroveň výš než git root `web/`). Dřívější `ZADANI_MCP_PLEGIN.md` (konektor `akcie_den`) je hotové — ignoruj; nová řada začíná `PLEGIN_ZADANI_01.md`.

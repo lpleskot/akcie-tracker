@@ -8,7 +8,7 @@
  "base_currency": "CZK",
  "inception_date": "2022-12-30",
  "period_from": "2022-12-30",
- "period_to": "2026-06-30",
+ "period_to": "2026-09-30",
  "instruments": {
   "CNE.TO": {
    "isin": "CA1348083025",
@@ -2582,6 +2582,66 @@
    "currency": "EUR",
    "kb_id": "3195768/2052066",
    "kb_name": "NOVO NORDISK A/S - DE REMOTE"
+  },
+  {
+   "date": "2026-07-01",
+   "settle_date": "2026-07-02",
+   "time": "",
+   "isin": "IE00B4BNMY34",
+   "symbol": "ACN",
+   "type": "SELL",
+   "quantity": 20,
+   "price": 130.27,
+   "proceeds": 2605.4,
+   "commission": -37.55,
+   "currency": "USD",
+   "kb_id": "3318097/2188591",
+   "kb_name": "ACCENTURE PLC"
+  },
+  {
+   "date": "2026-07-01",
+   "settle_date": "2026-07-03",
+   "time": "",
+   "isin": "GB00B8VZXT93",
+   "symbol": "CRST.L",
+   "type": "SELL",
+   "quantity": 3150,
+   "price": 0.72,
+   "proceeds": 2261.7,
+   "commission": -39.0,
+   "currency": "GBP",
+   "kb_id": "3318098/2188593",
+   "kb_name": "CREST NICHOLSON HOLDINGS PLC"
+  },
+  {
+   "date": "2026-07-02",
+   "settle_date": "2026-07-07",
+   "time": "",
+   "isin": "US02079K1079",
+   "symbol": "GOOG",
+   "type": "SELL",
+   "quantity": 120,
+   "price": 359.5,
+   "proceeds": 43140.0,
+   "commission": -243.94,
+   "currency": "USD",
+   "kb_id": "3318975/2189854",
+   "kb_name": "ALPHABET INC CLASS C"
+  },
+  {
+   "date": "2026-07-02",
+   "settle_date": "2026-07-07",
+   "time": "",
+   "isin": "US91324P1021",
+   "symbol": "UNH",
+   "type": "SELL",
+   "quantity": 31,
+   "price": 428.3,
+   "proceeds": 13277.3,
+   "commission": -92.94,
+   "currency": "USD",
+   "kb_id": "3318977/2189892",
+   "kb_name": "UNITEDHEALTH GROUP INC"
   }
  ],
  "corporate_actions": [
@@ -4255,6 +4315,51 @@
    "currency": "USD",
    "description": "Výplata dividendy / výnosu HUYA INC-ADR",
    "amount_usd": 550.67
+  },
+  {
+   "date": "2026-07-08",
+   "symbol": "LNF.TO",
+   "isin": "CA5266821092",
+   "amount": 55.44,
+   "currency": "CAD",
+   "description": "Výplata dividendy / výnosu Leon's Furniture Ltd",
+   "amount_usd": 39.0872
+  },
+  {
+   "date": "2026-07-22",
+   "symbol": "DIS",
+   "isin": "US2546871060",
+   "amount": 72.0,
+   "currency": "USD",
+   "description": "Výplata dividendy / výnosu WALT DISNEY CO/THE",
+   "amount_usd": 72.0
+  },
+  {
+   "date": "2026-09-17",
+   "symbol": "KSPI",
+   "isin": "US48581R2058",
+   "amount": 326.16,
+   "currency": "USD",
+   "description": "Výplata dividendy / výnosu JSC KASPI.KZ ADR",
+   "amount_usd": 326.16
+  },
+  {
+   "date": "2026-09-18",
+   "symbol": "YAL.AX",
+   "isin": "AU000000YAL0",
+   "amount": 184.17,
+   "currency": "AUD",
+   "description": "Výplata dividendy / výnosu YANCOAL AUSTRALIA LTD",
+   "amount_usd": 131.0557
+  },
+  {
+   "date": "2026-09-25",
+   "symbol": "LMT",
+   "isin": "US5398301094",
+   "amount": 37.95,
+   "currency": "USD",
+   "description": "Výplata dividendy / výnosu LOCKHEED MARTIN CORP",
+   "amount_usd": 37.95
   }
  ],
  "withholding_tax": [
@@ -5465,6 +5570,36 @@
    "country": "?",
    "description": "Daň z KU DR ING HC F PORSCHE AG",
    "amount_usd": -91.1021
+  },
+  {
+   "date": "2026-07-08",
+   "symbol": "LNF.TO",
+   "isin": "CA5266821092",
+   "amount": -13.86,
+   "currency": "CAD",
+   "country": "?",
+   "description": "Daň z KU Leon's Furniture Ltd",
+   "amount_usd": -9.7718
+  },
+  {
+   "date": "2026-07-22",
+   "symbol": "DIS",
+   "isin": "US2546871060",
+   "amount": -10.8,
+   "currency": "USD",
+   "country": "?",
+   "description": "Daň z KU WALT DISNEY CO/THE",
+   "amount_usd": -10.8
+  },
+  {
+   "date": "2026-09-25",
+   "symbol": "LMT",
+   "isin": "US5398301094",
+   "amount": -5.69,
+   "currency": "USD",
+   "country": "?",
+   "description": "Daň z KU LOCKHEED MARTIN CORP",
+   "amount_usd": -5.69
   }
  ],
  "cash_flows": [
@@ -6454,16 +6589,32 @@
    "amount": -3293.0,
    "description": "03.03.2026 Výběr z klientského účtu 3199823 -3 293.00 03.03.2026",
    "amount_usd": -3293.0
+  },
+  {
+   "date": "2026-07-08",
+   "type": "withdrawal",
+   "currency": "USD",
+   "amount": -59800.0,
+   "description": "08.07.2026 Výběr z klientského účtu 3321198 -59 800.00 08.07.2026",
+   "amount_usd": -59800.0
+  },
+  {
+   "date": "2026-09-17",
+   "type": "external_fee",
+   "currency": "USD",
+   "amount": -4.5,
+   "description": "Externí poplatek za CA c. 104961",
+   "amount_usd": -4.5
   }
  ],
  "cash_balance": {
-  "AUD": 320.98,
-  "CAD": 128.21,
+  "AUD": 505.15,
+  "CAD": 169.79,
   "CZK": 0.03,
   "DKK": 574.88,
-  "EUR": 667.67,
-  "GBP": 65.5,
-  "USD": 1196.94
+  "EUR": 645.34,
+  "GBP": 2288.2,
+  "USD": 460.33
  },
  "cash_history": [
   {
@@ -6577,10 +6728,11 @@
   "Corporate actions s datem ≤ 2023-03-31 jsou již zahrnuty v synthetic opening transakcích k tomuto datu.",
   "TRN CASH naimportováno: 114 dividend, 91 withholding tax, 83 cash flows. Unmatched: 0 divs, 0 taxes.",
   "Q2 2026 (KB) naimportováno z TRN CASH (01.04–30.06.2026): 15 dividend, 9 withholding, 3 external_fee. Datum = vypořádání (připsání na účet). Žádné obchody (TRN CP Q2 neexistuje). Poplatky za správu + DPH vynechány (řeší účetní, nepromítá se do ceny akcií). cash_balance + period k 30.06.2026, 18/18 pozic match STAV PTF Q2. ČNB kurzy Q2 dnů doplněny do fx_rates.json.",
-  "Kapitál KB (oprava 2026-09-23): výnos se počítá z evidence toků — počáteční kapitál (opening_cash + 14 synthetic_opening pozic k 30. 12. 2022), vklady (cash_flows deposit) a výběry (cash_flows withdrawal; doplněno 9 výběrů 12/2025–3/2026 z TRN CASH, převody na IBKR). Odstraněny chybné souhrny total_deposits_usd / total_deposits_by_ccy (obsahovaly jen USD+EUR vklady od 2024, bez CZK, bez roku 2023 a bez výběrů)."
+  "Kapitál KB (oprava 2026-09-23): výnos se počítá z evidence toků — počáteční kapitál (opening_cash + 14 synthetic_opening pozic k 30. 12. 2022), vklady (cash_flows deposit) a výběry (cash_flows withdrawal; doplněno 9 výběrů 12/2025–3/2026 z TRN CASH, převody na IBKR). Odstraněny chybné souhrny total_deposits_usd / total_deposits_by_ccy (obsahovaly jen USD+EUR vklady od 2024, bez CZK, bez roku 2023 a bez výběrů).",
+  "Q3 2026 (KB) naimportováno (01.07.–30.09.2026): 4 prodeje z TRN CP (ACN, CRST.L, GOOG, UNH), 5 dividend, 3 withholding, 1 výběr (59 800 USD, 08.07.2026), 1 external_fee. Datum = vypořádání; u obchodů settle_date z TRN CP (GOOG/UNH: TRN CP 07.07., TRN CASH připsal 06.07. — ponechán TRN CP). Poplatky za správu + DPH vynechány. cash_balance + period k 30.09.2026, 14/14 pozic match STAV PTF Q3."
  ],
  "synthetic_cutoff_date": "2023-03-31",
  "ytd_mark_to_market_usd": 0,
  "realized_ytd_usd": 284.06,
- "statement_period_end": "2026-06-30"
+ "statement_period_end": "2026-09-30"
 }
