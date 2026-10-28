@@ -23,6 +23,7 @@ import {
   fxToCzk,
   mergeOverlayIntoPortfolio,
   portfolioTotalReturn,
+  pragueToday,
   xirrPct,
 } from "../../assets/js/portfolio-shared.js";
 import { flexDate } from "../../assets/js/flex-shared.js";
@@ -123,16 +124,9 @@ async function fetchQuotesAt(symbols, datum) {
 
 // ---------- Čisté funkce (testované bez sítě) ----------
 
-// Obchodní „dnes" je pražský den, ne UTC — mezi půlnocí a 1–2 h ráno
-// pražského času je v UTC ještě předchozí den a „včera" by ujelo o den zpět.
-export function pragueToday(now = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Prague",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
-}
+// Pražský „dnes" je ve sdíleném modulu (používá ho i frontend); export zůstává
+// kvůli dosavadním importům z tohoto modulu
+export { pragueToday };
 
 export function addDays(iso, n) {
   const d = new Date(`${iso}T00:00:00Z`);

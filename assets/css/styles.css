@@ -271,6 +271,45 @@ button.primary {
 .small {
   font-size: 11.5px;
 }
+
+/* ------- Místo atributů style="…" -------
+   CSP v _headers povoluje jen styly ze souboru (style-src 'self'): atribut
+   style v HTML i v řetězcích pro innerHTML prohlížeč zahodí. Dynamické hodnoty
+   (šířka pruhů v Alokaci) nastavuje JS přes element.style (CSSOM), to CSP
+   neblokuje. */
+.ticker-help-note {
+  margin-top: 6px;
+}
+#btn-add-rule-row {
+  margin-top: 8px;
+}
+.modal label.note-field {
+  margin-top: 10px;
+}
+.rules-empty {
+  margin: 8px 0 4px;
+}
+.alert-preview-empty {
+  padding: 12px 18px;
+}
+.alert-preview-note {
+  padding: 8px 18px;
+}
+.tr-total-line {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--color-border);
+}
+.tr-note {
+  margin-top: 4px;
+}
+.summary-note {
+  flex-basis: 100%;
+}
+.container.not-found {
+  text-align: center;
+  padding-top: 80px;
+}
 .modal code {
   background: #ecece6;
   padding: 1px 5px;
@@ -955,6 +994,60 @@ tfoot td {
 .report-summary-box .total-value {
   font-size: 17px;
   font-weight: 700;
+}
+
+/* ------- Daňová optimalizace ------- */
+.tax-notes {
+  margin: 0 0 14px;
+  padding: 10px 14px 10px 30px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+.tax-notes li + li {
+  margin-top: 4px;
+}
+#tbl-tax tbody tr.position {
+  cursor: pointer;
+}
+#tbl-tax td.tax-select {
+  padding: 0;
+  text-align: center;
+}
+/* Klikací plocha je celý label — malé zaškrtávátko, ale velký cíl */
+#tbl-tax .tax-select-hit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+  cursor: pointer;
+}
+#tbl-tax .tax-select-hit input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--color-accent);
+}
+#tbl-tax .tax-select-hit input:disabled {
+  cursor: not-allowed;
+}
+/* Delší poznámky (delisted, chybějící kurz) se zalomí, ať tabulka neutíká do šířky */
+#tbl-tax td.tax-note {
+  white-space: normal;
+  min-width: 200px;
+  font-size: 12px;
+}
+@media (pointer: coarse) {
+  /* Dotyk: cíl aspoň 44 × 44 px */
+  #tbl-tax .tax-select-hit {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 /* Inventurní výpis — oficiální znění nadpisu (tiskne se i do PDF) */

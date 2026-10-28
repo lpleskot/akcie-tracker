@@ -21,6 +21,17 @@ import {
   transformFlexCorpAction,
 } from "./flex-shared.js";
 
+// Obchodní „dnes" je pražský den, ne UTC — mezi půlnocí a 1–2 h ráno
+// pražského času je v UTC ještě předchozí den (Workery běží v UTC).
+export function pragueToday(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Prague",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
 /**
  * Kurz ČNB: CZK za 1 jednotku měny k datu. Bez `allowFallback` vrací null,
  * když den chybí — pro daňové výstupy se kurzy nevymýšlejí. S fallbackem
@@ -217,6 +228,115 @@ export function cashToCzk(cash, fxRates, date, opts) {
     items.push({ currency, amount, rate, czk: amount * rate });
   }
   return { czk, items, missing };
+}
+
+/**
+ * Realizované prodeje v období v Kč — výpočet Reportu pro účetní, jeho exportu
+ * i daňového přehledu (jedna metodika, žádné kopie). Closed loty FIFO se
+ * seskupí po (symbol, datum vypořádání prodeje), nákupy se sloučí po datu
+ * vypořádání. Účetně rozhoduje datum VYPOŘÁDÁNÍ — určuje rok i kurz ČNB.
+ * Kurzy strict: chybí-li kterýkoli, profitCzk = null — chybějící nákupní kurz
+ * by se jinak sečetl jako nula a ze ztráty udělal zisk (TTD 2026-07).
+ */
+export function realizedSales(positions, instruments, fxRates, { from, to } = {}) {
+  const eventsMap = new Map();
+  for (const sym in positions) {
+    for (const cl of positions[sym].closed_lots || []) {
+      if (cl.orphan) continue;
+      const sd = cl.sell_settle_date || cl.sell_date;
+      if (from && sd < from) continue;
+      if (to && sd > to) continue;
+      // IBKR někdy dělí jeden prodej na víc closed lotů — klíč symbol + vypořádání
+      const key = `${sym}|${sd}`;
+      let ev = eventsMap.get(key);
+      if (!ev) {
+        const inst = instruments?.[sym] || {};
+        ev = {
+          symbol: sym,
+          name: inst.name,
+          currency: inst.currency,
+          sell_date: sd,
+          sell_trade_date: cl.sell_date,
+          sell_price: cl.sell_price,
+          sell_qty: 0,
+          sell_net_total: 0,
+          buys: [],
+        };
+        eventsMap.set(key, ev);
+      }
+      ev.buys.push({
+        date: cl.buy_settle_date || cl.buy_date,
+        trade_date: cl.buy_date,
+        qty: cl.qty,
+        total: cl.qty * cl.buy_cost_per_unit,
+      });
+      ev.sell_qty += cl.qty;
+      ev.sell_net_total += cl.qty * cl.sell_net_per_unit;
+    }
+  }
+
+  const events = [...eventsMap.values()].sort((a, b) => a.sell_date.localeCompare(b.sell_date));
+  // Den vyhlášení kurzu (o víkendu/svátku poslední vyhlášený) — účetní ho chce
+  // vidět vedle kurzu
+  const validFor = (date) => fxRates?.dates?.[date]?.valid_for || null;
+  for (const ev of events) {
+    // IBKR dělí i nákupy v rámci dne — jeden řádek na datum vypořádání
+    const byDate = new Map();
+    for (const b of ev.buys) {
+      if (!byDate.has(b.date)) byDate.set(b.date, { date: b.date, trade_date: b.trade_date, qty: 0, total: 0 });
+      const e = byDate.get(b.date);
+      e.qty += b.qty;
+      e.total += b.total;
+    }
+    ev.buys = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+    let costCzk = 0;
+    let allFxFound = true;
+    for (const b of ev.buys) {
+      b.fx = fxToCzk(fxRates, b.date, ev.currency);
+      b.fxValidFor = b.fx != null ? validFor(b.date) : null;
+      b.czk = b.fx != null ? b.total * b.fx : null;
+      if (b.czk == null) allFxFound = false;
+      else costCzk += b.czk;
+    }
+    ev.costCzk = costCzk;
+    ev.sellFx = fxToCzk(fxRates, ev.sell_date, ev.currency);
+    ev.sellFxValidFor = ev.sellFx != null ? validFor(ev.sell_date) : null;
+    ev.sellCzk = ev.sellFx != null ? ev.sell_net_total * ev.sellFx : null;
+    if (ev.sellFx == null) allFxFound = false;
+    ev.allFxFound = allFxFound;
+    ev.profitCzk = allFxFound ? ev.sellCzk - costCzk : null;
+  }
+  return events;
+}
+
+/**
+ * Pořizovací cena otevřených lotů v Kč — každý lot kurzem ČNB k datu svého
+ * vypořádání (metodika Reportu pro účetní). Strict: chybí-li kurz, czk = null.
+ * `estimateLatest`: lot vypořádaný až po posledním dni v kurzech (čerstvý
+ * nákup) dostane poslední známý kurz s příznakem `estimated` — jen pro
+ * odhady (daňový přehled), ne pro účetní výstupy.
+ */
+export function openLotsCostCzk(lots, currency, fxRates, { estimateLatest = false } = {}) {
+  const lastDate = estimateLatest ? Object.keys(fxRates?.dates || {}).sort().pop() : null;
+  let czk = 0;
+  let ok = true;
+  let estimated = false;
+  const out = (lots || []).map((lot) => {
+    const date = lot.settle_date || lot.date;
+    let fx = fxToCzk(fxRates, date, currency);
+    let est = false;
+    if (fx == null && lastDate && date > lastDate) {
+      fx = fxToCzk(fxRates, lastDate, currency);
+      est = fx != null;
+    }
+    const cost = lot.qty * lot.cost_per_unit;
+    const lotCzk = fx != null ? cost * fx : null;
+    if (lotCzk == null) ok = false;
+    else czk += lotCzk;
+    if (est) estimated = true;
+    return { ...lot, fxDate: date, fx, cost, czk: lotCzk, estimated: est };
+  });
+  return { czk: ok ? czk : null, lots: out, estimated };
 }
 
 const toMs = (d) => (d instanceof Date ? d.getTime() : new Date(d).getTime());

@@ -20,7 +20,7 @@
         </div>
       </header>
 
-      <div id="status" class="status" style="display: none">Načítám…</div>
+      <div id="status" class="status" hidden>Načítám…</div>
       <div id="warnings"></div>
 
       <div id="summary-cards" class="summary"></div>
@@ -35,6 +35,7 @@
           <button class="tab" data-view="watchlist">Watchlist</button>
           <button class="tab" data-view="journal">Deník investora</button>
           <button class="tab" data-view="report">Report pro účetní</button>
+          <button class="tab" data-view="tax">Daňová optimalizace</button>
           <button class="tab" data-view="positions-at">Pozice k datu</button>
           <button class="tab" data-view="portfolio-history">Hodnota portfolia</button>
         </div>
@@ -208,10 +209,10 @@
           a aktuální cenu označit jako benchmark — pak vidíte, jak se ticker
           pohnul od chvíle, kdy jste ho začal sledovat.
         </div>
-        <div id="watchlist-empty" class="status" style="display:none">
+        <div id="watchlist-empty" class="status" hidden>
           Žádné tickery zatím ve watchlistu. Přidejte první přes tlačítko <strong>+ Přidat ticker</strong> nahoře.
         </div>
-        <div class="table-wrap" id="watchlist-wrap" style="display:none">
+        <div class="table-wrap" id="watchlist-wrap" hidden>
           <table id="tbl-watchlist">
             <thead>
               <tr>
@@ -294,6 +295,51 @@
         </div>
         <div id="report-content"></div>
         <div id="report-summary"></div>
+      </section>
+
+      <section id="view-tax" class="view">
+        <div class="filter-bar">
+          <span class="filter-label">Daňový rok:</span>
+          <strong id="tax-year"></strong>
+          <span class="filter-divider">·</span>
+          <span class="filter-label">Simulace prodeje:</span>
+          <button id="tax-select-losses" class="btn-link" type="button">Vybrat ztrátové pozice</button>
+          <button id="tax-select-clear" class="btn-link" type="button">Zrušit výběr</button>
+          <button id="tax-build" class="btn" type="button">Přepočítat</button>
+          <span class="filter-count" id="tax-count"></span>
+        </div>
+        <div class="report-intro muted">
+          Za celou společnost (<strong>všechna portfolia</strong>). U každé držené pozice je vidět,
+          co by daňově znamenal prodej dnes: nákup kurzem ČNB k datu vypořádání každého
+          otevřeného nákupu (FIFO, stejně jako Report pro účetní), prodej dnešní cenou
+          a posledním vyhlášeným kurzem ČNB. Zaškrtnutím pozic ve sloupci Prodat se spočítá,
+          jak by prodej změnil výsledek roku. Kliknutím na řádek se ukážou jednotlivé nákupy.
+        </div>
+        <div id="tax-status" class="status" hidden></div>
+        <div id="tax-cards" class="summary" hidden></div>
+        <div id="tax-notes"></div>
+        <div class="table-wrap" id="tax-wrap" hidden>
+          <table id="tbl-tax">
+            <thead>
+              <tr>
+                <th class="sortable" data-sort-key="sym">Symbol</th>
+                <th>Prodat<span class="hint" title="Simulace: pozice zaškrtnutá k prodeji celá dnes. Dlaždice Simulace nahoře ukáže výsledek roku a odhad daně po takovém prodeji. Nic se neprodává ani neukládá.">i</span></th>
+                <th class="sortable" data-sort-key="name">Název</th>
+                <th class="sortable" data-sort-key="account">Účet</th>
+                <th class="num sortable" data-sort-key="qty">Kusů</th>
+                <th class="sortable" data-sort-key="lastBuy">Poslední<br>nákup<span class="hint" title="Datum vypořádání posledního nákupu, který je ještě v pozici (FIFO), a počet držených nákupů. Při prodeji části pozice se podle FIFO prodávají nejdřív nejstarší nákupy — kliknutím na řádek je uvidíš.">i</span></th>
+                <th class="num sortable" data-sort-key="costCzk">Pořizovací<br>cena v Kč<span class="hint" title="Cena držených kusů vč. komise, každý nákup přepočtený kurzem ČNB k datu svého vypořádání (stejně jako Report pro účetní).">i</span></th>
+                <th class="num sortable" data-sort-key="valueCzk">Hodnota<br>v Kč<span class="hint" title="Kusy × aktuální cena z Yahoo × poslední vyhlášený kurz ČNB.">i</span></th>
+                <th class="num sortable" data-sort-key="pnlLocal">Z/Z<br>v měně<span class="hint" title="Nerealizovaná Z/Z v měně titulu — totéž jako Nereal. Z/Z v Přehledu pozic (jen držené nákupy, bez kurzu).">i</span></th>
+                <th class="num sortable" data-sort-key="pnlCzk">Z/Z v Kč<br>(daňově)<span class="hint" title="Hodnota v Kč − Pořizovací cena v Kč. Tolik by prodej celé pozice dnes přidal (zisk) nebo ubral (ztráta) z daňového výsledku roku. Rozdíl proti Z/Z v měně je kurzový.">i</span></th>
+                <th class="num sortable" data-sort-key="pct">%</th>
+                <th>Pozn.</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot id="tfoot-tax"></tfoot>
+          </table>
+        </div>
       </section>
 
       <section id="view-positions-at" class="view">
@@ -412,7 +458,7 @@
 
         <div class="report-intro muted">
           Vývoj celkové hodnoty portfolia (pozice + cash) v čase.
-          <strong style="color: var(--color-positive)">Zelené tečky</strong> = den s vkladem cashu — hodnota tehdy
+          <strong class="pos">Zelené tečky</strong> = den s vkladem cashu — hodnota tehdy
           vzrostla díky tobě, ne díky trhu. Zdroj dat: denní NAV snapshoty z IBKR Flex,
           přepočet CZK přes ČNB kurz k danému dni.
         </div>
@@ -550,7 +596,7 @@
                 <tr><td>HKEX (Hong Kong)</td><td><code>.HK</code></td><td><code>0700.HK</code></td></tr>
               </tbody>
             </table>
-            <p class="muted small" style="margin-top:6px;">
+            <p class="muted small ticker-help-note">
               Pokud si nejsi jistý, otevři <a href="https://finance.yahoo.com/" target="_blank" rel="noopener">finance.yahoo.com</a> a najdi firmu — uvidíš přesný Yahoo ticker včetně přípony.
             </p>
           </div>
@@ -605,7 +651,7 @@
 
         <div id="edit-watch-rules"></div>
 
-        <button type="button" class="btn-link" id="btn-add-rule-row" style="margin-top: 8px;">+ Přidat další pravidlo</button>
+        <button type="button" class="btn-link" id="btn-add-rule-row">+ Přidat další pravidlo</button>
 
         <div class="modal-error" id="edit-watch-error"></div>
         <div class="modal-actions">
@@ -620,7 +666,7 @@
       <div class="modal">
         <h3 id="note-title">Poznámka</h3>
         <div class="muted small" id="note-subtitle"></div>
-        <label style="margin-top:10px;">
+        <label class="note-field">
           <span>Krátký popis firmy (max 800 znaků)</span>
           <textarea id="note-text" rows="6" maxlength="800" placeholder="Co firma dělá, klíčové produkty, sektor, …"></textarea>
         </label>

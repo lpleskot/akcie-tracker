@@ -3,6 +3,7 @@
     {
       "id": "plegi-invest-ibkr",
       "name": "PLEGI invest IBKR",
+      "short": "IBKR",
       "broker": "Interactive Brokers",
       "primary": true,
       "file": "plegi-invest-ibkr.json"
@@ -10,6 +11,7 @@
     {
       "id": "plegi-invest-kb",
       "name": "PLEGI invest KB",
+      "short": "KB",
       "broker": "Komerční banka",
       "primary": false,
       "file": "plegi-invest-kb.json"

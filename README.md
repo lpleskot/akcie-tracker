@@ -57,6 +57,14 @@ Privátní portfolio tracker pro PLEGI invest přes Interactive Brokers a Komer�
 - Grand total v CZK (nákup / prodej / zisk-ztráta) — podklad pro daňové přiznání
 - XLSX export (barevné řádky, kurz s datem platnosti) + **Tisk / PDF** (tiskový styl)
 
+### Daňová optimalizace
+- Za celou společnost (všechna portfolia): výsledek prodejů v aktuálním roce (jako
+  Report pro účetní), odhad daně 21 %, nerealizovaný zisk a ztráta v Kč kurzy ČNB
+  (nákup kurzem k vypořádání každého drženého nákupu) a dividendy roku
+- Tabulka pozic se Z/Z v měně i v Kč (daňově), rozbalení na jednotlivé nákupy,
+  simulace prodeje zaškrtnutých pozic; XLSX export
+- Orientační výpočet, ne daňové poradenství — zařazení cenných papírů potvrdí účetní
+
 ### Pozice k datu (inventura)
 - Stav pozic k rozvahovému dni (typicky 31. 12.) přes všechna portfolia: název, ISIN,
   ticker, kusy, závěrečná cena k datu, ocenění v měně i CZK (kurz ČNB k datu),

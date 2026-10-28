@@ -1,6 +1,7 @@
 # CLAUDE.md — akcie-tracker
 
-> Aktualizováno 2026-10-28 (ranní report Akcie do PLEGINu posílá Worker sám – PLEGIN_ZADANI_01;
+> Aktualizováno 2026-10-28 (tab Daňová optimalizace – zadání PLEGIN #7; ranní report Akcie
+> do PLEGINu posílá Worker sám – PLEGIN_ZADANI_01;
 > 2026-09-23 MCP konektor pro PLEGIN + sdílený výpočet portfolia; Celkový
 > výnos z toků kapitálu + XIRR, výběry KB doplněny; migrace
 > Pages → jeden Worker 2026-07-23; revize kódu 2026-07-22 viz `REVIZE_REPORT.md`). Jediný projektový brief pro Claude (Cowork i Claude Code ho čtou
@@ -235,7 +236,8 @@ flowchart TD
 
 `overview` Přehled pozic · `transactions` Transakce · `dividends` Dividendy ·
 `allocation` Alokace · `alerts` Alerty · `watchlist` Watchlist · `journal` Deník investora ·
-`report` Report pro účetní · `positions-at` Pozice k datu · `portfolio-history` Hodnota portfolia
+`report` Report pro účetní · `tax` Daňová optimalizace · `positions-at` Pozice k datu ·
+`portfolio-history` Hodnota portfolia
 
 - **Přehled pozic:** expandable detail per pozice (nákupy/prodeje/FIFO matching/split/
   dividendy/Total Return + Poznámka), sloupce vč. **Nereal. Z/Z** (jen otevřené loty)
@@ -244,7 +246,27 @@ flowchart TD
 - **Report pro účetní:** seskupený **per ticker** (abecedně, jedna karta na symbol) —
   uvnitř prodeje chronologicky, každý se svými FIFO matched nákupy a ziskem, dole
   mezisoučet za symbol (u více prodejů). CZK přepočet dle vypořádání, XLSX export
-  (stejné seskupení, barevné řádky, kurz s datem) + tisk/PDF.
+  (stejné seskupení, barevné řádky, kurz s datem) + tisk/PDF. Výpočet prodejů v Kč je
+  sdílená `realizedSales()` (`portfolio-shared.js`) — obrazovka, export i Daňová
+  optimalizace (refaktor 2026-10-28 ověřen proti původnímu kódu: 151 prodejů, 0 rozdílů).
+- **Daňová optimalizace (od 2026-10-28, zadání PLEGIN #7):** za celou společnost (obě
+  portfolia, nezávisle na aktivním). Dlaždice: **Realizováno <rok>** (prodeje vypořádané
+  v aktuálním pražském roce = součet Reportu pro účetní za IBKR + KB), **Odhad daně z prodejů**
+  (21 % DPPO jen z kladného výsledku prodejů), **Nerealizovaný zisk / ztráta** (jen pozice,
+  které jdou prodat), **Simulace** (výsledek roku po prodeji zaškrtnutých pozic, nic se
+  neukládá), **Dividendy <rok>** (hrubě + sražená daň v Kč, informace — samostatný základ).
+  Tabulka per pozice a účet: pořizovací cena v Kč (otevřené FIFO loty × kurz ČNB
+  k vypořádání každého nákupu — `openLotsCostCzk`, sdílené s Pozicemi k datu), hodnota
+  v Kč (cena `/api/quote` × poslední kurz ČNB), Z/Z v měně (= Nereal. Z/Z v Přehledu)
+  a **Z/Z v Kč (daňově)** — rozdíl je kurzový. Klik na řádek = držené nákupy (loty).
+  Delisted (CNE.TO) jde vidět, ale do součtů ani simulace nejde (ztráta až odpisem).
+  Čerstvý nákup s vypořádáním po posledním dni v kurzech dostane poslední kurz „odhadem".
+  Výpočty `assets/js/tax-optimization.js` (čisté funkce, testy). **Výhrada v UI:**
+  orientační výpočet, ne daňové poradenství; pokud účetní vede akcie jako CP k obchodování
+  přeceňované k 31. 12. do výsledku, je přecenění daňově účinné a prodej se zpětným
+  nákupem daň nezmění — zařazení CP potvrdí účetní (otevřená otázka, 2026-10-28).
+  XLSX: souhrn + pozice, filtr, data jako datum Excelu, Celkem = `SUMIFS` přes „Lze
+  prodat". Ukotvenou hlavičku vendorovaná knihovna (SheetJS CE 0.18.5) zapsat neumí.
 - **Pozice k datu (inventura):** stav pozic k rozvahovému dni **přes všechna portfolia**
   (načte obě z manifestu + overlay, nezávisle na aktivním) — název, ISIN, ticker, kusy,
   cena k datu, ocenění v měně i CZK, pořizovací cena CZK (FIFO loty × kurz k vypořádání),
@@ -400,7 +422,7 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared,portfolio-shared,akcie-den,plegin-report}.test.mjs` — 77 unit testů
+`tests/{fifo,flex-shared,portfolio-shared,akcie-den,plegin-report,tax-optimization}.test.mjs` — 86 unit testů
 (`node --test tests/*.test.mjs`), ručně spočítané fixtures: FIFO matching + prorace komise,
 proceeds-authoritative ceny, splity (vč. same-day pořadí a 1:25), KB received/removed
 párování + bonus/cancellation, orphan sells, settle data v closed lots, dividendy, Flex
@@ -412,7 +434,9 @@ delisted, součty `vse`), ranní report do PLEGINu (vzorky ze skutečných dnů 
 a 27. 10. 2026: `tests/fixtures/akcie-den-*.json` = výstup `akcie_den`,
 `plegin-akcie-skutecne.json` = reporty Claude úlohy z týchž dat; svátek, nečerstvý import,
 neznámý ticker, víkend a pojistka v létě/zimě, běh s falešným KV a PLEGINem, token
-ručního běhu). CI: `.github/workflows/tests.yml` při každém pushi (neblokuje
+ručního běhu), Daňová optimalizace (prodeje v Kč a strict kurzy, pořizovací cena lotů
+s odhadem čerstvého nákupu, kurzový rozdíl, delisted a chybějící cena mimo součty, rok
+podle vypořádání, dividendy, simulace). CI: `.github/workflows/tests.yml` při každém pushi (neblokuje
 deploy — červený běh = signál). Uzavírá REVIZE R9 (2026-07-25).
 
 **Lokální `wrangler dev`:** stav persistovat MIMO repo
@@ -444,9 +468,10 @@ Cost basis prorataována o proporcionální komisi.
 
 ```
 web/                                    ← repo root = asset složka Workeru
-├── index.html                          ← 9 tabů, modaly, #warnings banner
-├── assets/js/{app.js, fifo.js, flex-shared.js, portfolio-shared.js, vendor/xlsx-js-style.min.js}
-│                                       ← fifo+flex-shared+portfolio-shared sdílené s Workerem
+├── index.html                          ← 11 tabů, modaly, #warnings banner
+├── assets/js/{app.js, fifo.js, flex-shared.js, portfolio-shared.js, tax-optimization.js, vendor/xlsx-js-style.min.js}
+│                                       ← fifo+flex-shared+portfolio-shared sdílené s Workerem,
+│                                         tax-optimization = výpočty tabu Daňová optimalizace
 ├── assets/css/styles.css
 ├── worker/index.js                     ← entry: /api/* + /mcp router + scheduled dispatch
 ├── worker/api/{lib,quote,quote-at,fx-at,watchlist,alerts,notes,journal,portfolio-overlay,plegin-report}.js
@@ -494,6 +519,10 @@ web/                                    ← repo root = asset složka Workeru
 - Komentáře vysvětlují „proč", ne „co". Funkce krátké, jedna věc na funkci.
 - Číselné formátování přes `fmtNum`, `fmtPct`, `fmtMoney` z `fifo.js`, ne ručně.
 - Locale `cs-CZ` pro čísla (desetinná čárka). UI texty česky, JS identifikátory anglicky.
+- **Žádné atributy `style="…"`** v HTML ani v řetězcích pro `innerHTML`: CSP v `_headers`
+  (`style-src 'self'`) je prohlížeč zahodí (2026-10-28 jich bylo 18 a nefungovaly). Vzhled
+  přes třídy ve `styles.css`, skrývání přes atribut `hidden`, dynamické hodnoty (šířka
+  pruhů v Alokaci) z JS přes `element.style` (CSSOM to CSP neblokuje).
 
 **Data:**
 - **Nikdy nepřepisovat raw transakce** — jen přidávat. Sells se nemažou, ani omylem zadané.
