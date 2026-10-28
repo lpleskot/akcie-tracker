@@ -174,7 +174,8 @@ flowchart TD
   + IBKR Flex Web Service (denní auto → KV overlay).
 - Inception 2025-11-24. **48 statických transakcí** + průběžně přibývá Flex auto-import.
 - Instrumenty na NASDAQ, NYSE, Stockholm, Toronto, Paris, Xetra, Amsterdam (nové přes Flex).
-- 1 corporate action (BKNG 25:1 split 2026-04-06). FIFO shodné s IBKR na cent.
+- 1 corporate action ve statickém JSON (BKNG 25:1 split 2026-04-06, zapsaný ručně) + splity
+  z Flex overlay (APH 2:1 2026-09-02). FIFO shodné s IBKR na cent.
 - `data/portfolio-history-plegi-invest-ibkr.json` — NAV backfill od inception
   (jednorázově `outputs/backfill_nav.py`: Activity Statement CSV + Yahoo historical close),
   obsahuje i `deposits[]`. Tolerance vs IBKR snapshot ~1,5 % (dividend accruals + FX rounding).
@@ -450,7 +451,7 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared,portfolio-shared,akcie-den,plegin-report,tax-optimization}.test.mjs` — 88 unit testů
+`tests/{fifo,flex-shared,portfolio-shared,akcie-den,plegin-report,tax-optimization}.test.mjs` — 90 unit testů
 (`node --test tests/*.test.mjs`), ručně spočítané fixtures: FIFO matching + prorace komise,
 proceeds-authoritative ceny, splity (vč. same-day pořadí a 1:25), KB received/removed
 párování + bonus/cancellation, orphan sells, settle data v closed lots, dividendy, Flex
@@ -489,6 +490,11 @@ dividend_records, withholding_records, net_dividend_local, … }`.
 `received_share`/`removed_share` — `preprocessCorporateActions()` páruje v okně 30 dnů
 na stejném ISIN → auto-detect split. Unpaired `received_share` = bonus shares (lot za
 nulový cost), unpaired `removed_share` = cancellation (FIFO konzumace bez realized P/L).
+Split z IBKR Flex (typ `FS` dopředný / `RS` zpětný) převádí `transformFlexCorpAction`
+na `type:"split"` s poměrem z popisu „SPLIT 2 FOR 1“ (od 2026-10-28 – předtím se tiše
+ignoroval a APH měl od 2. 9. 2026 poloviční kusy za dnešní cenu, alert „pokles ≥ 20 %“
+z 4. 9. byl planý). Split zapsaný ručně ve statickém JSON má přednost: merge overlay
+přeskočí Flex split se stejným symbolem a poměrem do 7 dnů (`isSameSplit`).
 Cost basis prorataována o proporcionální komisi.
 
 ---

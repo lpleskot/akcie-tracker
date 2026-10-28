@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import {
   transformFlexTrade,
   transformFlexDividend,
+  transformFlexCorpAction,
   isForexConversion,
   deriveYahooSymbol,
   ensureInstrument,
@@ -101,4 +102,31 @@ test("transformFlexDividend: mapování částky a data", () => {
   assert.equal(d.amount, 12.5);
   assert.equal(d.type, "Ordinary");
   assert.equal(d.flex_id, "99");
+});
+
+test("transformFlexCorpAction: split z IBKR (FS/RS) → split s poměrem z popisu", () => {
+  const fs = transformFlexCorpAction({
+    actionID: "173471161",
+    symbol: "APH",
+    type: "FS",
+    dateTime: "20260902;202500",
+    reportDate: "20260903",
+    description: "APH(US0320951017) SPLIT 2 FOR 1 (APH, AMPHENOL CORP-CL A, US0320951017)",
+    quantity: "35",
+    currency: "USD",
+  });
+  assert.equal(fs.type, "split");
+  assert.equal(fs.flex_type, "FS");
+  assert.deepEqual([fs.ratio_to, fs.ratio_from, fs.date, fs.symbol], [2, 1, "2026-09-02", "APH"]);
+  const rs = transformFlexCorpAction({
+    actionID: "9",
+    symbol: "XYZ",
+    type: "RS",
+    dateTime: "20260410",
+    actionDescription: "XYZ(US0000000000) SPLIT 1 FOR 10 (XYZ, XYZ CORP)",
+  });
+  assert.deepEqual([rs.type, rs.ratio_to, rs.ratio_from], ["split", 1, 10]);
+  // jiný typ (spinoff) nebo split bez poměru v popisu zůstává beze změny
+  assert.equal(transformFlexCorpAction({ actionID: "1", symbol: "A", type: "SO", description: "A SPINOFF" }).type, "SO");
+  assert.equal(transformFlexCorpAction({ actionID: "2", symbol: "A", type: "FS" }).type, "FS");
 });

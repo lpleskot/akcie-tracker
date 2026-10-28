@@ -91,6 +91,16 @@ export function amountToUsd(fxRates, amount, currency, date) {
  *
  * Mutuje `portfolio`. Vrací počty NOVĚ přidaných záznamů + last_import.
  */
+// Týž split: stejný symbol a poměr, datum do týdne (ruční zápis bývá k datu z Yahoo, IBKR o den jinak)
+function isSameSplit(a, b) {
+  return (
+    a.type === "split" &&
+    a.symbol === b.symbol &&
+    a.ratio_to / a.ratio_from === b.ratio_to / b.ratio_from &&
+    Math.abs(Date.parse(a.date) - Date.parse(b.date)) <= 7 * 864e5
+  );
+}
+
 export function mergeOverlayIntoPortfolio(portfolio, overlay, fxRates) {
   overlay = overlay || {};
   const stats = {
@@ -197,9 +207,12 @@ export function mergeOverlayIntoPortfolio(portfolio, overlay, fxRates) {
   // 3) Corporate actions — některé mají hotovostní složku (cash-in-lieu)
   for (const a of overlay.corporate_actions || []) {
     if (!a.actionID || existingCaIds.has(a.actionID)) continue;
-    ensureInstrument(portfolio, a.symbol, a);
-    portfolio.corporate_actions.push(transformFlexCorpAction(a));
+    const ca = transformFlexCorpAction(a);
     existingCaIds.add(a.actionID);
+    // Split zapsaný ručně ve statickém JSON (BKNG 25:1, duben 2026) se nesmí započítat podruhé
+    if (ca.type === "split" && portfolio.corporate_actions.some((c) => isSameSplit(c, ca))) continue;
+    ensureInstrument(portfolio, a.symbol, a);
+    portfolio.corporate_actions.push(ca);
     stats.corp_actions++;
     const proc = parseFloat(a.proceeds);
     if (Number.isFinite(proc) && proc !== 0) addCash(a.currency, proc);

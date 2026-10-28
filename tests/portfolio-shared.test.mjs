@@ -7,6 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { computePositions } from "../assets/js/fifo.js";
 import {
   amountToUsd,
   capitalFlowsUsd,
@@ -258,4 +259,27 @@ test("portfolioTotalReturn: nulové vklady → 0 %, minimálně 1 den", () => {
   assert.equal(r.pct, 0);
   assert.equal(r.paPct, 0);
   assert.equal(r.days, 1);
+});
+
+test("mergeOverlayIntoPortfolio: split z IBKR se započítá jednou, i když je ručně ve statickém JSON", () => {
+  const split = {
+    actionID: "S1",
+    symbol: "AAA",
+    type: "FS",
+    dateTime: "20260920;202500",
+    description: "AAA(US0000000000) SPLIT 2 FOR 1 (AAA, AAA CORP)",
+    currency: "USD",
+  };
+  const p = basePortfolio();
+  mergeOverlayIntoPortfolio(p, { corporate_actions: [split] }, FX);
+  const pos = computePositions(p.transactions, p.corporate_actions).AAA;
+  assert.equal(pos.net_qty, 20);
+  close(pos.open_lots[0].cost_per_unit, 5);
+
+  // týž split zapsaný ručně (k datu o den jinak) → overlay ho nepřidá podruhé
+  const q = basePortfolio();
+  q.corporate_actions = [{ symbol: "AAA", type: "split", date: "2026-09-21", ratio_from: 1, ratio_to: 2 }];
+  mergeOverlayIntoPortfolio(q, { corporate_actions: [split] }, FX);
+  assert.equal(q.corporate_actions.length, 1);
+  assert.equal(computePositions(q.transactions, q.corporate_actions).AAA.net_qty, 20);
 });

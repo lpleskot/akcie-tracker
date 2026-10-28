@@ -152,7 +152,7 @@ export function transformFlexCashFlow(c) {
 }
 
 export function transformFlexCorpAction(a) {
-  return {
+  const ca = {
     id: `flex-ca-${a.actionID}`,
     flex_id: a.actionID,
     date: flexDate(a.dateTime || a.reportDate),
@@ -166,4 +166,19 @@ export function transformFlexCorpAction(a) {
     currency: a.currency,
     _source: "flex",
   };
+  // Split (FS dopředný, RS zpětný) přijde z IBKR s poměrem jen v popisu „SPLIT 2 FOR 1“.
+  // FIFO engine zná jen {type:"split", ratio_from, ratio_to} – bez převodu se split tiše
+  // ignoroval a pozice měla poloviční kusy za dnešní cenu (APH, 2. 9. 2026).
+  const m = (a.type === "FS" || a.type === "RS") && ca.description.match(/SPLIT\s+([\d.]+)\s+FOR\s+([\d.]+)/i);
+  if (m) {
+    return {
+      ...ca,
+      type: "split",
+      flex_type: a.type,
+      ratio_to: parseFloat(m[1]),
+      ratio_from: parseFloat(m[2]),
+      note: `Split ${m[1]}:${m[2]} (IBKR Flex ${a.type})`,
+    };
+  }
+  return ca;
 }
