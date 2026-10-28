@@ -4616,7 +4616,7 @@ function renderTaxReturns() {
   }
   document.getElementById("tfoot-tax-returns").innerHTML = `
     <tr>
-      <td colspan="8">Zpětně pro ztrátu ${o.openYear} celkem <span class="muted">· od základu ${backYears.join(" a ")}</span></td>
+      <td colspan="8">Zpětně pro ztrátu ${o.openYear} celkem <span class="muted">· od základu ${backYears}</span></td>
       <td class="num"><strong>${fmtNum(o.backCapacity, 0)}</strong></td>
       <td class="num"><strong>${fmtNum(o.backRefund, 0)}</strong></td>
       <td></td>
