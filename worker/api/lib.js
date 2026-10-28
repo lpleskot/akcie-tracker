@@ -70,6 +70,22 @@ export function jsonResponse(obj, status = 200, cacheControl) {
   });
 }
 
+// Porovnání tajemství v konstantním čase: SHA-256 dá obě strany vždy
+// 32bajtové, takže timingSafeEqual (požaduje stejnou délku) nevyzradí ani
+// délku tokenu. Používá /mcp (MCP_TOKEN) i ruční běh reportu (REPORT_RUN_TOKEN).
+export async function tokensEqual(a, b) {
+  const enc = new TextEncoder();
+  const [ha, hb] = await Promise.all([
+    crypto.subtle.digest("SHA-256", enc.encode(a)),
+    crypto.subtle.digest("SHA-256", enc.encode(b)),
+  ]);
+  return crypto.subtle.timingSafeEqual(ha, hb);
+}
+
+export function bearerToken(request) {
+  return /^Bearer\s+(.+)$/i.exec(request.headers.get("Authorization") || "")?.[1]?.trim() || null;
+}
+
 // Závěrečná cena k datu = poslední obchodní den ≤ dateISO (Yahoo chart API
 // s period1/period2) + závěr obchodního dne před ním (prev_close) pro denní
 // změnu. Datum baru se čte v časovém pásmu burzy, jinak by se asijská seance

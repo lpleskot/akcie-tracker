@@ -9,8 +9,9 @@
  *   v Cloudflare Access vyjmutý politikou Bypass.
  * - /run/*  → manuální spuštění cron jobů, vyžaduje header x-admin-key
  *   = secret ADMIN_KEY (bez nastaveného secretu trvale zavřeno).
- * - Jediný cron trigger "0 5 * * *" (= 7:00 Prahy v létě / 6:00 v zimě):
- *   nejdřív flex-import, pak nad čerstvým overlay vyhodnocení alertů.
+ * - Cron "0 5 * * *" (= 7:00 Prahy v létě / 6:00 v zimě): flex-import, ranní
+ *   report do PLEGINu (worker/jobs/plegin-report.js), vyhodnocení alertů.
+ * - Cron "20 5,6 * * TUE-SAT": pojistka reportu v 7:20 Prahy (léto i zima).
  */
 
 import { jsonResponse } from "./api/lib.js";
@@ -23,8 +24,11 @@ import * as notes from "./api/notes.js";
 import * as journal from "./api/journal.js";
 import * as portfolioOverlay from "./api/portfolio-overlay.js";
 import { handleMcp } from "./mcp/server.js";
+import { addDays, pragueToday } from "./mcp/akcie-den.js";
 import { runImport } from "./jobs/flex-import.js";
 import { runAlertEvaluation } from "./jobs/alerts.js";
+import { isBackupHour, readReportStatus, reportEnabled, runPleginReport } from "./jobs/plegin-report.js";
+import * as pleginReport from "./api/plegin-report.js";
 
 const OVERLAY_PREFIX = "/api/portfolio-overlay/";
 
@@ -37,18 +41,39 @@ const API_ROUTES = {
   "/api/alerts": alerts,
   "/api/notes": notes,
   "/api/journal": journal,
+  "/api/plegin-report/run": { post: pleginReport.run },
+  "/api/plegin-report/status": { get: pleginReport.status },
 };
 
-// Ranní sekvence: import musí doběhnout před alerty, aby vyhodnocení vidělo
-// čerstvý overlay. runImport chyby chytá uvnitř (vrací ok:false), takže
-// alerty poběží i při selhání importu.
+// Pojistka reportu — musí sedět s wrangler.toml; každý jiný cron je ranní sekvence
+const CRON_REPORT_BACKUP = "20 5,6 * * tue-sat";
+
+// Ranní sekvence: import musí doběhnout před reportem i alerty, aby viděly
+// čerstvý overlay. runImport i runPleginReport chyby chytají uvnitř (vrací
+// ok:false), takže alerty poběží i při selhání importu nebo reportu.
 async function runDailyJobs(env) {
   await runImport(env);
+  await runPleginReport(env, { source: "import" });
   await runAlertEvaluation(env, "scheduled");
+}
+
+// Pojistka 7:20 Prahy: report za včerejšek, pokud ještě neodešel. Když ranní
+// import neměl data za včerejšek (stav stale) nebo report vůbec neběžel,
+// zkusí nejdřív import znovu; report pak odejde i s varováním o datech.
+async function runReportBackup(env, now) {
+  if (!isBackupHour(now) || !reportEnabled(env)) return;
+  const prev = await readReportStatus(env, addDays(pragueToday(now), -1));
+  if (prev?.status === "sent" || prev?.status === "holiday") return;
+  if (!prev || prev.status === "stale") await runImport(env);
+  await runPleginReport(env, { source: "backup", now });
 }
 
 export default {
   async scheduled(event, env, ctx) {
+    if (event.cron.toLowerCase() === CRON_REPORT_BACKUP) {
+      ctx.waitUntil(runReportBackup(env, new Date(event.scheduledTime)));
+      return;
+    }
     ctx.waitUntil(runDailyJobs(env));
   },
 

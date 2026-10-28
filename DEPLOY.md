@@ -26,12 +26,20 @@ Settings → Variables and Secrets, nebo `npx wrangler secret put <NÁZEV>`):
 | --- | --- |
 | `FLEX_TOKEN` | IBKR Flex Web Service token (denní import) |
 | `ADMIN_KEY` | ochrana manuálních `/run/*` endpointů (bez něj zavřeno = 403) |
+| `MCP_TOKEN` | přístup k `/mcp` (MCP konektor pro PLEGIN; bez něj 401) |
+| `PLEGIN_REPORT_TOKEN` | report token PLEGINu jen pro key `akcie` — ranní report (bez něj se neposílá); vytváří a nastavuje PLEGIN (zadání 13 v `~/Projects/todo`) |
+| `REPORT_RUN_TOKEN` | ruční běh `POST /api/plegin-report/run` pro hlídač PLEGINu; stejná hodnota je ve Workeru `todo` jako `AKCIE_RUN_TOKEN` a lokálně v `.dev.vars` |
+
+Nový token pro ruční běh (obě strany najednou, hodnota se nevypisuje):
+`cd ~/Projects/akcie-tracker/web && T=$(openssl rand -hex 32) && printf %s "$T" | npx wrangler secret put REPORT_RUN_TOKEN && (cd ~/Projects/todo && printf %s "$T" | npx wrangler secret put AKCIE_RUN_TOKEN)`
+— pak hodnotu přepsat i v `.dev.vars` obou projektů.
 
 Žádné e-mailové notifikace — Resend byl odstraněn (2026-07-23). Fired alerty
 jsou vidět v tabu Alerty, selhání jobů v CF lozích (Worker → Observability).
 
-Cron triggery a vars (`PORTFOLIO_ID`, `FLEX_QUERY_ID`, `DRY_RUN`) jsou
-v `wrangler.toml` — deployují se automaticky.
+Cron triggery, service binding `PLEGIN` (Worker `todo`) a vars (`PORTFOLIO_ID`,
+`FLEX_QUERY_ID`, `DRY_RUN`, `PLEGIN_REPORT`) jsou v `wrangler.toml` — deployují
+se automaticky. Binding vyžaduje, aby Worker `todo` na stejném účtu existoval.
 
 ## Ověření po deployi
 
@@ -40,8 +48,11 @@ v `wrangler.toml` — deployují se automaticky.
 - `/api/portfolio-overlay/plegi-invest-ibkr` — JSON overlay (data z KV)
 - `/run/alerts` bez klíče → 403; s `x-admin-key: <ADMIN_KEY>` a `?dry=1` → JSON triggerů
 - `/CLAUDE.md`, `/worker/index.js` → 404 (`.assetsignore` funguje)
-- Ráno: v logu Workeru (Observability → Logs) běh importu a hned po něm alertů
-  (jediný cron `0 5 * * *` UTC = 7:00 Prahy v létě / 6:00 v zimě)
+- Ráno: v logu Workeru (Observability → Logs) běh importu, hned po něm řádek
+  `📈 PLEGIN report <datum> (import): sent` (nebo `stale` → odejde v 7:20 z pojistky)
+  a alerty (cron `0 5 * * *` UTC = 7:00 Prahy v létě / 6:00 v zimě; pojistka
+  `20 5,6 * * TUE-SAT` = 7:20 Prahy). Report v PLEGINu → Daily reports → Akcie;
+  stav po dnech `/api/plegin-report/status`.
 
 ## Cloudflare Access — zabezpečit přístup
 

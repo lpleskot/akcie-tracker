@@ -15,3 +15,6 @@ wrangler.toml
 .gitignore
 .wrangler/
 .DS_Store
+# lokální secrets a jejich vzor — nikdy ne jako asset (repo root = asset složka)
+.dev.vars*
+.env*

@@ -37,7 +37,7 @@ export async function toolDefinition(env) {
   const manifest = await fetchAssetJson(env, "/data/portfolios/manifest.json");
   return {
     name: AKCIE_DEN_TOOL,
-    title: "Akcie — stav portfolia k závěru dne",
+    title: "Akcie – stav portfolia k závěru dne",
     description:
       "Stav akciových portfolií PLEGI invest k závěru obchodního dne. U každé držené " +
       "pozice denní změna (%, v měně, v Kč) a Total Return (realizovaná + nerealizovaná " +
@@ -153,11 +153,11 @@ export function parseArgs(args, portfolioIds, today) {
     throw new Error(`datum musí být skutečné datum ve tvaru YYYY-MM-DD (dostal jsem ${JSON.stringify(a.datum)}).`);
   }
   if (datum > today) {
-    throw new Error(`datum ${datum} je v budoucnosti — závěr dne ještě neexistuje (dnes je ${today}).`);
+    throw new Error(`datum ${datum} je v budoucnosti – závěr dne ještě neexistuje (dnes je ${today}).`);
   }
   const portfolioId = a.portfolio == null || a.portfolio === "" ? "vse" : a.portfolio;
   if (portfolioId !== "vse" && !portfolioIds.includes(portfolioId)) {
-    throw new Error(`Neznámé portfolio ${JSON.stringify(portfolioId)} — povolené: ${[...portfolioIds, "vse"].join(", ")}.`);
+    throw new Error(`Neznámé portfolio ${JSON.stringify(portfolioId)} – povolené: ${[...portfolioIds, "vse"].join(", ")}.`);
   }
   return { datum, portfolioId };
 }
@@ -246,7 +246,7 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
     Object.keys(cashMap).forEach((ccy) => currencies.add(ccy));
     const cash = cashToCzk(cashMap, fxRates, datum, { allowFallback: true });
     if (cash.missing.length) {
-      varovani.push(`${meta.id}: hotovost v ${cash.missing.join(", ")} bez kurzu ČNB — není v součtu.`);
+      varovani.push(`${meta.id}: hotovost v ${cash.missing.join(", ")} bez kurzu ČNB – není v součtu.`);
     }
     // Zůstatek po měnách tak, jak ho vede broker — i měna bez kurzu (czk null),
     // aby byl stav účtu vidět celý
@@ -289,7 +289,7 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
       hodnota_celkem_czk: round(celkem, 0),
       cash_k: c ? c.asOf : null,
       cash_denni: c ? c.daily : false,
-      cash_zdroj: c ? c.source : "cash_balance — poslední známý zůstatek z evidence, ne k datu",
+      cash_zdroj: c ? c.source : "cash_balance – poslední známý zůstatek z evidence, ne k datu",
       cash_meny: cashMeny,
       den: denOut(zmena, pozice, obchodovalo, neobchodovalo, chybi),
       celkovy_vynos: vynos && {
@@ -315,7 +315,7 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
   }
 
   if (datum === today) {
-    varovani.push("datum je dnešek — závěrečné ceny burz, které ještě obchodují, nemusí být finální.");
+    varovani.push("datum je dnešek – závěrečné ceny burz, které ještě obchodují, nemusí být finální.");
   }
 
   // vse = součet v Kč (nikdy ne přes různé měny). Výběr z jednoho účtu
@@ -363,7 +363,7 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
 function positionRow({ sym, pos, inst }, portfolio, datum, quotes, fxFor, varovani) {
   const mena = inst.currency || null;
   const fx = fxFor(mena);
-  if (mena && fx == null) varovani.push(`${sym}: chybí kurz ČNB ${mena} — hodnota v Kč se nesčítá.`);
+  if (mena && fx == null) varovani.push(`${sym}: chybí kurz ČNB ${mena} – hodnota v Kč se nesčítá.`);
   const base = { symbol: sym, nazev: inst.name || sym, mena, ks: pos.net_qty, fx };
 
   // Delisted: appka titul oceňuje nulou, Total Return tak sedí s přehledem

@@ -7,7 +7,8 @@ Privátní portfolio tracker pro PLEGI invest přes Interactive Brokers a Komer�
 - **Frontend:** statické HTML + vanilla JS (ES modules), bez build kroku
 - **Backend:** jeden Cloudflare Worker `akcie-tracker` — servíruje statické assety,
   obsluhuje `/api/*` (router ve `worker/index.js`) a jednou denně ráno spouští
-  cron (IBKR Flex import + hned poté vyhodnocení alertů)
+  cron (IBKR Flex import + hned poté ranní report Akcie do PLEGINu a vyhodnocení
+  alertů; pojistka reportu v 7:20 Prahy)
 - **Storage:** Cloudflare KV namespace `AKCIE_TRACKER_KV`, JSON soubory v `data/`
   pro portfolio data + ČNB kurzy
 - **Hosting:** Cloudflare Workers (`akcie-tracker.lukas-pleskot.workers.dev`)
@@ -150,7 +151,7 @@ web/                           ← repo root = asset složka Workeru
 │   ├── index.js               ← entry: /api/* router + scheduled dispatch
 │   ├── api/                   ← lib (Yahoo+JSON), quote, watchlist, alerts,
 │   │                            notes, journal, portfolio-overlay
-│   └── jobs/                  ← flex-import.js, alerts.js (cron joby)
+│   └── jobs/                  ← flex-import.js, alerts.js, plegin-report.js (cron joby)
 ├── data/
 │   ├── fx_rates.json
 │   ├── portfolio-history-plegi-invest-ibkr.json
@@ -173,6 +174,7 @@ web/                           ← repo root = asset složka Workeru
 
 Automaticky při každém pushi do `main` přes **Workers Builds** (Cloudflare git
 integrace; Deploy command `npx wrangler deploy`). Worker secrets (`FLEX_TOKEN`,
-`ADMIN_KEY`) se nastavují v CF dashboardu.
+`ADMIN_KEY`, `MCP_TOKEN`, `PLEGIN_REPORT_TOKEN`, `REPORT_RUN_TOKEN`) se nastavují
+přes `wrangler secret put` nebo v CF dashboardu.
 
 Detaily v `DEPLOY.md`.

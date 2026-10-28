@@ -1,6 +1,7 @@
 # CLAUDE.md — akcie-tracker
 
-> Aktualizováno 2026-09-23 (MCP konektor pro PLEGIN + sdílený výpočet portfolia; Celkový
+> Aktualizováno 2026-10-28 (ranní report Akcie do PLEGINu posílá Worker sám – PLEGIN_ZADANI_01;
+> 2026-09-23 MCP konektor pro PLEGIN + sdílený výpočet portfolia; Celkový
 > výnos z toků kapitálu + XIRR, výběry KB doplněny; migrace
 > Pages → jeden Worker 2026-07-23; revize kódu 2026-07-22 viz `REVIZE_REPORT.md`). Jediný projektový brief pro Claude (Cowork i Claude Code ho čtou
 > automaticky). Obecná pravidla (`OBECNA_PRAVIDLA.md`) se načítají automaticky.
@@ -23,9 +24,11 @@ pro účetnictví — transakční log + report v CZK + XLSX exporty.
 - **Worker `akcie-tracker`** — `https://akcie-tracker.lukas-pleskot.workers.dev/`
   (push do `main` → **Workers Builds**, CF git integrace → `npx wrangler deploy`;
   web, API i crony v jednom)
-- **Jediný denní cron** `0 5 * * *` UTC = **7:00 Prahy v létě / 6:00 v zimě**
-  (vědomý DST drift, rozhodnutí 2026-07-25): nejdřív flex-import, hned po něm
-  vyhodnocení alertů nad čerstvým overlay (`runDailyJobs` ve `worker/index.js`).
+- **Ranní cron** `0 5 * * *` UTC = **7:00 Prahy v létě / 6:00 v zimě**
+  (vědomý DST drift, rozhodnutí 2026-07-25): flex-import, hned po něm ranní report
+  Akcie do PLEGINu a vyhodnocení alertů nad čerstvým overlay (`runDailyJobs` ve
+  `worker/index.js`). **Pojistka reportu** `20 5,6 * * TUE-SAT` = 7:20 Prahy v létě
+  i v zimě (kód pustí jen ten UTC čas, kdy je v Praze 7:xx) – viz „Ranní report do PLEGINu".
 - Bývalý Pages projekt a samostatné Workery `akcie-tracker-cron` +
   `akcie-tracker-flex-import` jsou zrušené (migrace 2026-07-23/25). Účet od
   2026-07-25 **Workers Paid** (free měl account limit 5 cron triggerů).
@@ -130,6 +133,8 @@ flowchart TD
   CNB[ČNB API] -->|GH Action 14:35 UTC| FX[data/fx_rates.json commit → řetězený deploy]
   FE --> WL[watchlist + alerts + quotes]
   WL -->|hned po importu| CRON[cron job alerts<br/>vyhodnotí pravidla → fired flagy v KV]
+  KV -->|hned po importu, pojistka 7:20| REP[cron job plegin-report<br/>akcie_den za včera → report Akcie]
+  REP -->|service binding PLEGIN| PLEGIN[(PLEGIN Worker todo<br/>Daily reports)]
 ```
 
 - **flex-import**: 2-call flow (SendRequest → wait 30s + retry → GetStatement → XML).
@@ -298,6 +303,8 @@ flowchart TD
 | `GET /api/portfolio-overlay/[id]` | KV `portfolio-overlay:{id}` read pro frontend merge |
 | `GET /api/quote-at?symbols=…&date=YYYY-MM-DD` | Yahoo závěrečná cena k datu (poslední bar ≤ datum, minor units fix, **split-adjusted!**), cache 7 dní pro data starší 2 dnů |
 | `GET /api/fx-at?date=YYYY-MM-DD` | Kurzy ČNB k datu živě (stejný tvar jako `fx_rates.json` entry, `valid_for`), cache 30 dní |
+| `POST /api/plegin-report/run` | Ruční běh ranního reportu pro hlídač PLEGINu, token `REPORT_RUN_TOKEN` — viz „Ranní report do PLEGINu" |
+| `GET /api/plegin-report/status` | Stav reportu po dnech z KV (`sent` / `holiday` / `stale` / `error`) |
 | `POST /mcp` | **MCP server pro PLEGIN** (mimo `/api`, vlastní Access výjimka) — viz níže |
 
 ### MCP konektor (`/mcp`, `worker/mcp/`)
@@ -326,16 +333,65 @@ flowchart TD
   (~17 kB). Chyby vstupu → `isError: true` s textem pro model.
 - **Záměrné rozdíly proti obrazovce:** IBKR hotovost z NAV (dlaždice Cash bere
   `cash_balance` — k 2026-05-15 se lišily o 134 USD), ceny závěr vs. živá.
-- **Časování (rozhodnuto 2026-09-23):** flex-import běží 7:00 Prahy (6:00 v zimě), report
-  akcií v PLEGINu proto až **po 7:15** — dřív by IBKR overlay (obchody, NAV hotovost) byl
-  o obchodní den pozadu. Kontrola: `overlay.last_import` z dnešního rána, `overlay.nav_do`
-  = včerejšek.
+- **Časování (rozhodnuto 2026-09-23):** flex-import běží 7:00 Prahy (6:00 v zimě) — dřív
+  by IBKR overlay (obchody, NAV hotovost) byl o obchodní den pozadu. Kontrola:
+  `overlay.last_import` z dnešního rána, `overlay.nav_do` = včerejšek. Ranní report
+  do PLEGINu od 2026-10-28 neskládá Claude úloha přes `/mcp`, ale Worker sám (níže);
+  `/mcp` zůstává pro dotazy PLEGINa.
+
+### Ranní report do PLEGINu (`worker/jobs/plegin-report.js`, od 2026-10-28)
+
+Nahrazuje Claude úlohu „PLEGIN — report Akcie" (PLEGIN_ZADANI_01, předání
+`../PLEGIN_01_PREDANI.md`). Report „Akcie" (key `akcie`) skládá Worker z výstupu
+`akcie_den` za včerejšek, portfolio `vse` — šablonou, bez AI.
+
+- **Kdy:** hned po ranním importu (`runDailyJobs`: import → report → alerty). Když
+  import ještě nemá NAV za včerejšek (IBKR ho v 5:00 UTC občas nemá — 22. a 27. 10.
+  2026), zapíše jen stav `stale` a report počká na **pojistku** `20 5,6 * * TUE-SAT`
+  (7:20 Prahy v létě i v zimě; kód pustí jen pražskou 7:xx). Pojistka při stavu
+  `stale` nebo bez stavu zkusí import znovu a report pošle i s větou „Data IBKR můžou
+  být o den pozadu (ranní import z IBKR neproběhl)." Víkend a svátek (žádná oceněná
+  pozice ten den neobchodovala) se nehlásí; bez cen z Yahoo = chyba, ne svátek.
+- **Čerstvost** (`isImportFresh`): `overlay.nav_do ≥ datum` a `last_import` v pražském
+  kalendáři po datu. Pro běžné ráno = pravidlo přílohy zadání; ruční běh za starší den
+  nečerstvá data nehlásí, když je import mezitím pokryl.
+- **Tvar** (ověřeno proti reportům Claude úlohy 21.–27. 10.: souhrn, 7 dlaždic a všechny
+  řádky tabulek shodné): dlaždice Portfolio/IBKR/KB za den (tone ok ≥ 0, warn do −1 %,
+  bad pod), Volná hotovost IBKR/KB (víc měn → sub největší cizí měna), Nejlepší/Nejhorší;
+  tabulky `IBKR – pozice (N)` a `KB – pozice (N)` (Titul, Den %, Total Return %, Total
+  Return Kč; neobchodovaný titul s datem posledního obchodu, chybějící cena „– (důvod)",
+  „ *" = dividendy v jiné měně); Kontext (1. věta = účet, který den nejvíc táhl, se 3 + 2
+  tituly v Kč, 2. věta = druhý účet se 2 + 1; pak jen potřebné: neobchodované tituly,
+  hvězdička, hotovost KB z kvartálního výpisu, všechna `varovani` doslova, nečerstvá
+  data); list Detail s pevným odkazem na appku. Krátké názvy z mapy `SHORT_NAMES`
+  (neznámý ticker = název z dat → doplnit do mapy). Čísla přes `fmtNum` + pravé mínus
+  a NBSP před Kč/% (formát schválený Lukášem 23. 9.); pomlčky en dash.
+- **Kam:** service binding `PLEGIN` → Worker `todo` (stejný CF účet), `POST
+  /mcp/api/reports` s `Authorization: Bearer <PLEGIN_REPORT_TOKEN>` — report token
+  PLEGINu jen pro key `akcie` (zadání 13 v `~/Projects/todo`). Fetch na jiný
+  `*.workers.dev` Worker téhož účtu Cloudflare nepustí (chyba 1042), proto binding.
+  Timeout 15 s, opakování po 1 s a 3 s jen u sítě a 5xx. Stejný key + `report_date`
+  PLEGIN přepíše.
+- **Stav:** KV `plegin-report:{datum}` (`sent` / `holiday` / `stale` / `error`, TTL 60 dní,
+  kopie v metadata) — automatika podle něj nepošle podruhé, ruční běh přepíše.
+- **Ruční běh pro hlídač PLEGINu:** `POST /api/plegin-report/run` s `{"date":"YYYY-MM-DD"}`
+  (bez data = včera), `?dry=1` jen vrátí sestavený report. Jen s `Authorization: Bearer
+  <REPORT_RUN_TOKEN>` (stejná hodnota je v Workeru `todo` jako `AKCIE_RUN_TOKEN`).
+  Z `todo` jen přes service binding (HTTPS: 1042 + Access). Odpověď `{ok, status, datum,
+  fresh, created, error}`, status `sent` / `holiday` / `weekend` / `dry` / `disabled` /
+  `error`; HTTP 401 token, 400 datum, 503 vypnuto, 502 chyba dat nebo PLEGINu.
+- **Vypínač:** var `PLEGIN_REPORT = "off"` (s deployem); bez secretu `PLEGIN_REPORT_TOKEN`
+  se nic neposílá (`disabled`). Import a alerty běží nezávisle.
 
 **KV klíče (sdílené):** `watchlist`, `alerts`, `notes`, `journal`,
-`portfolio-overlay:{id}`, `fired:alert:{ruleId}:{symbol}`, `fired:watch:{itemId}:{ruleId}`.
+`portfolio-overlay:{id}`, `fired:alert:{ruleId}:{symbol}`, `fired:watch:{itemId}:{ruleId}`,
+`plegin-report:{datum}`.
 
 **Secrets:** Worker `akcie-tracker` (CF Dashboard → Settings → Variables and Secrets):
-`FLEX_TOKEN`, `ADMIN_KEY`, `MCP_TOKEN` (bez něj je `/mcp` zavřený — 401). Deploy běží přes Workers Builds pod CF účtem — GitHub
+`FLEX_TOKEN`, `ADMIN_KEY`, `MCP_TOKEN` (bez něj je `/mcp` zavřený — 401),
+`PLEGIN_REPORT_TOKEN` (report token PLEGINu), `REPORT_RUN_TOKEN` (ruční běh reportu).
+Binding `PLEGIN` (service `todo`), var `PLEGIN_REPORT`. Lokálně `.dev.vars` (v `.gitignore`
+i `.assetsignore`, vzor `.dev.vars.example`). Deploy běží přes Workers Builds pod CF účtem — GitHub
 secrets `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` už nejsou potřeba (možno
 smazat). Access service token není potřeba; Resend odstraněn (žádné e-maily).
 Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží vždy.
@@ -344,7 +400,7 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared,portfolio-shared,akcie-den}.test.mjs` — 58 unit testů
+`tests/{fifo,flex-shared,portfolio-shared,akcie-den,plegin-report}.test.mjs` — 77 unit testů
 (`node --test tests/*.test.mjs`), ručně spočítané fixtures: FIFO matching + prorace komise,
 proceeds-authoritative ceny, splity (vč. same-day pořadí a 1:25), KB received/removed
 párování + bonus/cancellation, orphan sells, settle data v closed lots, dividendy, Flex
@@ -352,14 +408,22 @@ transformace (vč. settle_date), hotovost k datu, Total Return pozice, `computeP
 volby (výchozí chování inventury beze změny), merge overlay (dedupe, forex, vklady),
 kurzy, toky kapitálu + XIRR (proti sazbě spočtené předem), Celkový výnos s výběry,
 MCP report (split po datu, neobchodovaný den, chybějící cena,
-delisted, součty `vse`). CI: `.github/workflows/tests.yml` při každém pushi (neblokuje
+delisted, součty `vse`), ranní report do PLEGINu (vzorky ze skutečných dnů 23., 26.
+a 27. 10. 2026: `tests/fixtures/akcie-den-*.json` = výstup `akcie_den`,
+`plegin-akcie-skutecne.json` = reporty Claude úlohy z týchž dat; svátek, nečerstvý import,
+neznámý ticker, víkend a pojistka v létě/zimě, běh s falešným KV a PLEGINem, token
+ručního běhu). CI: `.github/workflows/tests.yml` při každém pushi (neblokuje
 deploy — červený běh = signál). Uzavírá REVIZE R9 (2026-07-25).
 
 **Lokální `wrangler dev`:** stav persistovat MIMO repo
 (`--persist-to ../.wrangler-state`). Asset složka je celé repo, zápisy do
 `.wrangler/state` jinak spustí nekonečnou smyčku restartů — GET se zopakují, POST
-(watchlist, alerty, `/mcp`) padají „worker restarted mid-request". Token pro `/mcp`
-lokálně přes `--var MCP_TOKEN:…`.
+(watchlist, alerty, `/mcp`) padají „worker restarted mid-request". Tokeny lokálně
+v `.dev.vars` (`REPORT_RUN_TOKEN` = produkční hodnota, `MCP_TOKEN` jen lokální).
+Náhled reportu: `POST /api/plegin-report/run?dry=1` s `Authorization: Bearer
+<REPORT_RUN_TOKEN>`; produkční overlay do lokálního KV přes `wrangler kv key get
+--remote` → `kv key put --local`. **Kč se s produkcí shodují jen s aktuálním
+`data/fx_rates.json`** (denní FX commity z GitHubu — nejdřív Pull), jinak se liší o kurz.
 
 ## FIFO engine (`assets/js/fifo.js`)
 
@@ -385,14 +449,15 @@ web/                                    ← repo root = asset složka Workeru
 │                                       ← fifo+flex-shared+portfolio-shared sdílené s Workerem
 ├── assets/css/styles.css
 ├── worker/index.js                     ← entry: /api/* + /mcp router + scheduled dispatch
-├── worker/api/{lib,quote,quote-at,fx-at,watchlist,alerts,notes,journal,portfolio-overlay}.js
+├── worker/api/{lib,quote,quote-at,fx-at,watchlist,alerts,notes,journal,portfolio-overlay,plegin-report}.js
 ├── worker/mcp/{server,akcie-den}.js    ← MCP konektor pro PLEGIN (protokol + nástroj)
-├── worker/jobs/{alerts,flex-import}.js ← cron joby
-├── wrangler.toml                       ← name, assets, crony, KV binding, vars
-├── .assetsignore                       ← co se neservíruje (worker/, *.md, …)
+├── worker/jobs/{alerts,flex-import,plegin-report}.js ← cron joby (plegin-report = ranní report do PLEGINu)
+├── wrangler.toml                       ← name, assets, crony, KV + service binding, vars
+├── .assetsignore                       ← co se neservíruje (worker/, *.md, .dev.vars*, …)
+├── .dev.vars.example                   ← vzor lokálních secretů pro wrangler dev
 ├── data/portfolios/{manifest,plegi-invest-ibkr,plegi-invest-kb}.json
 ├── data/portfolio-history-plegi-invest-ibkr.json, data/fx_rates.json
-├── tests/*.test.mjs                    ← unit testy (node --test, R9)
+├── tests/*.test.mjs, tests/fixtures/   ← unit testy (node --test, R9) + vzorky skutečných dnů
 ├── .github/workflows/{fx-update-cron,tests}.yml
 ├── scripts/fx-update.mjs
 ├── _headers                            ← CSP, HSTS, cache
@@ -452,3 +517,5 @@ web/                                    ← repo root = asset složka Workeru
 ## Zadání od PLEGINu (od 23. 9. 2026)
 
 Platí obecné pravidlo „Zadání od PLEGINu — společná složka“ v `~/Projects/projekty_zacatek/OBECNA_PRAVIDLA.md`. Tady: zadání leží v kořeni projektu `~/Projects/akcie-tracker/` (o úroveň výš než git root `web/`). Dřívější `ZADANI_MCP_PLEGIN.md` (konektor `akcie_den`) je hotové — ignoruj; nová řada začíná `PLEGIN_ZADANI_01.md`.
+
+- **01** (28. 10. 2026) ranní report Akcie posílá Worker sám — hotové, předání `PLEGIN_01_PREDANI.md`.

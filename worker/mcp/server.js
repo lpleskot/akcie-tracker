@@ -13,6 +13,7 @@
  */
 
 import { AKCIE_DEN_TOOL, runAkcieDen, toolDefinition } from "./akcie-den.js";
+import { bearerToken, tokensEqual } from "../api/lib.js";
 
 const SERVER_INFO = { name: "akcie-tracker", title: "akcie-tracker", version: "1.0.0" };
 const INSTRUCTIONS =
@@ -107,23 +108,11 @@ async function callTool(id, params, ctx) {
 async function isAuthorized(request, env) {
   const expected = env.MCP_TOKEN;
   if (!expected) return false;
-  const bearer = /^Bearer\s+(.+)$/i.exec(request.headers.get("Authorization") || "")?.[1]?.trim();
   const query = new URL(request.url).searchParams.get("token");
-  for (const candidate of [bearer, query]) {
+  for (const candidate of [bearerToken(request), query]) {
     if (candidate && (await tokensEqual(candidate, expected))) return true;
   }
   return false;
-}
-
-// Porovnání v konstantním čase: SHA-256 dá obě strany vždy 32bajtové, takže
-// timingSafeEqual (požaduje stejnou délku) nevyzradí ani délku tokenu.
-async function tokensEqual(a, b) {
-  const enc = new TextEncoder();
-  const [ha, hb] = await Promise.all([
-    crypto.subtle.digest("SHA-256", enc.encode(a)),
-    crypto.subtle.digest("SHA-256", enc.encode(b)),
-  ]);
-  return crypto.subtle.timingSafeEqual(ha, hb);
 }
 
 function rpcResult(id, result) {

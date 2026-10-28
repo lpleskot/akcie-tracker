@@ -9,10 +9,13 @@ desktop.ini
 *.swp
 *~
 
-# Lokální env / secrets
+# Lokální env / secrets (wrangler dev čte .dev.vars)
 .env
 .env.local
 .env.*.local
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
 
 # Build / deps (pro budoucnost)
 node_modules/

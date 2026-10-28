@@ -19,11 +19,22 @@ directory = "."
 binding = "ASSETS"
 not_found_handling = "404-page"
 
-# Jediný denní cron: Flex import + hned po něm vyhodnocení alertů.
-# Crony jedou jen v UTC → 5:00 UTC = 7:00 Prahy v létě / 6:00 v zimě
-# (vědomé zjednodušení, DST drift je ok — rozhodnutí 2026-07-25).
+# Crony jedou jen v UTC.
+# - "0 5 * * *": Flex import → ranní report do PLEGINu → vyhodnocení alertů.
+#   5:00 UTC = 7:00 Prahy v létě / 6:00 v zimě (vědomé zjednodušení, DST
+#   drift je ok — rozhodnutí 2026-07-25).
+# - "20 5,6 * * TUE-SAT": pojistka reportu v 7:20 Prahy. Oba UTC časy
+#   (5:20 UTC = 7:20 v létě, 6:20 UTC = 7:20 v zimě), kód pustí jen ten,
+#   kdy je v Praze 7:xx. Řetězec musí sedět s CRON_REPORT_BACKUP v index.js.
 [triggers]
-crons = ["0 5 * * *"]
+crons = ["0 5 * * *", "20 5,6 * * TUE-SAT"]
+
+# PLEGIN = Worker todo na stejném CF účtu. Ranní report Akcie do něj jde přes
+# service binding — fetch na jiný *.workers.dev Worker téhož účtu Cloudflare
+# odmítne (chyba 1042) a /api/* PLEGINu je navíc za Access.
+[[services]]
+binding = "PLEGIN"
+service = "todo"
 
 # Sdílená KV namespace (watchlist, alerts, notes, journal, portfolio-overlay:*, fired:*)
 [[kv_namespaces]]
@@ -35,11 +46,19 @@ PORTFOLIO_ID = "plegi-invest-ibkr"
 FLEX_QUERY_ID = "1514926"
 # DRY_RUN = "true" → flex-import parsuje a loguje, ale nezapíše do KV.
 DRY_RUN = "false"
+# PLEGIN_REPORT = "off" vypne ranní report do PLEGINu (po importu, pojistka
+# i ruční běh; ?dry=1 funguje dál). Import a alerty běží nezávisle.
+PLEGIN_REPORT = "on"
 
 # Secrets — nastavit v CF dashboardu (Worker → Settings → Variables and Secrets)
 # nebo přes `wrangler secret put <NÁZEV>`:
-#   FLEX_TOKEN — token z IBKR Flex Web Service Configuration (povinné)
-#   ADMIN_KEY  — ochrana manuálních /run/* endpointů (bez něj zavřeno)
+#   FLEX_TOKEN          — token z IBKR Flex Web Service Configuration (povinné)
+#   ADMIN_KEY           — ochrana manuálních /run/* endpointů (bez něj zavřeno)
+#   MCP_TOKEN           — přístup k /mcp (bez něj zavřeno)
+#   PLEGIN_REPORT_TOKEN — report token PLEGINu, smí jen report „akcie"
+#                         (zadání 13 v ~/Projects/todo; bez něj se report neposílá)
+#   REPORT_RUN_TOKEN    — ruční běh POST /api/plegin-report/run pro hlídač PLEGINu
+#                         (stejná hodnota je v Workeru todo jako AKCIE_RUN_TOKEN)
 # Žádné notifikace — e-maily (Resend) odstraněny 2026-07-23; selhání jobů je
 # vidět v CF lozích, fired alerty v tabu Alerty. Access service token není
 # potřeba — joby čtou portfolio JSON přes ASSETS binding a ceny přímo.
