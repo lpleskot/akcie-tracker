@@ -259,7 +259,10 @@ flowchart TD
   k vypořádání každého nákupu — `openLotsCostCzk`, sdílené s Pozicemi k datu), hodnota
   v Kč (cena `/api/quote` × poslední kurz ČNB), Z/Z v měně (= Nereal. Z/Z v Přehledu)
   a **Z/Z v Kč (daňově)** — rozdíl je kurzový. Klik na řádek = držené nákupy (loty).
-  Delisted (CNE.TO) jde vidět, ale do součtů ani simulace nejde (ztráta až odpisem).
+  Tituly stažené z burzy (CNE.TO) v tabu nejsou – nejdou prodat a daňově s nimi pracovat
+  nejde (Lukáš 2026-10-28). **Načíst znovu a Export XLSX** má tab vlastní, vpravo nad
+  tabulkou (`.table-toolbar`); tlačítka v hlavní liště jsou na něm schovaná
+  (`setTabSpecificButtons`).
   Čerstvý nákup s vypořádáním po posledním dni v kurzech dostane poslední kurz „odhadem".
   Výpočty `assets/js/tax-optimization.js` (čisté funkce, testy). **Daňový rámec
   (Lukáš 2026-10-28):** PLEGI invest je **mikro účetní jednotka** (0 zaměstnanců) →
@@ -273,7 +276,9 @@ flowchart TD
   XLSX: souhrn + pozice, filtr, data jako datum Excelu, Celkem = `SUMIFS` přes „Lze
   prodat"; druhý list Daňová přiznání. Ukotvenou hlavičku vendorovaná knihovna
   (SheetJS CE 0.18.5) zapsat neumí.
-  **Daňová přiznání a přenos ztráty** (pod tabulkou pozic, trvalá informace): tabulka
+  **Poznámky k výpočtu a daňová přiznání po letech** (blok na rozbalení `#tax-details`
+  mezi dlaždicemi a tabulkou; sbalený ukazuje, kolik ztráty otevřeného roku jde zpětně
+  odečíst, stav rozbalení v localStorage): poznámky k výpočtu, pravidla přenosu ztráty a tabulka
   podaných přiznání z `data/tax-returns.json` (řádky II. oddílu: ř. 10, 220, 230, 250,
   280, 290, 331, 335, 340 + tabulka E) a kolik daňové ztráty „otevřeného roku" (první rok
   bez podaného přiznání) jde odečíst zpětně od základu dvou předchozích let (ř. 250,

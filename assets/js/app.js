@@ -348,6 +348,11 @@ function setupTabs() {
     // "Tisk / PDF" jen na Reportu — tiskový styl schová vše kromě aktivního tabu
     const printBtn = document.getElementById("btn-print-report");
     if (printBtn) printBtn.hidden = !(view === "report" || view === "positions-at");
+    // Daňová optimalizace má Načíst znovu a Export vlastní, vpravo nad tabulkou
+    for (const id of ["btn-refresh", "btn-export-xlsx"]) {
+      const btn = document.getElementById(id);
+      if (btn) btn.hidden = view === "tax";
+    }
   };
   document.querySelectorAll(".tab").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -4239,8 +4244,23 @@ const kcSigned = (n) => `<span class="${signClass(n)}">${kcText(n)}</span>`;
 const nakupu = (n) => (n === 1 ? "nákup" : n >= 2 && n <= 4 ? "nákupy" : "nákupů");
 const pozic = (n) => (n >= 1 && n <= 4 ? "pozice" : "pozic"); // 1–4 pozice, 0 a 5+ pozic
 
+const TAX_DETAILS_KEY = "akcie.taxDetailsOpen";
+
 function setupTaxOpt() {
-  document.getElementById("tax-build")?.addEventListener("click", () => buildTaxOpt());
+  document.getElementById("tax-reload")?.addEventListener("click", () => buildTaxOpt());
+  document.getElementById("tax-export")?.addEventListener("click", () => exportTaxOptXlsx());
+  // Rozbalené poznámky si prohlížeč pamatuje (jen pohodlí – bez úložiště zůstanou sbalené)
+  const details = document.getElementById("tax-details");
+  if (details) {
+    try {
+      details.open = localStorage.getItem(TAX_DETAILS_KEY) === "1";
+    } catch {}
+    details.addEventListener("toggle", () => {
+      try {
+        localStorage.setItem(TAX_DETAILS_KEY, details.open ? "1" : "0");
+      } catch {}
+    });
+  }
   document.getElementById("tax-select-losses")?.addEventListener("click", () => {
     const d = state.taxOpt.data;
     if (!d) return;
@@ -4385,7 +4405,7 @@ function renderTaxCards() {
   add(
     r.net > 0
       ? cardHtml("Odhad daně z prodejů", kcText(taxEstimate(r.net)), `${rate} × ${kcText(r.net)}<br>${pastLoss}`)
-      : cardHtml("Odhad daně z prodejů", kcText(0), `ztráta ${kcText(r.net)} snižuje základ daně<br>daňovou ztrátu jde využít 2 roky zpětně nebo 5 let dopředu (viz níže)`),
+      : cardHtml("Odhad daně z prodejů", kcText(0), `ztráta ${kcText(r.net)} snižuje základ daně<br>daňovou ztrátu jde využít 2 roky zpětně nebo 5 let dopředu (viz poznámky)`),
     `Daň z příjmů právnických osob ${rate} jen z výsledku prodejů cenných papírů: ${r.net > 0 ? `${rate} × ${kcText(r.net)} = ${kcText(taxEstimate(r.net))}` : `výsledek ${kcText(r.net)} ≤ 0 → 0 Kč`}. Ostatní výnosy a náklady společnosti tu nejsou. Daňová ztráta (za celou firmu) se odečte v 5 letech po roce, kdy vznikla, nebo zpětně ve 2 letech před ním (§ 34 odst. 1 ZDP).`,
   );
   add(
@@ -4426,9 +4446,9 @@ function renderTaxNotes() {
   const items = [
     `<strong>Orientační výpočet, ne daňové poradenství.</strong> Počítá se jako v Reportu pro účetní (FIFO po účtech, kurz ČNB k datu vypořádání), daň ${fmtNum(DPPO_RATE * 100, 0)} % jen z výsledku prodejů.`,
     `PLEGI invest je mikro účetní jednotka: akcie se k 31. 12. nepřeceňují (§ 27 odst. 7 zákona o účetnictví), daň ovlivní jen prodej. Ztráta z prodeje se od zisků odečte – omezení v § 24 odst. 2 písm. w) zákona o daních z příjmů se na mikro účetní jednotku nevztahuje. Prodej a okamžitý zpětný nákup jen kvůli daňové ztrátě může finanční úřad posoudit jako zneužití práva.`,
-    `<strong>Daňová ztráta</strong> se počítá za celou firmu – prodeje akcií i ostatní výnosy a náklady – a dividendy nesníží. Jde ji odečíst 2 roky zpětně (vrátí se zaplacená daň) nebo 5 let dopředu; kolik a od kterých let, ukazuje část <strong>Daňová přiznání a přenos ztráty</strong> pod tabulkou.`,
     `Do roku ${d.year} patří prodej <strong>vypořádaný</strong> nejpozději 31. 12. ${d.year} – v USA den po obchodu, v Evropě dva pracovní dny po obchodu. Obchod z posledních dní roku se vypořádá až v lednu a patří do dalšího roku.`,
     `Hodnota v Kč: ceny z Yahoo (zpoždění ~15 min) načtené ${d.fetchedAt.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" })}, kurz ČNB vyhlášený k ${d.fx.validFor ? fmtCzDate(d.fx.validFor) : "–"}.`,
+    "Tituly stažené z burzy (Canacol Energy) v tabulce nejsou – nejdou prodat a daňově s nimi pracovat nejde.",
   ];
   if (d.realized.missing.length) {
     items.push(`⚠️ Prodeje bez kurzu ČNB nejsou v Realizováno: ${escapeHtml(d.realized.missing.join(", "))}.`);
@@ -4538,14 +4558,16 @@ function taxRefundFormula(r) {
 function renderTaxReturns() {
   const { overview: o, error } = state.taxOpt.data.taxReturns || {};
   const status = document.getElementById("tax-returns-status");
-  const cards = document.getElementById("tax-returns-cards");
   const wrap = document.getElementById("tax-returns-wrap");
+  const carry = document.getElementById("tax-returns-carry");
+  const hint = document.getElementById("tax-details-hint");
   if (!o) {
     status.hidden = false;
     status.classList.add("error");
     status.textContent = `Daňová přiznání se nepodařilo načíst${error ? ` (${error})` : ""}.`;
-    cards.hidden = true;
     wrap.hidden = true;
+    carry.textContent = "";
+    hint.textContent = "";
     return;
   }
   status.hidden = true;
@@ -4553,44 +4575,23 @@ function renderTaxReturns() {
     el.textContent = o.openYear;
   });
 
-  cards.innerHTML = "";
-  cards.hidden = false;
-  const add = (el, title) => {
-    el.title = title;
-    cards.appendChild(el);
-  };
-  const backYears = o.back.map((b) => b.year).reverse();
-  add(
-    cardHtml(
-      "Neuplatněná ztráta z minulých let",
-      kcText(o.unusedTotal),
-      o.unused.length
-        ? o.unused.map((l) => `z roku ${l.year} · lze do ${l.until}`).join("<br>")
-        : o.losses.length
-          ? `ztráta ${o.losses.map((l) => l.year).join(", ")} už je odečtená`
-          : "žádná daňová ztráta",
-    ),
-    `Daňové ztráty z podaných přiznání: ${
-      o.losses.map((l) => `${l.year}: ${kcText(l.loss)} − odečteno ${kcText(l.used)} = ${kcText(l.remaining)}`).join("; ") || "žádná"
-    }. Co zbývá, jde odečíst od kladného základu roku ${o.openYear}.`,
-  );
-  add(
-    cardHtml(
-      `Ztráta ${o.openYear} – zpětně`,
-      `až ${kcText(o.backCapacity)}`,
-      `od základu ${backYears.join(" a ")}<br>vrátí se až ${kcText(o.backRefund)} daně`,
-    ),
-    `Kdyby rok ${o.openYear} skončil daňovou ztrátou, jde ji odečíst od základu daně ` +
-      o.back
-        .map((b) => (b.filed ? `${b.year}: až ${kcText(b.capacity)}, vrátí se až ${kcText(b.refund)}` : `${b.year}: přiznání v datech není`))
-        .reverse()
-        .join("; ") +
-      ` – celkem až ${kcText(o.backCapacity)}, vrácená daň až ${kcText(o.backRefund)} (souhrnně nejvýš 30 mil. Kč).`,
-  );
-  add(
-    cardHtml(`Ztráta ${o.openYear} – dopředu`, `${o.forwardFrom}–${o.forwardTo}`, "od kladného základu daně,<br>co se nevyužije, propadne"),
-    `Co se nevejde zpětně, jde odečíst od kladného základu daně v letech ${o.forwardFrom}–${o.forwardTo} (5 let po roce ztráty, § 34 odst. 1 ZDP).`,
-  );
+  // Hlavní čísla přenosu ztráty jsou vidět i u sbalených poznámek
+  const backYears = o.back.map((b) => b.year).reverse().join(" a ");
+  hint.textContent = ` · ztrátu ${o.openYear} jde zpětně odečíst až ${kcText(o.backCapacity)}`;
+  const unusedNote = o.unused.length
+    ? ` (${o.unused.map((l) => `z roku ${l.year}, lze do ${l.until}`).join("; ")})`
+    : o.losses.length
+      ? ` (ztráta ${o.losses.map((l) => l.year).join(", ")} už je odečtená)`
+      : "";
+  carry.innerHTML =
+    `Neuplatněná daňová ztráta z minulých let: <strong>${kcText(o.unusedTotal)}</strong>${unusedNote}. ` +
+    `Kdyby rok ${o.openYear} skončil daňovou ztrátou, jde ji odečíst zpětně od základu ${backYears} – až <strong>${kcText(o.backCapacity)}</strong>, ` +
+    `vrátí se až <strong>${kcText(o.backRefund)}</strong> daně – a co se nevejde, v letech ${o.forwardFrom}–${o.forwardTo}.`;
+  carry.title =
+    o.back
+      .map((b) => (b.filed ? `${b.year}: až ${kcText(b.capacity)}, vrátí se až ${kcText(b.refund)}` : `${b.year}: přiznání v datech není`))
+      .reverse()
+      .join("; ") + ` – souhrnně nejvýš 30 mil. Kč (§ 34 odst. 1 ZDP).`;
 
   wrap.hidden = false;
   const dash = '<span class="muted">–</span>';
@@ -4767,7 +4768,7 @@ function exportTaxOptXlsx() {
 function taxReturnsSheet(o) {
   const backYears = o.back.map((b) => b.year).reverse().join(" a ");
   const header = [
-    "Rok", "Podáno", "Výsledek hospodaření (ř. 10)", "Základ daně (ř. 220)", "Odečtená ztráta (ř. 230)", "Sazba",
+    "Rok", "Podáno", "Účetní výsledek (ř. 10)", "Daňový základ (ř. 220)", "Odečtená ztráta (ř. 230)", "Sazba",
     "Daň (ř. 290)", "Daň z dividend (ř. 335)", "Daň celkem (ř. 340)", `Zpětně pro ztrátu ${o.openYear}`, "Vrátí se až", "Pozn.",
   ];
   const aoa = [

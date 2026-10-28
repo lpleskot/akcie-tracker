@@ -54,15 +54,15 @@ export function taxPositionRows(accounts, quotes, fxRates, today) {
       const pos = positions[sym];
       if (!(pos.net_qty > 1e-9)) continue;
       const inst = portfolio.instruments?.[sym] || {};
+      // Titul stažený z burzy (Canacol) nejde prodat a daňově s ním pracovat nejde
+      // (Lukáš 2026-10-28) – do tabu nepatří
+      if (inst.delisted) continue;
       const currency = inst.currency || null;
       const q = quotes?.[inst.yahoo_symbol || sym];
       const notes = [];
 
       let price = null;
-      if (inst.delisted) {
-        price = 0;
-        notes.push(`staženo z burzy ${inst.delisted} – nelze prodat, ztráta se realizuje až odpisem`);
-      } else if (q && !q.error && Number.isFinite(q.price)) {
+      if (q && !q.error && Number.isFinite(q.price)) {
         price = q.price;
         if (q.currency && currency && q.currency !== currency) notes.push(`cena v ${q.currency}, pozice v ${currency}`);
       } else {
@@ -98,8 +98,7 @@ export function taxPositionRows(accounts, quotes, fxRates, today) {
         pct: pnlCzk != null && cost.czk > 0 ? (pnlCzk / cost.czk) * 100 : null,
         lots: mergeLots(cost.lots, price, fxNow),
         lastBuy: cost.lots.reduce((max, l) => (l.fxDate > max ? l.fxDate : max), ""),
-        delisted: inst.delisted || null,
-        sellable: !inst.delisted && pnlCzk != null,
+        sellable: pnlCzk != null,
         note: notes.join("; "),
       });
     }

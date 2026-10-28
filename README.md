@@ -63,7 +63,7 @@ Privátní portfolio tracker pro PLEGI invest přes Interactive Brokers a Komer�
   (nákup kurzem k vypořádání každého drženého nákupu) a dividendy roku
 - Tabulka pozic se Z/Z v měně i v Kč (daňově), rozbalení na jednotlivé nákupy,
   simulace prodeje zaškrtnutých pozic; XLSX export
-- Daňová přiznání a přenos ztráty: výsledky podaných přiznání (`data/tax-returns.json`,
+- Poznámky a daňová přiznání po letech (blok na rozbalení): účetní a daňový výsledek podaných přiznání (`data/tax-returns.json`,
   doplňuje se jednou ročně po podání) a kolik ztráty roku bez podaného přiznání jde
   odečíst zpětně od základu dvou předchozích let (vrácená daň) nebo 5 let dopředu
 - PLEGI invest je mikro účetní jednotka: akcie se k 31. 12. nepřeceňují, do daně jde

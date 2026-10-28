@@ -132,7 +132,7 @@ test("taxPositionRows: loty po datu vypořádání, poslední nákup, čerstvý 
   close(r.pnlCzk, r.lots.reduce((s, l) => s + l.pnlCzk, 0));
 });
 
-test("taxPositionRows: delisted a chybějící cena nejdou do součtů ani simulace", () => {
+test("taxPositionRows: titul stažený z burzy v tabu není, chybějící cena je vidět, ale mimo součty", () => {
   const accounts = withPositions([
     account("kb", {
       instruments: {
@@ -143,16 +143,14 @@ test("taxPositionRows: delisted a chybějící cena nejdou do součtů ani simul
     }),
   ]);
   const rows = taxPositionRows(accounts, {}, FX, "2026-10-28");
-  const cne = rows.find((r) => r.sym === "CNE");
+  // nejde prodat ani daňově uplatnit – v tabu není vůbec
+  assert.equal(rows.find((r) => r.sym === "CNE"), undefined);
   const aaa = rows.find((r) => r.sym === "AAA");
-  assert.equal(cne.sellable, false);
-  close(cne.pnlCzk, -500 * 23); // ukáže se, ale realizuje se až odpisem
-  assert.match(cne.note, /nelze prodat/);
   assert.equal(aaa.sellable, false);
   assert.equal(aaa.pnlCzk, null);
   assert.match(aaa.note, /chybí aktuální cena/);
   const t = unrealizedTotals(rows);
-  assert.equal(t.excluded.length, 2);
+  assert.equal(t.excluded.length, 1);
   assert.equal(t.losses, 0);
   assert.equal(simulateSale(0, rows, new Set(rows.map((r) => r.key))).count, 0);
 });
