@@ -261,10 +261,15 @@ flowchart TD
   a **Z/Z v Kč (daňově)** — rozdíl je kurzový. Klik na řádek = držené nákupy (loty).
   Delisted (CNE.TO) jde vidět, ale do součtů ani simulace nejde (ztráta až odpisem).
   Čerstvý nákup s vypořádáním po posledním dni v kurzech dostane poslední kurz „odhadem".
-  Výpočty `assets/js/tax-optimization.js` (čisté funkce, testy). **Výhrada v UI:**
-  orientační výpočet, ne daňové poradenství; pokud účetní vede akcie jako CP k obchodování
-  přeceňované k 31. 12. do výsledku, je přecenění daňově účinné a prodej se zpětným
-  nákupem daň nezmění — zařazení CP potvrdí účetní (otevřená otázka, 2026-10-28).
+  Výpočty `assets/js/tax-optimization.js` (čisté funkce, testy). **Daňový rámec
+  (Lukáš 2026-10-28):** PLEGI invest je **mikro účetní jednotka** (0 zaměstnanců) →
+  akcie se k 31. 12. nepřeceňují (§ 27 odst. 7 ZoÚ), do daně jde jen prodej a ztráta
+  z prodeje je uznatelná (omezení § 24 odst. 2 písm. w) ZDP — nabývací cena jen do výše
+  příjmu z prodeje — se na mikro ÚJ nevztahuje). Kdyby firma přestala být mikro (§ 1b
+  ZoÚ: překročí 2 ze 3 hranic — aktiva 11 mil. Kč, čistý obrat 22 mil. Kč, 10 zaměstnanců),
+  musela by akcie přeceňovat a bez přecenění by ztráty z prodeje uznatelné nebyly — pak
+  tab přepočítat. **Výhrada v UI:** orientační výpočet, ne daňové poradenství; prodej
+  s okamžitým zpětným nákupem jen kvůli dani může FÚ posoudit jako zneužití práva.
   XLSX: souhrn + pozice, filtr, data jako datum Excelu, Celkem = `SUMIFS` přes „Lze
   prodat". Ukotvenou hlavičku vendorovaná knihovna (SheetJS CE 0.18.5) zapsat neumí.
 - **Pozice k datu (inventura):** stav pozic k rozvahovému dni **přes všechna portfolia**

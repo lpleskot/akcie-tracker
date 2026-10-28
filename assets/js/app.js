@@ -4406,7 +4406,8 @@ function renderTaxCards() {
 function renderTaxNotes() {
   const d = state.taxOpt.data;
   const items = [
-    `<strong>Orientační výpočet, ne daňové poradenství.</strong> Počítá se jako v Reportu pro účetní (FIFO po účtech, kurz ČNB k datu vypořádání), daň ${fmtNum(DPPO_RATE * 100, 0)} % jen z výsledku prodejů. Pokud účetní vede akcie jako cenné papíry k obchodování přeceňované k 31. 12. do výsledku, je přecenění daňově účinné a prodej se zpětným nákupem daň nezmění – zařazení cenných papírů a uznatelnost ztrát potvrdí účetní.`,
+    `<strong>Orientační výpočet, ne daňové poradenství.</strong> Počítá se jako v Reportu pro účetní (FIFO po účtech, kurz ČNB k datu vypořádání), daň ${fmtNum(DPPO_RATE * 100, 0)} % jen z výsledku prodejů.`,
+    `PLEGI invest je mikro účetní jednotka: akcie se k 31. 12. nepřeceňují (§ 27 odst. 7 zákona o účetnictví), daň ovlivní jen prodej. Ztráta z prodeje se od zisků odečte – omezení v § 24 odst. 2 písm. w) zákona o daních z příjmů se na mikro účetní jednotku nevztahuje. Prodej a okamžitý zpětný nákup jen kvůli daňové ztrátě může finanční úřad posoudit jako zneužití práva.`,
     `Do roku ${d.year} patří prodej <strong>vypořádaný</strong> nejpozději 31. 12. ${d.year} – v USA den po obchodu, v Evropě dva pracovní dny po obchodu. Obchod z posledních dní roku se vypořádá až v lednu a patří do dalšího roku.`,
     `Hodnota v Kč: ceny z Yahoo (zpoždění ~15 min) načtené ${d.fetchedAt.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" })}, kurz ČNB vyhlášený k ${d.fx.validFor ? fmtCzDate(d.fx.validFor) : "–"}.`,
   ];
@@ -4552,7 +4553,7 @@ function exportTaxOptXlsx() {
   const subtitle =
     `Orientační výpočet, ne daňové poradenství. Pořizovací cena = FIFO cost basis držených nákupů vč. komise, kurz ČNB k datu vypořádání každého nákupu; ` +
     `hodnota = kusy × cena z Yahoo × kurz ČNB vyhlášený k ${d.fx.validFor ? fmtCzDate(d.fx.validFor) : "–"}. Realizováno = prodeje vypořádané v roce ${d.year} jako v Reportu pro účetní. ` +
-    `Daň ${fmtNum(DPPO_RATE * 100, 0)} % jen z výsledku prodejů. Pokud se akcie přeceňují k 31. 12. do výsledku (CP k obchodování), je přecenění daňově účinné – potvrdí účetní.`;
+    `Daň ${fmtNum(DPPO_RATE * 100, 0)} % jen z výsledku prodejů. Mikro účetní jednotka: akcie se k 31. 12. nepřeceňují (§ 27 odst. 7 ZoÚ), ztráta z prodeje se od zisků odečte (omezení § 24 odst. 2 písm. w) ZDP se na mikro účetní jednotku nevztahuje).`;
   const summary = [
     [`Realizováno ${d.year}`, r.net],
     ["Odhad daně z prodejů", taxEstimate(r.net)],
