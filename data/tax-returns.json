@@ -1,0 +1,70 @@
+{
+  "company": "PLEGI invest s.r.o.",
+  "note": "Přiznání k dani z příjmů právnických osob v Kč – hodnoty řádného přiznání, po dodatečném přiznání kvůli opravě chyby hodnoty opravené (type = dodatečné) (II. oddíl: result = ř. 10, base = ř. 220, loss_deducted = ř. 230, base_after_deductions = ř. 250, rate = ř. 280, tax = ř. 290, separate_base = ř. 331, separate_tax = ř. 335, tax_total = ř. 340; loss = daňová ztráta roku, loss_used = kde byla odečtena podle tabulky E pozdějších přiznání, i zpětně). Doplňuje se jednou ročně po podání přiznání ze složky daňových přiznání v OneDrive (Asistentka – General/danova_priznani/plegi invest).",
+  "returns": [
+    {
+      "year": 2022,
+      "filed": "2023-04-28",
+      "type": "řádné",
+      "result": -41038,
+      "base": -41038,
+      "loss_deducted": 0,
+      "base_after_deductions": 0,
+      "rate": null,
+      "tax": 0,
+      "separate_base": 0,
+      "separate_tax": 0,
+      "tax_total": 0,
+      "loss": 41038,
+      "loss_used": [{ "year": 2023, "amount": 41038 }]
+    },
+    {
+      "year": 2023,
+      "filed": "2024-04-30",
+      "type": "řádné",
+      "result": 248319,
+      "base": 248319,
+      "loss_deducted": 41038,
+      "base_after_deductions": 207281,
+      "rate": 19,
+      "tax": 39330,
+      "separate_base": 0,
+      "separate_tax": 0,
+      "tax_total": 39330,
+      "loss": 0,
+      "loss_used": []
+    },
+    {
+      "year": 2024,
+      "filed": "2025-07-01",
+      "type": "řádné",
+      "result": 362408,
+      "base": 124013,
+      "loss_deducted": 0,
+      "base_after_deductions": 124013,
+      "rate": 21,
+      "tax": 26040,
+      "separate_base": 225000,
+      "separate_tax": 26809,
+      "tax_total": 52849,
+      "loss": 0,
+      "loss_used": []
+    },
+    {
+      "year": 2025,
+      "filed": "2026-06-27",
+      "type": "řádné",
+      "result": 664625,
+      "base": 404527,
+      "loss_deducted": 0,
+      "base_after_deductions": 404527,
+      "rate": 21,
+      "tax": 84840,
+      "separate_base": 245000,
+      "separate_tax": 24050,
+      "tax_total": 108890,
+      "loss": 0,
+      "loss_used": []
+    }
+  ]
+}

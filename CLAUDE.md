@@ -271,7 +271,25 @@ flowchart TD
   tab přepočítat. **Výhrada v UI:** orientační výpočet, ne daňové poradenství; prodej
   s okamžitým zpětným nákupem jen kvůli dani může FÚ posoudit jako zneužití práva.
   XLSX: souhrn + pozice, filtr, data jako datum Excelu, Celkem = `SUMIFS` přes „Lze
-  prodat". Ukotvenou hlavičku vendorovaná knihovna (SheetJS CE 0.18.5) zapsat neumí.
+  prodat"; druhý list Daňová přiznání. Ukotvenou hlavičku vendorovaná knihovna
+  (SheetJS CE 0.18.5) zapsat neumí.
+  **Daňová přiznání a přenos ztráty** (pod tabulkou pozic, trvalá informace): tabulka
+  podaných přiznání z `data/tax-returns.json` (řádky II. oddílu: ř. 10, 220, 230, 250,
+  280, 290, 331, 335, 340 + tabulka E) a kolik daňové ztráty „otevřeného roku" (první rok
+  bez podaného přiznání) jde odečíst zpětně od základu dvou předchozích let (ř. 250,
+  souhrnně max. 30 mil. Kč) a kolik daně by se vrátilo (sazba × částka, nejvýš zaplacená
+  daň ř. 290), plus okno dopředu (5 let) a neuplatněné ztráty minulých let
+  (`lossCarryOverview`, § 34 odst. 1 ZDP). Výsledek otevřeného roku se tu nepočítá
+  (Lukáš 2026-10-28: je neurčitý, jen popis, jak s tím pracovat). **Aktualizace jednou
+  ročně po podání přiznání:** doplnit rok do `data/tax-returns.json` ze složky OneDrive
+  `Asistentka - General/danova_priznani/plegi invest/danove_priznani_RRRR/` (jen čtení);
+  řádky drží hodnoty řádného přiznání, ztráta odečtená zpětně se zapisuje jen k roku,
+  kdy vznikla (`loss_used` s dřívějším rokem). Dodatečné přiznání kvůli opravě chyby
+  (např. WBD 2025 – viz e-mail účetní 2026-10-28) hodnoty roku přepíše, `type: "dodatečné"`. Test v `tax-optimization.test.mjs` hlídá
+  dopočty (ř. 250 = 220 − 230, daň = sazba × základ na tisíce dolů, ř. 340 = 290 + 335,
+  ř. 230 = tabulka E, lhůty). Stav k 2026-10-28: přiznání 2022–2025 (ztráta 2022
+  41 038 Kč odečtena 2023), ztrátu 2026 jde zpětně odečíst až 528 540 Kč (vrátí se až
+  110 880 Kč).
 - **Pozice k datu (inventura):** stav pozic k rozvahovému dni **přes všechna portfolia**
   (načte obě z manifestu + overlay, nezávisle na aktivním) — název, ISIN, ticker, kusy,
   cena k datu, ocenění v měně i CZK, pořizovací cena CZK (FIFO loty × kurz k vypořádání),
@@ -427,7 +445,7 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared,portfolio-shared,akcie-den,plegin-report,tax-optimization}.test.mjs` — 86 unit testů
+`tests/{fifo,flex-shared,portfolio-shared,akcie-den,plegin-report,tax-optimization}.test.mjs` — 88 unit testů
 (`node --test tests/*.test.mjs`), ručně spočítané fixtures: FIFO matching + prorace komise,
 proceeds-authoritative ceny, splity (vč. same-day pořadí a 1:25), KB received/removed
 párování + bonus/cancellation, orphan sells, settle data v closed lots, dividendy, Flex
@@ -441,7 +459,8 @@ a 27. 10. 2026: `tests/fixtures/akcie-den-*.json` = výstup `akcie_den`,
 neznámý ticker, víkend a pojistka v létě/zimě, běh s falešným KV a PLEGINem, token
 ručního běhu), Daňová optimalizace (prodeje v Kč a strict kurzy, pořizovací cena lotů
 s odhadem čerstvého nákupu, kurzový rozdíl, delisted a chybějící cena mimo součty, rok
-podle vypořádání, dividendy, simulace). CI: `.github/workflows/tests.yml` při každém pushi (neblokuje
+podle vypořádání, dividendy, simulace, zpětné odečtení ztráty a dopočty v
+`data/tax-returns.json`). CI: `.github/workflows/tests.yml` při každém pushi (neblokuje
 deploy — červený běh = signál). Uzavírá REVIZE R9 (2026-07-25).
 
 **Lokální `wrangler dev`:** stav persistovat MIMO repo
@@ -487,6 +506,7 @@ web/                                    ← repo root = asset složka Workeru
 ├── .dev.vars.example                   ← vzor lokálních secretů pro wrangler dev
 ├── data/portfolios/{manifest,plegi-invest-ibkr,plegi-invest-kb}.json
 ├── data/portfolio-history-plegi-invest-ibkr.json, data/fx_rates.json
+├── data/tax-returns.json               ← podaná přiznání k DPPO (doplnit jednou ročně)
 ├── tests/*.test.mjs, tests/fixtures/   ← unit testy (node --test, R9) + vzorky skutečných dnů
 ├── .github/workflows/{fx-update-cron,tests}.yml
 ├── scripts/fx-update.mjs

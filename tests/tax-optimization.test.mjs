@@ -8,10 +8,12 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { openLotsCostCzk, realizedSales } from "../assets/js/portfolio-shared.js";
 import { computePositions } from "../assets/js/fifo.js";
 import {
   dividendsInYear,
+  lossCarryOverview,
   realizedInYear,
   simulateSale,
   taxEstimate,
@@ -223,4 +225,72 @@ test("simulace a odhad daně: realizace + vybrané pozice, 21 % jen z kladného 
   assert.equal(sim.tax, 0);
   const t = unrealizedTotals(rows);
   assert.deepEqual([t.gains, t.losses, t.gainCount, t.lossCount], [20000, -50000, 1, 1]);
+});
+
+test("lossCarryOverview: zpětné odečtení do 2 let, kapacita snížená o dřívější zpětné odečtení, ztráta dopředu", () => {
+  const ret = (year, over) => ({ year, filed: `${year + 1}-04-30`, loss_deducted: 0, separate_tax: 0, loss: 0, loss_used: [], ...over });
+  const returns = [
+    ret(2021, { base: 100000, base_after_deductions: 100000, rate: 19, tax: 19000 }),
+    ret(2022, { base: 300000, base_after_deductions: 300000, rate: 19, tax: 57000 }),
+    // ztráta 2023: 120 000 zpětně do 2022, 10 000 dopředu do 2024, zbývá 20 000
+    ret(2023, { base: -150000, base_after_deductions: 0, rate: null, tax: 0, loss: 150000, loss_used: [{ year: 2022, amount: 120000 }, { year: 2024, amount: 10000 }] }),
+    ret(2024, { base: 50500, loss_deducted: 10000, base_after_deductions: 40500, rate: 21, tax: 8400 }),
+  ];
+  const o = lossCarryOverview(returns);
+  assert.equal(o.openYear, 2025);
+  assert.deepEqual(o.rows.map((r) => r.year), [2024, 2023, 2022, 2021]);
+  assert.deepEqual(o.back.map((b) => [b.year, b.capacity, b.refund]), [[2023, 0, 0], [2024, 40500, 8400]]); // 21 % × 40 500 = 8 505 > zaplaceno 8 400
+  assert.deepEqual([o.backCapacity, o.backRefund], [40500, 8400]);
+  assert.deepEqual([o.forwardFrom, o.forwardTo], [2026, 2030]);
+  assert.deepEqual(o.unused.map((l) => [l.year, l.remaining, l.until]), [[2023, 20000, 2028]]);
+  assert.equal(o.unusedTotal, 20000);
+  assert.deepEqual(o.rows.find((r) => r.year === 2022).deductedFrom, [{ year: 2023, amount: 120000 }]);
+
+  // Bez přiznání 2024: otevřený rok 2024, základ 2022 už snížený o zpětně odečtenou ztrátu 2023
+  const earlier = lossCarryOverview(returns.slice(0, 3));
+  assert.equal(earlier.openYear, 2024);
+  assert.deepEqual(earlier.back.map((b) => [b.year, b.capacity, b.refund]), [[2022, 180000, 34200], [2023, 0, 0]]);
+
+  // Rok bez přiznání v okně (první rok firmy) a strop 30 mil. Kč
+  const big = lossCarryOverview([ret(2025, { base: 40e6, base_after_deductions: 40e6, rate: 21, tax: 8.4e6 })]);
+  assert.deepEqual(big.back.map((b) => [b.year, b.filed]), [[2024, false], [2025, true]]);
+  assert.equal(big.backCapacity, 30e6);
+  assert.equal(lossCarryOverview([]), null);
+});
+
+test("data/tax-returns.json: dopočty sedí s řádky přiznání", () => {
+  const { returns } = JSON.parse(readFileSync(new URL("../data/tax-returns.json", import.meta.url), "utf8"));
+  assert.ok(returns.length > 0);
+  const years = returns.map((r) => r.year);
+  assert.equal(new Set(years).size, years.length, "rok je v datech dvakrát");
+  const forwardInto = new Map(); // rok → ztráta minulých let odečtená dopředu (= ř. 230)
+  for (const r of returns) {
+    const at = `rok ${r.year}`;
+    assert.match(r.filed, /^\d{4}-\d{2}-\d{2}$/, at);
+    assert.ok(r.filed > `${r.year}-12-31`, `${at}: podáno až po skončení roku`);
+    if (r.base > 0) {
+      assert.equal(r.base_after_deductions, r.base - r.loss_deducted, `${at}: ř. 250 = ř. 220 − ř. 230`);
+      assert.equal(r.loss, 0, `${at}: kladný základ bez ztráty`);
+    } else {
+      assert.equal(r.loss, -r.base, `${at}: ztráta = záporný základ`);
+      assert.equal(r.base_after_deductions, 0, at);
+      assert.equal(r.tax, 0, at);
+    }
+    if (r.rate != null) {
+      assert.equal(r.tax, (Math.floor(r.base_after_deductions / 1000) * 1000 * r.rate) / 100, `${at}: daň = sazba × základ zaokrouhlený na tisíce dolů`);
+    }
+    assert.equal(r.tax_total, r.tax + r.separate_tax, `${at}: ř. 340 = ř. 290 + ř. 335`);
+    let used = 0;
+    for (const u of r.loss_used) {
+      assert.ok(u.year !== r.year && u.year >= r.year - 2 && u.year <= r.year + 5, `${at}: ztráta odečtená mimo lhůtu (${u.year})`);
+      used += u.amount;
+      if (u.year > r.year) forwardInto.set(u.year, (forwardInto.get(u.year) || 0) + u.amount);
+    }
+    assert.ok(used <= r.loss, `${at}: odečteno víc, než byla ztráta`);
+  }
+  for (const r of returns) {
+    assert.equal(r.loss_deducted, forwardInto.get(r.year) || 0, `rok ${r.year}: ř. 230 nesedí s tabulkou E ztrátových let`);
+  }
+  const o = lossCarryOverview(returns);
+  assert.equal(o.openYear, Math.max(...years) + 1);
 });

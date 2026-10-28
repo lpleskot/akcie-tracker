@@ -340,6 +340,45 @@
             <tfoot id="tfoot-tax"></tfoot>
           </table>
         </div>
+
+        <h3 class="tax-returns-title">Daňová přiznání a přenos ztráty</h3>
+        <div class="report-intro muted">
+          Výsledky podaných přiznání k dani z příjmů za minulé roky a kolik případné daňové ztráty
+          roku, za který přiznání ještě podané není, jde odečíst zpětně nebo v dalších letech.
+          Údaje se doplňují jednou ročně po podání přiznání.
+        </div>
+        <div id="tax-returns-status" class="status" hidden></div>
+        <div id="tax-returns-cards" class="summary" hidden></div>
+        <div class="table-wrap" id="tax-returns-wrap" hidden>
+          <table id="tbl-tax-returns">
+            <thead>
+              <tr>
+                <th>Rok</th>
+                <th>Podáno</th>
+                <th class="num">Výsledek<br>hospodaření<span class="hint" title="Výsledek hospodaření před zdaněním podle přiznání (ř. 10).">i</span></th>
+                <th class="num">Základ daně<span class="hint" title="Základ daně po úpravách (ř. 220) – bez dividend, které se daní zvlášť. Záporné číslo je daňová ztráta.">i</span></th>
+                <th class="num">Odečtená<br>ztráta<span class="hint" title="Daňová ztráta minulých let odečtená od základu v tomto roce (ř. 230).">i</span></th>
+                <th class="num">Daň<span class="hint" title="Daň ze základu po odečtení ztráty, zaokrouhleného na tisíce dolů (ř. 290). Jen tuhle daň může vrátit zpětně odečtená ztráta.">i</span></th>
+                <th class="num">Daň<br>z dividend<span class="hint" title="Daň ze samostatného základu – zahraniční dividendy 15 % po zápočtu daně sražené v cizině (ř. 335). Ztráta ji nesníží ani nevrátí.">i</span></th>
+                <th class="num">Daň<br>celkem<span class="hint" title="Celková daň za rok (ř. 340).">i</span></th>
+                <th class="num">Zpětně pro<br>ztrátu <span data-open-year></span><span class="hint" title="Kolik daňové ztráty roku, za který přiznání ještě podané není, jde odečíst od základu tohoto roku (základ po odečtech, ř. 250). Zpětně jde jen do 2 předchozích let.">i</span></th>
+                <th class="num">Vrátí se<br>až<span class="hint" title="Daň, která by se vrátila, kdyby se od základu tohoto roku odečetla ztráta v plné výši sloupce vlevo: sazba × odečtená částka, nejvýš zaplacená daň (sloupec Daň).">i</span></th>
+                <th>Pozn.</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot id="tfoot-tax-returns"></tfoot>
+          </table>
+        </div>
+        <ul class="tax-notes tax-returns-howto">
+          <li><strong>Zpětně (2 roky):</strong> daňovou ztrátu roku jde odečíst od základu daně dvou předchozích let, souhrnně nejvýš 30 mil. Kč. Podává se dodatečné přiznání za dřívější rok spolu s přiznáním za ztrátový rok a už zaplacená daň se vrátí jako přeplatek. Vrací se jen daň ze základu (sloupec Daň), ne daň z dividend.</li>
+          <li><strong>Dopředu (5 let):</strong> ztrátu jde odečíst od kladného základu daně v 5 letech po roce, kdy vznikla. Co se do té doby nevyužije, propadne.</li>
+          <li><strong>Kombinace:</strong> ztrátu jde rozdělit – část zpětně, zbytek dopředu. Rozhoduje se při podání přiznání za ztrátový rok, s účetní.</li>
+          <li><strong>Zálohy:</strong> když se během roku rýsuje ztráta, lze finanční úřad požádat o snížení nebo zrušení záloh na daň (§ 174 odst. 5 daňového řádu).</li>
+          <li><strong>Omezení:</strong> po změně vlastníků o víc než 25 % nebo po získání rozhodujícího vlivu jde ztrátu odečíst, jen když firma dál dělá stejnou činnost (aspoň 80 % tržeb); po fúzi nebo jiné přeměně jen od základu ze stejné činnosti (§ 38na zákona o daních z příjmů).</li>
+          <li><strong>Jak s tím pracovat:</strong> během roku sleduj Realizováno a nerealizované Z/Z nahoře, simulace ukáže dopad prodeje. Daňová ztráta se ale počítá za celou firmu (i ostatní výnosy a náklady) až v přiznání. Když vyjde ztráta, tabulka ukazuje, kolik z ní jde odečíst zpětně a kolik daně se vrátí; zbytek jde do dalších let.</li>
+          <li><strong>Aktualizace jednou ročně:</strong> po podání přiznání se doplní nový rok do <code>data/tax-returns.json</code> (ř. 10, 220, 230, 250, 280, 290, 331, 335, 340 a tabulka E přiznání) – stačí Claudovi napsat „doplň daňové přiznání za rok …“. Ztráta odečtená zpětně se zapisuje k roku, kdy vznikla.</li>
+        </ul>
       </section>
 
       <section id="view-positions-at" class="view">

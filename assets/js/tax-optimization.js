@@ -230,3 +230,75 @@ export function currentFxInfo(fxRates, today) {
   const date = fxDateFor(fxRates, today);
   return { date, validFor: date ? fxRates?.dates?.[date]?.valid_for || date : null };
 }
+
+// Přenos daňové ztráty (§ 34 odst. 1 ZDP): zpětně do 2 předchozích let (souhrnně
+// nejvýš 30 mil. Kč), dopředu v 5 následujících letech, pak propadne
+export const LOSS_BACK_YEARS = 2;
+export const LOSS_FORWARD_YEARS = 5;
+export const LOSS_BACK_CAP = 30_000_000;
+
+/**
+ * Podaná přiznání (data/tax-returns.json, Kč) a kolik případné daňové ztráty
+ * prvního roku bez podaného přiznání („otevřený rok") jde odečíst zpětně a do kdy
+ * dopředu. Řádky drží hodnoty řádných přiznání; ztráta odečtená zpětně (dodatečným
+ * přiznáním) je zapsaná jen u roku, kdy vznikla (loss_used s dřívějším rokem), proto
+ * se o ni kapacita cílového roku snižuje tady.
+ */
+export function lossCarryOverview(returns) {
+  const sorted = [...(returns || [])].sort((a, b) => a.year - b.year);
+  if (!sorted.length) return null;
+  const byYear = new Map(sorted.map((r) => [r.year, r]));
+  const openYear = sorted[sorted.length - 1].year + 1;
+
+  const carriedBack = new Map(); // rok → ztráta pozdějších let odečtená od jeho základu
+  const sources = new Map(); // rok → [{ year, amount }] ztráty odečtené od jeho základu
+  for (const r of sorted) {
+    for (const u of r.loss_used || []) {
+      if (u.year < r.year) carriedBack.set(u.year, (carriedBack.get(u.year) || 0) + u.amount);
+      if (!sources.has(u.year)) sources.set(u.year, []);
+      sources.get(u.year).push({ year: r.year, amount: u.amount });
+    }
+  }
+
+  const losses = sorted
+    .filter((r) => r.loss > 0)
+    .map((r) => {
+      const used = (r.loss_used || []).reduce((sum, u) => sum + u.amount, 0);
+      return { year: r.year, loss: r.loss, used, remaining: r.loss - used, until: r.year + LOSS_FORWARD_YEARS, usedIn: r.loss_used || [] };
+    });
+
+  const back = [];
+  for (let year = openYear - LOSS_BACK_YEARS; year < openYear; year++) {
+    const r = byYear.get(year);
+    if (!r) {
+      back.push({ year, filed: false, capacity: 0, refund: 0, rate: null });
+      continue;
+    }
+    const capacity = Math.max(0, (r.base_after_deductions || 0) - (carriedBack.get(year) || 0));
+    // Daň je ze základu zaokrouhleného na tisíce dolů – víc, než se zaplatilo, se nevrátí
+    const refund = r.rate ? Math.min(r.tax, Math.round((capacity * r.rate) / 100)) : 0;
+    back.push({ year, filed: true, capacity, refund, rate: r.rate });
+  }
+  const backByYear = new Map(back.map((b) => [b.year, b]));
+  const unused = losses.filter((l) => l.remaining > 0 && l.until >= openYear);
+
+  return {
+    openYear,
+    rows: sorted
+      .map((r) => ({
+        ...r,
+        lossInfo: losses.find((l) => l.year === r.year) || null,
+        deductedFrom: sources.get(r.year) || [],
+        back: backByYear.get(r.year) || null,
+      }))
+      .reverse(),
+    back,
+    backCapacity: Math.min(LOSS_BACK_CAP, back.reduce((sum, b) => sum + b.capacity, 0)),
+    backRefund: back.reduce((sum, b) => sum + b.refund, 0),
+    forwardFrom: openYear + 1,
+    forwardTo: openYear + LOSS_FORWARD_YEARS,
+    losses,
+    unused,
+    unusedTotal: unused.reduce((sum, l) => sum + l.remaining, 0),
+  };
+}

@@ -1042,6 +1042,20 @@ tfoot td {
   min-width: 200px;
   font-size: 12px;
 }
+/* Daňová přiznání a přenos ztráty – trvalá informace pod tabulkou pozic */
+.tax-returns-title {
+  margin: 32px 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+}
+#tax-returns-wrap {
+  margin-bottom: 14px;
+}
+#tbl-tax-returns td.tax-note {
+  white-space: normal;
+  min-width: 220px;
+  font-size: 12px;
+}
 @media (pointer: coarse) {
   /* Dotyk: cíl aspoň 44 × 44 px */
   #tbl-tax .tax-select-hit {
