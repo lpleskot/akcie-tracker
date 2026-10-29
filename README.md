@@ -129,7 +129,7 @@ cd web/
 node --test tests/*.test.mjs
 ```
 
-25 unit testů FIFO enginu, inventury k datu a Flex transformací (ručně spočítané fixtures).
+93 unit testů (FIFO engine, inventura k datu, Flex transformace a merge overlay, MCP a ranní report, Daňová optimalizace) – ručně spočítané fixtures.
 Běží i v CI při každém pushi (`.github/workflows/tests.yml`).
 
 ## Lokální vývoj

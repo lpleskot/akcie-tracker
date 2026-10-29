@@ -114,6 +114,15 @@ jinak se nedostanou do repa.
   (`deriveYahooSymbol`): `AEB→.AS`, `SBF→.PA`, `IBIS→.DE`, `SFB→.ST`, `TSE→.TO`, …
   Bez toho Yahoo napáruje holý symbol (např. „CSG") na cizí US titul a vrátí null cenu.
   Neznámá burza → symbol beze změny (fallback); doplnit do mapy podle potřeby.
+- **Párování přes ISIN (od 2026-10-29):** IBKR vede některé tituly ve Flexu pod jiným
+  symbolem než statický JSON — Evolution je `EVO` (statický JSON i Yahoo `EVO.ST`), Flex ho
+  ve výpisu pozic hlásí jako `EVOG.ST` (stejné ISIN SE0012673267). Flex řádek (obchod,
+  dividenda, srážková daň, corporate action), jehož symbol `instruments` neznají, dostane
+  v `mergeOverlayIntoPortfolio` symbol instrumentu se **stejným ISIN a měnou**
+  (`symbolByIsin` ve `flex-shared.js`); původní symbol IBKR zůstane ve `flex_symbol`.
+  Bez toho by prodej pod novým symbolem byl prodej bez nákupu a pozice EVO by zůstala
+  celá. Stejné ISIN v jiné měně = jiná kotace → nový instrument; víc kandidátů → nepárovat.
+  Rozdíl jen v zobrazení IBKR (web ukazuje `CSG1`, Flex i appka `CSG`) se netýká dat.
 - **Forex konverze NEJSOU pozice.** IBKR při nákupu titulu v cizí měně automaticky
   převádí měnu a účtuje forex trade (`assetCategory="CASH"`, symbol `BASE.QUOTE`
   jako `EUR.USD`, `USD.DKK`). `mergeOverlayIntoPortfolio` je přes `isForexConversion()`
@@ -184,10 +193,11 @@ flowchart TD
 - **Zdroj:** KB TRN CP (PDF) + KB TRN CASH (PDF) + KB STAV PTF (snapshoty).
 - Období 2022-12-30 → 2026-09-30 (inception = synthetic).
 - **47 instrumentů** v 9 měnách (USD, EUR, CAD, SEK, PLN, GBP, AUD, DKK, CZK).
-- **144 transakcí:**
+- **150 transakcí:**
   - 14 synthetic pre-2023 openings ze STAV PTF 31.3.2023 (cost basis = tržní cena k datu,
     skutečná pre-2023 nákupní cena neznámá — starší KB výpisy v MiFID formátu bez transakčních dat).
-  - 127 reálných BUY/SELL z TRN CP 2023–2026-Q3 (Q2 2026 bez obchodů). (Původních 7 synthetic Q2 2023 nahrazeno
+  - 130 reálných BUY/SELL z TRN CP 2023–2026-Q3 (Q2 2026 bez obchodů) + 6 prodejů z 29. 10. 2026
+    z potvrzení o uzavření obchodu (viz „Q4 2026 průběžně“). (Původních 7 synthetic Q2 2023 nahrazeno
     reálnými — Q2 2023 výpisy existují, jen jsou ve složce podkladů pod chybným názvem
     `Výpis 1.7.-30.9.2023-9.pdf` … `-12.pdf`.)
 - **23 corporate actions** (Vklad/Výběr CP) — splity, rights issues, restructurings.
@@ -210,6 +220,20 @@ flowchart TD
   importů). Pozor: TRN CASH u GOOG/UNH připsal peníze s vypořádáním 06.07., TRN CP uvádí 07.07.
   (US svátek 3. 7. + český svátek 6. 7.) — ponechán TRN CP; kdyby to účetní chtěla podle
   připsání, změnit `settle_date` obou prodejů na 2026-07-06 (kurz ČNB 21,13 místo 21,191).
+- **Q4 2026 průběžně – prodeje z potvrzení o uzavření obchodu** (2026-10-29; výpis Q4 bude až
+  v lednu): 6 prodejů 29. 10. 2026 (MC.PA, NU, LMT, KSPI, HUYA, DIS – celé pozice, v KB zbývá
+  8 titulů) z PDF `ON_EOBC_1609386___*.pdf` (OneDrive `invest_pohyby/2026/plegi_invest/kb_nakupy/`).
+  Potvrzení má datum uzavření a vypořádání, cenu, provizi a ID obchodu = druhé číslo `kb_id`
+  z TRN CP (ověřeno na GOOG 2. 7.: 2189854); číslo pokynu v něm není → `kb_id: "?/<ID obchodu>"`,
+  `note` s názvem PDF. **Hotovost = odhad:** STAV PTF k 30. 9. + čisté výnosy prodejů (bez říjnových
+  dividend a poplatků) v `cash_balance` i jako snapshot `cash_history` k datu obchodu s
+  `estimate: true` — `cashAtDate` ho předá dál, ranní report píše „Hotovost KB je odhad k …“
+  a inventura „odhad k …“, ne „ze čtvrtletního výpisu“. Inventura k datu mezi obchodem
+  a vypořádáním (LVMH do 1. 11.) započte prodané kusy i peníze z nich. Kurzy ČNB k vypořádání
+  (30. 10., 2. 11.) doplní denní FX job; do té doby Report pro účetní i Daňová optimalizace hlásí
+  u těchto prodejů „chybí kurz“. **Při importu Q4:** prodeje nezdvojit (stejné ID obchodu), datum
+  vypořádání ověřit podle TRN CP (u GOOG 2. 7. potvrzení uvádělo 6. 7., TRN CP 7. 7.); odhad
+  v `cash_history` může zůstat, od 31. 12. platí snapshot STAV PTF Q4.
 - **14/14 otevřených pozic** match KB statementu (30.9.2026); hotovost 7 měn zrekonciliována na cent.
   KB ve STAV PTF oceňuje Canacol 0,75 CAD/ks (app ho jako delisted oceňuje 0). Validace vs Sharesight
   Sold Securities: 32/34 prodejů match (2 nesoulady = CNE 1890 ks Sharesight chyba, IPO 1 ks zaokrouhlení).
@@ -373,8 +397,8 @@ flowchart TD
   `portfolio` = id z manifestu nebo `vse`): stav k **závěru obchodního dne** — pozice
   podle **data obchodu** (`computePositionsAt` s `dateField: "date"` + dividendy k datu),
   ceny = uzavřené denní závěry Yahoo × `splitFactorAfter`, kurz ČNB k datu s fallbackem,
-  hotovost `cashAtDate` (IBKR denní NAV, KB kvartální STAV PTF, jinak `cash_balance`),
-  Total Return a Celkový výnos sdílenými funkcemi. Denní změna souhrnu jen z titulů
+  hotovost `cashAtDate` (IBKR denní NAV, KB kvartální STAV PTF nebo odhad mezi výpisy –
+  `cash_odhad`, jinak `cash_balance`), Total Return a Celkový výnos sdílenými funkcemi. Denní změna souhrnu jen z titulů
   s `obchodovano: true`; % = změna / (hodnota pozic − změna). Hotovost i po měnách
   (`cash_meny`: měna, částka, Kč — stejný zdroj jako `cash_czk`). `celkovy_vynos` =
   výpočet dlaždice s toky kapitálu ≤ datum (`pct`, `czk`, `usd`, `pa_pct` = XIRR, `od`,
@@ -413,8 +437,8 @@ Nahrazuje Claude úlohu „PLEGIN — report Akcie" (PLEGIN_ZADANI_01, předán�
   Return Kč; neobchodovaný titul s datem posledního obchodu, chybějící cena „– (důvod)",
   „ *" = dividendy v jiné měně); Kontext (1. věta = účet, který den nejvíc táhl, se 3 + 2
   tituly v Kč, 2. věta = druhý účet se 2 + 1; pak jen potřebné: neobchodované tituly,
-  hvězdička, hotovost KB z kvartálního výpisu, všechna `varovani` doslova, nečerstvá
-  data); list Detail s pevným odkazem na appku. Krátké názvy z mapy `SHORT_NAMES`
+  hvězdička, hotovost KB z kvartálního výpisu (nebo odhad mezi výpisy), všechna `varovani`
+  doslova, nečerstvá data); list Detail s pevným odkazem na appku. Krátké názvy z mapy `SHORT_NAMES`
   (neznámý ticker = název z dat → doplnit do mapy). Čísla přes `fmtNum` + pravé mínus
   a NBSP před Kč/% (formát schválený Lukášem 23. 9.); pomlčky en dash.
 - **Kam:** service binding `PLEGIN` → Worker `todo` (stejný CF účet), `POST
@@ -451,14 +475,14 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared,portfolio-shared,akcie-den,plegin-report,tax-optimization}.test.mjs` — 90 unit testů
+`tests/{fifo,flex-shared,portfolio-shared,akcie-den,plegin-report,tax-optimization}.test.mjs` — 93 unit testů
 (`node --test tests/*.test.mjs`), ručně spočítané fixtures: FIFO matching + prorace komise,
 proceeds-authoritative ceny, splity (vč. same-day pořadí a 1:25), KB received/removed
 párování + bonus/cancellation, orphan sells, settle data v closed lots, dividendy, Flex
-transformace (vč. settle_date), hotovost k datu, Total Return pozice, `computePositionsAt`
-volby (výchozí chování inventury beze změny), merge overlay (dedupe, forex, vklady),
-kurzy, toky kapitálu + XIRR (proti sazbě spočtené předem), Celkový výnos s výběry,
-MCP report (split po datu, neobchodovaný den, chybějící cena,
+transformace (vč. settle_date), hotovost k datu (i odhad KB mezi výpisy), Total Return pozice, `computePositionsAt`
+volby (výchozí chování inventury beze změny), merge overlay (dedupe, forex, vklady,
+párování symbolu přes ISIN), kurzy, toky kapitálu + XIRR (proti sazbě spočtené předem),
+Celkový výnos s výběry, MCP report (split po datu, neobchodovaný den, chybějící cena,
 delisted, součty `vse`), ranní report do PLEGINu (vzorky ze skutečných dnů 23., 26.
 a 27. 10. 2026: `tests/fixtures/akcie-den-*.json` = výstup `akcie_den`,
 `plegin-akcie-skutecne.json` = reporty Claude úlohy z týchž dat; svátek, nečerstvý import,

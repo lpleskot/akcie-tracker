@@ -12,6 +12,7 @@
 
 import {
   ensureInstrument,
+  symbolByIsin,
   isForexConversion,
   flexDate,
   transformFlexTrade,
@@ -80,17 +81,6 @@ export function amountToUsd(fxRates, amount, currency, date) {
   return (amount * ccyToCzk) / usdToCzk;
 }
 
-/**
- * Mergne KV overlay (IBKR Flex auto-import) do načteného portfolia.
- * Overlay drží data z Flex Web Service v nativním tvaru; transformace do
- * tvaru statického JSON jsou ve flex-shared.js, tady je dedupe proti
- * existujícím `flex_id` a promítnutí do hotovosti a vkladů.
- *
- * `fxRates` slouží jen k přepočtu vkladů do total_deposits_usd — kdo
- * s vklady nepracuje (alerty), může předat null.
- *
- * Mutuje `portfolio`. Vrací počty NOVĚ přidaných záznamů + last_import.
- */
 // Týž split: stejný symbol a poměr, datum do týdne (ruční zápis bývá k datu z Yahoo, IBKR o den jinak)
 function isSameSplit(a, b) {
   return (
@@ -101,6 +91,18 @@ function isSameSplit(a, b) {
   );
 }
 
+/**
+ * Mergne KV overlay (IBKR Flex auto-import) do načteného portfolia.
+ * Overlay drží data z Flex Web Service v nativním tvaru; transformace do
+ * tvaru statického JSON jsou ve flex-shared.js, tady je dedupe proti
+ * existujícím `flex_id`, párování symbolů přes ISIN a promítnutí do
+ * hotovosti a vkladů.
+ *
+ * `fxRates` slouží jen k přepočtu vkladů do total_deposits_usd — kdo
+ * s vklady nepracuje (alerty), může předat null.
+ *
+ * Mutuje `portfolio`. Vrací počty NOVĚ přidaných záznamů + last_import.
+ */
 export function mergeOverlayIntoPortfolio(portfolio, overlay, fxRates) {
   overlay = overlay || {};
   const stats = {
@@ -138,6 +140,13 @@ export function mergeOverlayIntoPortfolio(portfolio, overlay, fxRates) {
     portfolio.cash_balance[ccy] += amount;
   };
 
+  // Záznam z Flexu pod symbolem instrumentu, se kterým se páruje (symbolByIsin –
+  // Evolution EVOG.ST → EVO); původní symbol IBKR zůstane ve flex_symbol.
+  const paired = (rec, row) => {
+    const symbol = symbolByIsin(portfolio.instruments, row);
+    return symbol === rec.symbol ? rec : { ...rec, symbol, flex_symbol: rec.symbol };
+  };
+
   // 1) Trades — dopad do hotovosti = netCash (signed, už po komisi)
   for (const t of overlay.trades || []) {
     if (!t.tradeID || existingTradeIds.has(t.tradeID)) continue;
@@ -158,8 +167,9 @@ export function mergeOverlayIntoPortfolio(portfolio, overlay, fxRates) {
       continue;
     }
 
-    ensureInstrument(portfolio, symbol, t);
-    portfolio.transactions.push(transformFlexTrade(t));
+    const tx = paired(transformFlexTrade(t), t);
+    ensureInstrument(portfolio, tx.symbol, t);
+    portfolio.transactions.push(tx);
     existingTradeIds.add(t.tradeID);
     stats.trades++;
     const netCash = parseFloat(t.netCash);
@@ -173,14 +183,15 @@ export function mergeOverlayIntoPortfolio(portfolio, overlay, fxRates) {
     const amt = parseFloat(c.amount);
     if (/Dividends/i.test(type)) {
       if (existingDivIds.has(c.transactionID)) continue;
-      ensureInstrument(portfolio, c.symbol, c);
-      portfolio.dividends.push(transformFlexDividend(c));
+      const div = paired(transformFlexDividend(c), c);
+      ensureInstrument(portfolio, div.symbol, c);
+      portfolio.dividends.push(div);
       existingDivIds.add(c.transactionID);
       stats.dividends++;
       addCash(c.currency, amt);
     } else if (/Withholding/i.test(type)) {
       if (existingWithholdingIds.has(c.transactionID)) continue;
-      portfolio.withholding_tax.push(transformFlexWithholding(c));
+      portfolio.withholding_tax.push(paired(transformFlexWithholding(c), c));
       existingWithholdingIds.add(c.transactionID);
       stats.withholding++;
       addCash(c.currency, amt); // amount je už záporný
@@ -207,11 +218,11 @@ export function mergeOverlayIntoPortfolio(portfolio, overlay, fxRates) {
   // 3) Corporate actions — některé mají hotovostní složku (cash-in-lieu)
   for (const a of overlay.corporate_actions || []) {
     if (!a.actionID || existingCaIds.has(a.actionID)) continue;
-    const ca = transformFlexCorpAction(a);
+    const ca = paired(transformFlexCorpAction(a), a);
     existingCaIds.add(a.actionID);
     // Split zapsaný ručně ve statickém JSON (BKNG 25:1, duben 2026) se nesmí započítat podruhé
     if (ca.type === "split" && portfolio.corporate_actions.some((c) => isSameSplit(c, ca))) continue;
-    ensureInstrument(portfolio, a.symbol, a);
+    ensureInstrument(portfolio, ca.symbol, a);
     portfolio.corporate_actions.push(ca);
     stats.corp_actions++;
     const proc = parseFloat(a.proceeds);

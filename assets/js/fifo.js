@@ -430,7 +430,9 @@ export function splitFactorAfter(corporateActions, symbol, date) {
 /**
  * Hotovost u brokera k datu. Každý broker dává jiné rozlišení:
  *   IBKR — denní NAV snapshoty z Flex (`cash` v base měně účtu)
- *   KB   — kvartální snapshoty ze STAV PTF (`cash_history`, po měnách)
+ *   KB   — kvartální snapshoty ze STAV PTF (`cash_history`, po měnách); mezi
+ *          výpisy může být snapshot s `estimate: true` (výpis + prodeje
+ *          z potvrzení o obchodu), který se nesmí vydávat za výpis
  * Vrací i `asOf` datum snapshotu: když je starší než dotaz, volající to musí
  * přiznat — jinak by se stav tvářil přesněji, než ve skutečnosti je.
  *
@@ -467,7 +469,7 @@ export function cashAtDate(portfolio, date) {
     if (s.date <= date && (!snap || s.date > snap.date)) snap = s;
   }
   if (snap) {
-    return { asOf: snap.date, cash: { ...snap.cash }, daily: false, source: snap.source };
+    return { asOf: snap.date, cash: { ...snap.cash }, daily: false, estimate: snap.estimate === true, source: snap.source };
   }
   return null;
 }

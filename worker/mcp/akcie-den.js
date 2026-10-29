@@ -283,6 +283,7 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
       hodnota_celkem_czk: round(celkem, 0),
       cash_k: c ? c.asOf : null,
       cash_denni: c ? c.daily : false,
+      cash_odhad: c ? c.estimate === true : false,
       cash_zdroj: c ? c.source : "cash_balance – poslední známý zůstatek z evidence, ne k datu",
       cash_meny: cashMeny,
       den: denOut(zmena, pozice, obchodovalo, neobchodovalo, chybi),

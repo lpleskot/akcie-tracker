@@ -62,6 +62,20 @@ export function ensureInstrument(portfolio, symbol, flexRow) {
   };
 }
 
+// IBKR občas vede titul pod jiným symbolem než statický JSON – Evolution je ve statickém
+// JSON „EVO“, ve Flexu „EVOG.ST“ (stejné ISIN). Symbol, který instruments neznají, se proto
+// páruje na instrument se stejným ISIN a měnou; jinak by prodej pod novým symbolem byl
+// prodej bez nákupu a dividenda nový titul. Měna drží od sebe dvě kotace téhož ISIN (Shell
+// v GBP a v EUR jsou u IBKR dvě pozice), víc kandidátů = nepárovat.
+export function symbolByIsin(instruments, row) {
+  const sym = row.symbol;
+  if (!sym || !row.isin || instruments[sym]) return sym;
+  const hits = Object.keys(instruments).filter(
+    (s) => instruments[s].isin === row.isin && instruments[s].currency === row.currency,
+  );
+  return hits.length === 1 ? hits[0] : sym;
+}
+
 // Flex datum yyyyMMdd → "yyyy-MM-dd"
 export function flexDate(s) {
   if (!s) return null;

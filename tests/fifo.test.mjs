@@ -296,7 +296,13 @@ test("cashAtDate: KB kvartální snapshot — přizná datum, ze kterého pochá
   // Uprostřed kvartálu se vrací starší snapshot — volající to musí zobrazit
   const mid = cashAtDate(p, "2025-11-15");
   assert.equal(mid.asOf, "2025-09-30");
+  assert.equal(mid.estimate, false);
   close(mid.cash.USD, 48189.36);
+  // Odhad mezi výpisy (výpis + prodeje z potvrzení o obchodu) se přizná příznakem
+  p.cash_history.push({ date: "2025-11-10", source: "výpis k 30. 9. + prodeje", estimate: true, cash: { USD: 60000 } });
+  const est = cashAtDate(p, "2025-11-15");
+  assert.deepEqual([est.asOf, est.estimate, est.source], ["2025-11-10", true, "výpis k 30. 9. + prodeje"]);
+  assert.equal(cashAtDate(p, "2025-12-31").estimate, false);
 });
 
 test("cashAtDate: před prvním snapshotem a bez dat → null", () => {

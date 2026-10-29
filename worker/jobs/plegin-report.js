@@ -310,11 +310,13 @@ function contextBody(den, accounts, fresh) {
 
   for (const acc of accounts) {
     if (acc.p.cash_denni) continue;
-    paragraphs.push(
-      acc.p.cash_k
-        ? `Hotovost ${acc.label} je ze čtvrtletního výpisu k ${dmy(acc.p.cash_k)}.`
-        : `Hotovost ${acc.label} je poslední známý zůstatek z evidence.`,
-    );
+    let sentence = `Hotovost ${acc.label} je poslední známý zůstatek z evidence.`;
+    if (acc.p.cash_odhad) {
+      sentence = `Hotovost ${acc.label} je odhad k ${dmy(acc.p.cash_k)}: ${acc.p.cash_zdroj}.`;
+    } else if (acc.p.cash_k) {
+      sentence = `Hotovost ${acc.label} je ze čtvrtletního výpisu k ${dmy(acc.p.cash_k)}.`;
+    }
+    paragraphs.push(sentence);
   }
   paragraphs.push(...(den.varovani || []));
   if (!fresh) paragraphs.push(STALE_SENTENCE);

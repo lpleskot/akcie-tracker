@@ -11,6 +11,7 @@ import {
   isForexConversion,
   deriveYahooSymbol,
   ensureInstrument,
+  symbolByIsin,
   flexDate,
   flexTime,
 } from "../assets/js/flex-shared.js";
@@ -80,6 +81,22 @@ test("ensureInstrument: doplní auto-added, nepřepisuje existující", () => {
   assert.equal(p.instruments.CSG._auto_added, true);
   ensureInstrument(p, "AAPL", { description: "JINÝ NÁZEV" });
   assert.equal(p.instruments.AAPL.name, "Apple"); // nezměněno
+});
+
+test("symbolByIsin: neznámý symbol IBKR se páruje přes ISIN a měnu", () => {
+  const inst = {
+    EVO: { isin: "SE0012673267", currency: "SEK" },
+    SHEL: { isin: "GB00BP6MXD84", currency: "GBP" },
+  };
+  const evo = { symbol: "EVOG.ST", isin: "SE0012673267", currency: "SEK" };
+  assert.equal(symbolByIsin(inst, evo), "EVO");
+  // známý symbol a řádek bez ISIN zůstávají
+  assert.equal(symbolByIsin(inst, { ...evo, symbol: "EVO" }), "EVO");
+  assert.equal(symbolByIsin(inst, { symbol: "EVOG.ST", currency: "SEK" }), "EVOG.ST");
+  // stejné ISIN v jiné měně = druhá kotace, nový titul
+  assert.equal(symbolByIsin(inst, { symbol: "SHELL", isin: "GB00BP6MXD84", currency: "EUR" }), "SHELL");
+  // dva instrumenty se stejným ISIN a měnou – nejde poznat, ke kterému patří
+  assert.equal(symbolByIsin({ ...inst, EVO2: { isin: "SE0012673267", currency: "SEK" } }, evo), "EVOG.ST");
 });
 
 test("flexDate/flexTime: formáty a null vstupy", () => {

@@ -283,3 +283,32 @@ test("mergeOverlayIntoPortfolio: split z IBKR se započítá jednou, i když je 
   assert.equal(q.corporate_actions.length, 1);
   assert.equal(computePositions(q.transactions, q.corporate_actions).AAA.net_qty, 20);
 });
+
+test("mergeOverlayIntoPortfolio: titul pod jiným symbolem IBKR se spáruje přes ISIN (EVOG.ST = EVO)", () => {
+  const p = {
+    transactions: [
+      { symbol: "EVO", date: "2025-12-16", settle_date: "2025-12-18", type: "BUY", quantity: 150, price: 634.2, proceeds: -95130, commission: -49 },
+    ],
+    instruments: { EVO: { isin: "SE0012673267", currency: "SEK", exchange: "SFB", yahoo_symbol: "EVO.ST" } },
+    cash_balance: {},
+  };
+  const evo = { symbol: "EVOG.ST", isin: "SE0012673267", currency: "SEK", listingExchange: "SFB", description: "EVOLUTION AB" };
+  mergeOverlayIntoPortfolio(p, {
+    trades: [
+      { ...evo, tradeID: "T9", tradeDate: "20261105", settleDateTarget: "20261107", buySell: "SELL", quantity: "-50", tradePrice: "850", proceeds: "42500", ibCommission: "-49", netCash: "42451" },
+    ],
+    cash_transactions: [
+      { ...evo, transactionID: "D9", type: "Dividends", amount: "4500", dateTime: "20261110" },
+      { ...evo, transactionID: "W9", type: "Withholding Tax", amount: "-675", dateTime: "20261110" },
+    ],
+  }, FX);
+
+  assert.deepEqual(Object.keys(p.instruments), ["EVO"]); // žádný nový titul EVOG.ST
+  assert.deepEqual([p.transactions[1].symbol, p.transactions[1].flex_symbol], ["EVO", "EVOG.ST"]);
+  assert.deepEqual([p.dividends[0].symbol, p.withholding_tax[0].symbol], ["EVO", "EVO"]);
+  const pos = computePositions(p.transactions, p.corporate_actions, p.dividends, p.withholding_tax).EVO;
+  assert.equal(pos.net_qty, 100);
+  // prodej se spároval s nákupem – žádný „prodej bez odpovídajícího nákupu“
+  assert.equal(pos.closed_lots.filter((l) => l.orphan).length, 0);
+  close(p.cash_balance.SEK, 42451 + 4500 - 675);
+});

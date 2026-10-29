@@ -115,6 +115,20 @@ test("Kontext 27. 10.: účty a tituly dne, hvězdička, hotovost KB, nečerstv�
   ]);
 });
 
+test("Kontext: odhad hotovosti KB mezi výpisy se nevydává za výpis", () => {
+  const d = den("2026-10-27");
+  Object.assign(d.portfolia.find((p) => p.id === "plegi-invest-kb"), {
+    cash_k: "2026-10-29",
+    cash_odhad: true,
+    cash_zdroj: "výpis k 30. 9. 2026 + prodeje z 29. 10. 2026 podle potvrzení o obchodu",
+  });
+  const body = plain(buildPleginReport(d).sections[3].body);
+  assert.ok(body.includes(
+    "Hotovost KB je odhad k 29. 10. 2026: výpis k 30. 9. 2026 + prodeje z 29. 10. 2026 podle potvrzení o obchodu.",
+  ));
+  assert.ok(!body.includes("ze čtvrtletního výpisu"));
+});
+
 test("Kontext při poklesu: vede účet, který den nejvíc stáhl dolů", () => {
   const body = plain(buildPleginReport(den("2026-10-26")).sections[3].body);
   assert.match(body, /^Den táhl dolů hlavně účet IBKR \(−104 751 Kč\) kvůli NU · Nu Holdings \(/);

@@ -3974,7 +3974,9 @@ async function buildPositionsAt() {
           notes.push(
             c.daily
               ? `poslední snapshot z ${fmtCzDate(c.asOf)}`
-              : `kvartální snapshot k ${fmtCzDate(c.asOf)}`,
+              : c.estimate
+                ? `odhad k ${fmtCzDate(c.asOf)} (${c.source})`
+                : `kvartální snapshot k ${fmtCzDate(c.asOf)}`,
           );
         }
         if (fx == null) notes.push(`chybí kurz ČNB ${ccy}`);
