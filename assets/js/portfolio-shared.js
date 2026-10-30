@@ -255,14 +255,33 @@ export function cashToCzk(cash, fxRates, date, opts) {
 }
 
 /**
+ * Kurz ČNB k datu pro výpočty v Kč. Strict, s `estimateLatest` dostane den po
+ * posledním dni v kurzech (čerstvý obchod, kurz ještě nevyhlášený) poslední
+ * známý kurz s příznakem `estimated` — jen pro odhady na obrazovce, účetní
+ * výstupy (Report pro účetní, Realizováno) zůstávají strict. Díra v kurzech
+ * uprostřed historie se neodhaduje.
+ */
+function fxRateAt(fxRates, { estimateLatest = false } = {}) {
+  const lastDate = estimateLatest ? Object.keys(fxRates?.dates || {}).sort().pop() : null;
+  return (date, currency) => {
+    const fx = fxToCzk(fxRates, date, currency);
+    if (fx != null || !lastDate || date <= lastDate) return { fx, date, estimated: false };
+    const est = fxToCzk(fxRates, lastDate, currency);
+    return { fx: est, date: lastDate, estimated: est != null };
+  };
+}
+
+/**
  * Realizované prodeje v období v Kč — výpočet Reportu pro účetní, jeho exportu
  * i daňového přehledu (jedna metodika, žádné kopie). Closed loty FIFO se
  * seskupí po (symbol, datum vypořádání prodeje), nákupy se sloučí po datu
  * vypořádání. Účetně rozhoduje datum VYPOŘÁDÁNÍ — určuje rok i kurz ČNB.
  * Kurzy strict: chybí-li kterýkoli, profitCzk = null — chybějící nákupní kurz
  * by se jinak sečetl jako nula a ze ztráty udělal zisk (TTD 2026-07).
+ * `estimateLatest` (Prodané pozice) viz fxRateAt — událost s odhadnutým
+ * kurzem má `estimated`.
  */
-export function realizedSales(positions, instruments, fxRates, { from, to } = {}) {
+export function realizedSales(positions, instruments, fxRates, { from, to, estimateLatest = false } = {}) {
   const eventsMap = new Map();
   for (const sym in positions) {
     for (const cl of positions[sym].closed_lots || []) {
@@ -303,6 +322,7 @@ export function realizedSales(positions, instruments, fxRates, { from, to } = {}
   // Den vyhlášení kurzu (o víkendu/svátku poslední vyhlášený) — účetní ho chce
   // vidět vedle kurzu
   const validFor = (date) => fxRates?.dates?.[date]?.valid_for || null;
+  const rateAt = fxRateAt(fxRates, { estimateLatest });
   for (const ev of events) {
     // IBKR dělí i nákupy v rámci dne — jeden řádek na datum vypořádání
     const byDate = new Map();
@@ -315,19 +335,24 @@ export function realizedSales(positions, instruments, fxRates, { from, to } = {}
     ev.buys = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
     let costCzk = 0;
     let allFxFound = true;
+    let estimated = false;
     for (const b of ev.buys) {
-      b.fx = fxToCzk(fxRates, b.date, ev.currency);
-      b.fxValidFor = b.fx != null ? validFor(b.date) : null;
+      const r = rateAt(b.date, ev.currency);
+      b.fx = r.fx;
+      b.fxValidFor = b.fx != null ? validFor(r.date) : null;
       b.czk = b.fx != null ? b.total * b.fx : null;
       if (b.czk == null) allFxFound = false;
       else costCzk += b.czk;
+      if (r.estimated) estimated = true;
     }
     ev.costCzk = costCzk;
-    ev.sellFx = fxToCzk(fxRates, ev.sell_date, ev.currency);
-    ev.sellFxValidFor = ev.sellFx != null ? validFor(ev.sell_date) : null;
+    const s = rateAt(ev.sell_date, ev.currency);
+    ev.sellFx = s.fx;
+    ev.sellFxValidFor = ev.sellFx != null ? validFor(s.date) : null;
     ev.sellCzk = ev.sellFx != null ? ev.sell_net_total * ev.sellFx : null;
     if (ev.sellFx == null) allFxFound = false;
     ev.allFxFound = allFxFound;
+    ev.estimated = estimated || s.estimated;
     ev.profitCzk = allFxFound ? ev.sellCzk - costCzk : null;
   }
   return events;
@@ -341,18 +366,13 @@ export function realizedSales(positions, instruments, fxRates, { from, to } = {}
  * odhady (daňový přehled), ne pro účetní výstupy.
  */
 export function openLotsCostCzk(lots, currency, fxRates, { estimateLatest = false } = {}) {
-  const lastDate = estimateLatest ? Object.keys(fxRates?.dates || {}).sort().pop() : null;
+  const rateAt = fxRateAt(fxRates, { estimateLatest });
   let czk = 0;
   let ok = true;
   let estimated = false;
   const out = (lots || []).map((lot) => {
     const date = lot.settle_date || lot.date;
-    let fx = fxToCzk(fxRates, date, currency);
-    let est = false;
-    if (fx == null && lastDate && date > lastDate) {
-      fx = fxToCzk(fxRates, lastDate, currency);
-      est = fx != null;
-    }
+    const { fx, estimated: est } = rateAt(date, currency);
     const cost = lot.qty * lot.cost_per_unit;
     const lotCzk = fx != null ? cost * fx : null;
     if (lotCzk == null) ok = false;
@@ -361,6 +381,96 @@ export function openLotsCostCzk(lots, currency, fxRates, { estimateLatest = fals
     return { ...lot, fxDate: date, fx, cost, czk: lotCzk, estimated: est };
   });
   return { czk: ok ? czk : null, lots: out, estimated };
+}
+
+/**
+ * Prodané pozice (Přehled pozic → Prodané): tituly bez držených kusů s aspoň
+ * jedním prodejem. Kusy, průměrné ceny a výsledek z prodeje jsou z FIFO closed
+ * lotů vč. komisí (stejně jako Realiz. Z/Z), dividendy čistě po sražené dani.
+ * Dividendy v jiné měně než titul (NOV.DE v DKK) se v měně nesčítají — úplný
+ * výsledek dá jen Kč: prodeje metodikou Reportu pro účetní (kurz ČNB k datu
+ * vypořádání) + každá dividenda a sražená daň kurzem ČNB k datu výplaty.
+ * `estimateLatest` viz fxRateAt. Seřazené od posledního prodeje.
+ */
+export function closedPositions(positions, instruments, fxRates, { estimateLatest = false } = {}) {
+  const salesBySymbol = new Map();
+  for (const ev of realizedSales(positions, instruments, fxRates, { estimateLatest })) {
+    if (!salesBySymbol.has(ev.symbol)) salesBySymbol.set(ev.symbol, []);
+    salesBySymbol.get(ev.symbol).push(ev);
+  }
+  const rateAt = fxRateAt(fxRates, { estimateLatest });
+  const rows = [];
+  for (const [symbol, pos] of Object.entries(positions || {})) {
+    if (pos.net_qty > 0) continue;
+    const lots = (pos.closed_lots || []).filter((c) => !c.orphan);
+    if (lots.length === 0) continue;
+    const inst = instruments?.[symbol] || {};
+    let qty = 0;
+    let cost = 0;
+    let proceeds = 0;
+    for (const c of lots) {
+      qty += c.qty;
+      cost += c.qty * c.buy_cost_per_unit;
+      proceeds += c.qty * c.sell_net_per_unit;
+    }
+    const realized = proceeds - cost;
+
+    const income = [...(pos.dividend_records || []), ...(pos.withholding_records || [])];
+    const incomeCurrencies = [...new Set(income.map((d) => d.currency))];
+    const dividendCurrency = incomeCurrencies.length === 1 ? incomeCurrencies[0] : null;
+    const sumAmounts = (records) => (records || []).reduce((sum, d) => sum + (d.amount || 0), 0);
+    const dividendsGross = dividendCurrency ? sumAmounts(pos.dividend_records) : null;
+    const withheld = dividendCurrency ? sumAmounts(pos.withholding_records) : null;
+    const dividends = dividendCurrency ? dividendsGross + withheld : null;
+    const total = realized + (dividendCurrency === inst.currency ? dividends : 0);
+
+    const sales = salesBySymbol.get(symbol) || [];
+    const salesMissing = sales.filter((ev) => !ev.allFxFound).map((ev) => `prodej vypořádaný ${ev.sell_date}`);
+    const saleCzk = salesMissing.length ? null : sales.reduce((sum, ev) => sum + ev.profitCzk, 0);
+    let estimated = sales.some((ev) => ev.estimated);
+    const dividendsMissing = [];
+    let dividendsCzk = 0;
+    for (const d of income) {
+      const r = rateAt(d.date, d.currency);
+      if (r.fx == null) {
+        dividendsMissing.push(`dividenda ${d.date}`);
+        continue;
+      }
+      dividendsCzk += (d.amount || 0) * r.fx;
+      if (r.estimated) estimated = true;
+    }
+    const missingFx = [...salesMissing, ...dividendsMissing];
+
+    rows.push({
+      symbol,
+      name: inst.name,
+      exchange: inst.exchange,
+      currency: inst.currency,
+      firstBuy: lots.reduce((min, c) => (c.buy_date < min ? c.buy_date : min), lots[0].buy_date),
+      lastSell: lots.reduce((max, c) => (c.sell_date > max ? c.sell_date : max), lots[0].sell_date),
+      qty,
+      cost,
+      proceeds,
+      avgBuy: cost / qty,
+      avgSell: proceeds / qty,
+      realized,
+      hasDividends: income.length > 0,
+      dividendsGross,
+      withheld,
+      dividends,
+      dividendCurrency,
+      total,
+      totalPct: cost > 0 ? (total / cost) * 100 : 0,
+      saleCzk,
+      dividendsCzk: dividendsMissing.length ? null : dividendsCzk,
+      totalCzk: missingFx.length ? null : saleCzk + dividendsCzk,
+      estimated,
+      missingFx,
+      sales,
+      orphanQty: (pos.closed_lots || []).filter((c) => c.orphan).reduce((sum, c) => sum + c.qty, 0),
+    });
+  }
+  return rows.sort((a, b) => b.lastSell.localeCompare(a.lastSell) || a.symbol.localeCompare(b.symbol));
 }
 
 const toMs = (d) => (d instanceof Date ? d.getTime() : new Date(d).getTime());

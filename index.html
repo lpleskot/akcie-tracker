@@ -47,6 +47,12 @@
 
       <section id="view-overview" class="view active">
         <div class="filter-bar">
+          <span class="filter-label">Zobrazit:</span>
+          <div class="filter-chips" id="overview-mode">
+            <button class="filter-chip active" type="button" data-mode="open" data-label="Držené" aria-pressed="true">Držené</button>
+            <button class="filter-chip" type="button" data-mode="closed" data-label="Prodané" aria-pressed="false">Prodané</button>
+          </div>
+          <span class="filter-divider">·</span>
           <span class="filter-label">Hledat:</span>
           <div class="search-wrap">
             <input
@@ -60,7 +66,13 @@
           </div>
           <span class="filter-count" id="overview-count"></span>
         </div>
-        <div class="table-wrap">
+        <div class="report-intro muted" id="closed-intro" hidden>
+          Tituly, které už jsou celé prodané. Ceny a výsledek podle FIFO včetně komisí v měně titulu,
+          <strong>Celkem v Kč</strong> = výsledek prodejů kurzem ČNB k datu vypořádání (jako Report pro
+          účetní) + čisté dividendy kurzem ČNB k datu výplaty. Klikni na Celkem Z/Z – ukáže nákupy,
+          prodeje a dividendy. Částečně prodané tituly zůstávají v Držených, jejich prodeje jsou v detailu.
+        </div>
+        <div class="table-wrap" id="overview-wrap">
           <table id="tbl-overview">
             <thead>
               <tr>
@@ -94,6 +106,44 @@
               </tr>
             </thead>
             <tbody></tbody>
+          </table>
+        </div>
+        <div class="table-wrap" id="closed-wrap" hidden>
+          <table id="tbl-closed">
+            <thead>
+              <tr>
+                <th class="sortable" data-sort-key="symbol">Symbol</th>
+                <th class="sortable" data-sort-key="name">Název</th>
+                <th class="sortable" data-sort-key="currency">Měna</th>
+                <th class="sortable" data-sort-key="firstBuy">Nakoupeno<span class="hint" title="Den prvního nákupu (obchodu).">i</span></th>
+                <th class="sortable" data-sort-key="lastSell">Prodáno<span class="hint" title="Den posledního prodeje (obchodu). Účetně a pro kurz ČNB rozhoduje den vypořádání – v USA den po obchodu, v Evropě dva pracovní dny po obchodu.">i</span></th>
+                <th class="num sortable" data-sort-key="qty">Kusů</th>
+                <th class="num sortable" data-sort-key="avgBuy">
+                  Ø nákup/ks<span class="hint" title="Průměrná nákupní cena prodaných kusů včetně alikvotní komise (FIFO).">i</span>
+                </th>
+                <th class="num sortable" data-sort-key="avgSell">
+                  Ø prodej/ks<span class="hint" title="Průměrná prodejní cena po odečtení alikvotní komise.">i</span>
+                </th>
+                <th class="num sortable" data-sort-key="realized">
+                  <span class="th-label">Z/Z<br>z prodeje<span class="hint" title="Za kolik se prodalo minus za kolik se nakoupilo, obojí včetně komisí (FIFO) – totéž jako Realiz. Z/Z.">i</span></span>
+                </th>
+                <th class="num sortable" data-sort-key="dividends">
+                  <span class="th-label">Dividendy<br>čistě<span class="hint" title="Dividendy za dobu držení po sražené dani. Dividendy v jiné měně než titul se do Celkem Z/Z nesčítají – úplný výsledek ukazuje Celkem v Kč.">i</span></span>
+                </th>
+                <th class="num sortable" data-sort-key="total">
+                  <span class="th-label">Celkem<br>Z/Z<span class="hint" title="Z/Z z prodeje + čisté dividendy v měně titulu. Klikněte pro detail nákupů, prodejů a dividend.">i</span></span>
+                </th>
+                <th class="num sortable" data-sort-key="totalPct">
+                  %<span class="hint" title="Celkem Z/Z ÷ nákupní cena prodaných kusů.">i</span>
+                </th>
+                <th class="num sortable" data-sort-key="totalCzk">
+                  <span class="th-label">Celkem<br>v Kč<span class="hint" title="Výsledek prodejů kurzem ČNB k datu vypořádání nákupu i prodeje (jako Report pro účetní) + každá dividenda a sražená daň kurzem ČNB k datu výplaty. ≈ = odhad: kurz k vypořádání ještě není vyhlášený, použitý je poslední známý.">i</span></span>
+                </th>
+                <th>Akce</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot id="tfoot-closed"></tfoot>
           </table>
         </div>
       </section>

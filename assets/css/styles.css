@@ -1124,6 +1124,9 @@ tfoot td {
     min-width: 44px;
     min-height: 44px;
   }
+  .filter-chip {
+    min-height: 44px;
+  }
 }
 
 /* Inventurní výpis — oficiální znění nadpisu (tiskne se i do PDF) */
@@ -1317,6 +1320,15 @@ th.num {
 
 td.symbol {
   font-weight: 600;
+}
+/* Prodané pozice mají víc sloupců než držené — dlouhý název z KB („LVMH MOET
+   HENNESSY LOUIS VUITT") se zkrátí, celý je v title. Span, protože max-width
+   na buňce tabulky prohlížeče nerespektují. */
+.cell-name {
+  display: block;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 td.muted,

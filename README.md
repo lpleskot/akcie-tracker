@@ -26,6 +26,8 @@ Privátní portfolio tracker pro PLEGI invest přes Interactive Brokers a Komer�
 - Aktuální cena z Yahoo Finance + nerealizovaná Z/Z + realizovaná Z/Z z prodejů
 - Klik na hodnotu Z/Z rozbalí detail (nákupy, prodeje, splity, FIFO matching, dividendy, Total Return)
 - Sort + search po ticker/název
+- Přepínač **Držené / Prodané** – prodané tituly s nákupem a prodejem, Ø cenami,
+  výsledkem z prodeje, dividendami a výsledkem v Kč (kurzy ČNB jako Report pro účetní)
 
 ### Alokace
 - Váha pozice v portfoliu ve **dvou pohledech** současně: aktuální tržní hodnota
@@ -129,7 +131,7 @@ cd web/
 node --test tests/*.test.mjs
 ```
 
-93 unit testů (FIFO engine, inventura k datu, Flex transformace a merge overlay, MCP a ranní report, Daňová optimalizace) – ručně spočítané fixtures.
+98 unit testů (FIFO engine, inventura k datu, Flex transformace a merge overlay, MCP a ranní report, Daňová optimalizace, Prodané pozice) – ručně spočítané fixtures.
 Běží i v CI při každém pushi (`.github/workflows/tests.yml`).
 
 ## Lokální vývoj

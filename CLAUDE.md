@@ -267,6 +267,18 @@ flowchart TD
 - **Přehled pozic:** expandable detail per pozice (nákupy/prodeje/FIFO matching/split/
   dividendy/Total Return + Poznámka), sloupce vč. **Nereal. Z/Z** (jen otevřené loty)
   a **Celkem Z/Z** (real + nereal + dividendy).
+  **Přepínač Držené / Prodané (od 2026-10-30):** Prodané = tituly bez držených kusů
+  s aspoň jedním prodejem (`closedPositions()` v `portfolio-shared.js`; částečně
+  prodané zůstávají v Držených). Sloupce: nakoupeno / prodáno (dny obchodu), kusy,
+  Ø nákup a Ø prodej (FIFO vč. komisí), Z/Z z prodeje, čisté dividendy, Celkem Z/Z, %
+  a **Celkem v Kč** = prodeje přes `realizedSales` (kurz ČNB k vypořádání jako Report)
+  + každá dividenda a sražená daň kurzem k datu výplaty. Dividendy v jiné měně než
+  titul (NOV.DE v DKK, PKN.WA v PLN, EVO.ST v EUR) se v měně nesčítají, úplný výsledek
+  dá jen Kč. Čerstvý prodej s vypořádáním po posledním dni v kurzech = odhad posledním
+  kurzem (`estimateLatest`, „≈"); Report pro účetní a Realizováno zůstávají strict.
+  Patička sčítá jen Kč. Detail (klik na Celkem Z/Z) je stejný `buildDetailRow` bez
+  otevřených lotů, souhrn v Kč místo dnešního kurzu. Export XLSX v režimu Prodané =
+  tabulka Prodaných (`exportClosedPositionsXlsx`).
 - **Transakce:** filter rok / custom date / search, **Export pro účetní** (CZK přepočet ČNB) jen tady.
 - **Report pro účetní:** seskupený **per ticker** (abecedně, jedna karta na symbol) —
   uvnitř prodeje chronologicky, každý se svými FIFO matched nákupy a ziskem, dole
@@ -475,7 +487,7 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared,portfolio-shared,akcie-den,plegin-report,tax-optimization}.test.mjs` — 93 unit testů
+`tests/{fifo,flex-shared,portfolio-shared,akcie-den,plegin-report,tax-optimization,closed-positions}.test.mjs` — 98 unit testů
 (`node --test tests/*.test.mjs`), ručně spočítané fixtures: FIFO matching + prorace komise,
 proceeds-authoritative ceny, splity (vč. same-day pořadí a 1:25), KB received/removed
 párování + bonus/cancellation, orphan sells, settle data v closed lots, dividendy, Flex
@@ -490,7 +502,8 @@ neznámý ticker, víkend a pojistka v létě/zimě, běh s falešným KV a PLEG
 ručního běhu), Daňová optimalizace (prodeje v Kč a strict kurzy, pořizovací cena lotů
 s odhadem čerstvého nákupu, kurzový rozdíl, delisted a chybějící cena mimo součty, rok
 podle vypořádání, dividendy, simulace, zpětné odečtení ztráty a dopočty v
-`data/tax-returns.json`). CI: `.github/workflows/tests.yml` při každém pushi (neblokuje
+`data/tax-returns.json`), Prodané pozice (souhrn v měně i v Kč, odhad kurzu čerstvého
+prodeje, dividendy v jiné měně). CI: `.github/workflows/tests.yml` při každém pushi (neblokuje
 deploy — červený běh = signál). Uzavírá REVIZE R9 (2026-07-25).
 
 **Lokální `wrangler dev`:** stav persistovat MIMO repo

@@ -14,6 +14,7 @@ import {
   amountToUsd,
   capitalFlowsUsd,
   cashToCzk,
+  closedPositions,
   fxToCzk,
   mergeOverlayIntoPortfolio,
   openLotsCostCzk,
@@ -64,6 +65,9 @@ const state = {
   // Daňová optimalizace (za celou společnost) — sestaví se při prvním otevření tabu
   taxOpt: { data: null, loading: false, selected: new Set(), sort: { key: "pnlCzk", dir: "asc" } },
   sort: { key: "sym", dir: "asc" },
+  // Přehled pozic: držené („open“), nebo celé prodané tituly („closed“) s vlastním řazením
+  overviewMode: "open",
+  closedSort: { key: "lastSell", dir: "desc" },
   txFilter: { from: null, to: null },
   reportFilter: { from: null, to: null },
   divFilter: { year: null },
@@ -154,6 +158,7 @@ async function init() {
   setupRefresh();
   setupSort();
   setupExpand();
+  setupOverviewMode();
   setupTxFilter();
   setupDivFilter();
   setupReportFilter();
@@ -2049,6 +2054,16 @@ function setupOverviewSearch() {
 }
 
 function renderOverview() {
+  const closed = closedPositions(state.positions, state.portfolio.instruments, state.fxRates, { estimateLatest: true });
+  const totalOpen = Object.values(state.positions).filter(
+    (p) => p && p.net_qty > 0,
+  ).length;
+  renderOverviewMode(totalOpen, closed.length);
+  if (state.overviewMode === "closed") {
+    renderClosedPositions(closed);
+    return;
+  }
+
   const tbody = document.querySelector("#tbl-overview tbody");
   tbody.innerHTML = "";
 
@@ -2077,9 +2092,6 @@ function renderOverview() {
   // 3b) Counter
   const countEl = document.getElementById("overview-count");
   if (countEl) {
-    const totalOpen = Object.values(state.positions).filter(
-      (p) => p && p.net_qty > 0,
-    ).length;
     countEl.textContent =
       rows.length === totalOpen
         ? `${totalOpen} otevřených pozic`
@@ -2088,17 +2100,6 @@ function renderOverview() {
 
   // 4) Vykreslit
   for (const r of rows) {
-    // Akce v ⋯ menu: poznámka vždy; watchlist akce podle stavu — pozice
-    // ještě nesledovaná → přidat, už sledovaná → aktualizovat značku
-    // (páruje se přes yahoo_symbol, stejný klíč jako dedupe v API).
-    const hasNote = !!state.notes?.[r.sym];
-    const watchItem = (state.watchlist?.items || []).find(
-      (it) => it.yahoo_symbol === r.inst.yahoo_symbol || it.symbol === r.sym,
-    );
-    const watchActionHtml = watchItem
-      ? `<li><button type="button" role="menuitem" data-watch-mark="${watchItem.id}" data-current-price="${r.hasPrice ? r.currentPrice : ""}" ${r.hasPrice ? "" : "disabled"}>Aktualizovat značku</button></li>`
-      : `<li><button type="button" role="menuitem" data-pos-watch-add="${r.sym}">Přidat do watchlistu</button></li>`;
-
     const tr = document.createElement("tr");
     tr.className = "position";
     tr.dataset.sym = r.sym;
@@ -2115,29 +2116,202 @@ function renderOverview() {
       <td class="num ${signClass(r.unrealizedPnl)}" title="Nerealizovaná Z/Z = Hodnota pozice − Nákupní cena pozice (jen otevřené loty).${r.hasRealized ? ' Tento ticker má historické realizované obchody — viz sloupec Celkem Z/Z pro celkový pohled.' : ''}">${r.hasPrice ? fmtNum(r.unrealizedPnl, 2) : '<span class="muted">—</span>'}</td>
       <td class="num clickable ${signClass(r.totalPnl)}" data-action="expand" title="${r.hasDividends && !r.divSameCcy ? 'Pozor: dividendy v jiné měně než pozice — Total Return není sečteno. Vidíte jen kapitálovou Z/Z. Klikněte pro detail.' : 'Celkový (historický) Total Return = realizovaná Z/Z + nerealizovaná Z/Z + čisté dividendy. Klikněte pro detail.'}">${r.hasPrice ? fmtNum(r.totalPnl, 2) + (r.hasDividends && r.divSameCcy ? ' <span class="benchmark-tooltip">＋div</span>' : '') + ' <span class="caret">▾</span>' : '<span class="muted">—</span>'}</td>
       <td class="num ${signClass(r.totalPct)}">${r.hasPrice ? fmtPct(r.totalPct) : '<span class="muted">—</span>'}</td>
-      <td>
-        <div class="action-menu">
-          <button class="btn-action action-menu-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Zobrazit akce">⋯</button>
-          <ul class="action-menu-items" role="menu" hidden>
-            <li><button type="button" role="menuitem" data-note-edit-symbol="${r.sym}">${hasNote ? "Upravit poznámku" : "Přidat poznámku"}</button></li>
-            ${watchActionHtml}
-          </ul>
-        </div>
-      </td>
+      <td>${positionActionsHtml(r.sym, r.inst, r.hasPrice ? r.currentPrice : null)}</td>
     `;
     tbody.appendChild(tr);
   }
 }
 
-function setupExpand() {
-  const tbody = document.querySelector("#tbl-overview tbody");
-  tbody.addEventListener("click", (e) => {
-    const cell = e.target.closest('[data-action="expand"]');
-    if (!cell) return;
-    const tr = cell.closest("tr.position");
-    if (!tr) return;
-    toggleDetail(tr.dataset.sym, tr);
+// Akce v ⋯ menu u titulu (držené i prodané): poznámka vždy; watchlist akce podle
+// stavu — titul ještě nesledovaný → přidat, už sledovaný → aktualizovat značku
+// (páruje se přes yahoo_symbol, stejný klíč jako dedupe v API).
+function positionActionsHtml(sym, inst, price) {
+  const hasNote = !!state.notes?.[sym];
+  const watchItem = (state.watchlist?.items || []).find(
+    (it) => it.yahoo_symbol === inst.yahoo_symbol || it.symbol === sym,
+  );
+  const watchActionHtml = watchItem
+    ? `<li><button type="button" role="menuitem" data-watch-mark="${watchItem.id}" data-current-price="${price ?? ""}" ${price != null ? "" : "disabled"}>Aktualizovat značku</button></li>`
+    : `<li><button type="button" role="menuitem" data-pos-watch-add="${sym}">Přidat do watchlistu</button></li>`;
+  return `
+        <div class="action-menu">
+          <button class="btn-action action-menu-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Zobrazit akce">⋯</button>
+          <ul class="action-menu-items" role="menu" hidden>
+            <li><button type="button" role="menuitem" data-note-edit-symbol="${sym}">${hasNote ? "Upravit poznámku" : "Přidat poznámku"}</button></li>
+            ${watchActionHtml}
+          </ul>
+        </div>`;
+}
+
+// Přepínač Držené / Prodané: počty v tlačítkách, vidět je jen jedna z tabulek
+function renderOverviewMode(openCount, closedCount) {
+  const closedMode = state.overviewMode === "closed";
+  for (const btn of document.querySelectorAll("#overview-mode .filter-chip")) {
+    const active = btn.dataset.mode === state.overviewMode;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", String(active));
+    btn.textContent = `${btn.dataset.label} (${btn.dataset.mode === "closed" ? closedCount : openCount})`;
+  }
+  document.getElementById("overview-wrap").hidden = closedMode;
+  document.getElementById("closed-wrap").hidden = !closedMode;
+  document.getElementById("closed-intro").hidden = !closedMode;
+}
+
+function setupOverviewMode() {
+  document.getElementById("overview-mode").addEventListener("click", (e) => {
+    const btn = e.target.closest(".filter-chip");
+    if (!btn || btn.dataset.mode === state.overviewMode) return;
+    state.overviewMode = btn.dataset.mode;
+    renderOverview();
   });
+  document.querySelectorAll("#tbl-closed th.sortable").forEach((th) => {
+    th.addEventListener("click", (e) => {
+      if (e.target.classList.contains("hint")) return;
+      const key = th.dataset.sortKey;
+      if (state.closedSort.key === key) {
+        state.closedSort.dir = state.closedSort.dir === "asc" ? "desc" : "asc";
+      } else {
+        state.closedSort.key = key;
+        // Čísla a data: první klik = největší / nejnovější první; text abecedně
+        const newestFirst = th.classList.contains("num") || key === "firstBuy" || key === "lastSell";
+        state.closedSort.dir = newestFirst ? "desc" : "asc";
+      }
+      renderOverview();
+    });
+  });
+}
+
+const prodanych = (n) => (n === 1 ? "prodaná pozice" : n >= 2 && n <= 4 ? "prodané pozice" : "prodaných pozic");
+
+// Řádky Prodaných po hledání (stejné pole jako u držených) a v pořadí tabulky —
+// jeden zdroj pro obrazovku i XLSX export
+function sortedClosedRows(all) {
+  const q = state.searches.overview;
+  const rows = q ? all.filter((r) => `${r.symbol} ${r.name || ""}`.toLowerCase().includes(q)) : [...all];
+  const { key, dir } = state.closedSort;
+  const sign = dir === "desc" ? -1 : 1;
+  return rows.sort((a, b) => {
+    const va = a[key];
+    const vb = b[key];
+    // Bez hodnoty (chybí kurz, žádné dividendy) vždy na konec
+    if (va == null || vb == null) {
+      if (va == null && vb == null) return a.symbol.localeCompare(b.symbol, "cs");
+      return va == null ? 1 : -1;
+    }
+    const c = typeof va === "string" ? va.localeCompare(vb, "cs") : va - vb;
+    return sign * c || a.symbol.localeCompare(b.symbol, "cs");
+  });
+}
+
+// Poslední den v kurzech ČNB — odhad Kč u čerstvého prodeje počítá s jeho kurzem
+function lastFxDate() {
+  return Object.keys(state.fxRates?.dates || {}).sort().pop() || null;
+}
+
+// Vzorce do title buněk Prodaných: čísla dosazená tak, jak se počítala
+function closedFormulas(r) {
+  const ccy = r.currency;
+  const divSame = !r.hasDividends || r.dividendCurrency === ccy;
+  const lastFx = lastFxDate();
+  const estimateNote =
+    r.estimated && lastFx
+      ? `Odhad: kurz ČNB k vypořádání ještě není vyhlášený, použitý je poslední známý k ${fmtCzDate(lastFx)}.`
+      : "";
+  return {
+    estimateNote,
+    realized: `Prodej ${fmtNum(r.proceeds, 2)} − nákup ${fmtNum(r.cost, 2)} = ${fmtNum(r.realized, 2)} ${ccy} (${fmtNum(r.qty, 0)} ks, komise v cenách).`,
+    dividends: !r.hasDividends
+      ? "Za dobu držení nepřišla žádná dividenda."
+      : r.dividendCurrency
+        ? `Dividendy ${fmtNum(r.dividendsGross, 2)} − sražená daň ${fmtNum(-r.withheld, 2)} = ${fmtNum(r.dividends, 2)} ${r.dividendCurrency}.`
+        : "Dividendy ve více měnách – součet je jen v Kč.",
+    total: divSame
+      ? `Z/Z z prodeje ${fmtNum(r.realized, 2)}${r.hasDividends ? ` + dividendy ${fmtNum(r.dividends, 2)}` : ""} = ${fmtNum(r.total, 2)} ${ccy}. Klikněte pro detail.`
+      : `Jen Z/Z z prodeje – dividendy jsou v jiné měně než titul, úplný výsledek ukazuje Celkem v Kč. Klikněte pro detail.`,
+    pct: `${fmtNum(r.total, 2)} ÷ nákup ${fmtNum(r.cost, 2)} ${ccy} = ${fmtPct(r.totalPct)}`,
+    czk:
+      r.totalCzk == null
+        ? `Chybí kurz ČNB: ${r.missingFx.join(", ")}.`
+        : `Z prodeje ${kcText(r.saleCzk)} + dividendy ${kcText(r.dividendsCzk)} = ${kcText(r.totalCzk)}.${estimateNote ? ` ${estimateNote}` : ""}`,
+  };
+}
+
+function renderClosedPositions(all) {
+  const rows = sortedClosedRows(all);
+  const tbody = document.querySelector("#tbl-closed tbody");
+  const tfoot = document.getElementById("tfoot-closed");
+  tbody.innerHTML = "";
+  const { key, dir } = state.closedSort;
+  document.querySelectorAll("#tbl-closed th.sortable").forEach((th) => {
+    const isSorted = th.dataset.sortKey === key;
+    th.classList.toggle("sorted", isSorted);
+    th.classList.toggle("desc", isSorted && dir === "desc");
+  });
+  document.getElementById("overview-count").textContent =
+    rows.length === all.length ? `${all.length} ${prodanych(all.length)}` : `${rows.length} z ${all.length} ${prodanych(all.length)}`;
+
+  const cols = document.querySelectorAll("#tbl-closed thead th").length;
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="${cols}" class="muted">${all.length ? "Hledání neodpovídá žádná prodaná pozice." : "V tomto portfoliu zatím není žádná celá prodaná pozice."}</td></tr>`;
+    tfoot.innerHTML = "";
+    return;
+  }
+
+  for (const r of rows) {
+    const inst = state.portfolio.instruments[r.symbol] || {};
+    const q = state.quotes[inst.yahoo_symbol] || {};
+    const f = closedFormulas(r);
+    const divHtml = !r.hasDividends
+      ? '<span class="muted">–</span>'
+      : r.dividendCurrency
+        ? `${fmtNum(r.dividends, 2)}${r.dividendCurrency !== r.currency ? ` <span class="muted">${escapeHtml(r.dividendCurrency)}</span>` : ""}`
+        : '<span class="muted">více měn</span>';
+    const tr = document.createElement("tr");
+    tr.className = "position";
+    tr.dataset.sym = r.symbol;
+    tr.innerHTML = `
+      <td class="symbol">${escapeHtml(r.symbol)}${noteIconHtml(r.symbol)}</td>
+      <td><span class="cell-name" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span></td>
+      <td>${escapeHtml(r.currency)}</td>
+      <td>${fmtCzDate(r.firstBuy)}</td>
+      <td>${fmtCzDate(r.lastSell)}</td>
+      <td class="num">${fmtNum(r.qty, Number.isInteger(r.qty) ? 0 : 4)}</td>
+      <td class="num">${fmtNum(r.avgBuy, 4)}</td>
+      <td class="num">${fmtNum(r.avgSell, 4)}</td>
+      <td class="num ${signClass(r.realized)}" title="${escapeHtml(f.realized)}">${fmtNum(r.realized, 2)}</td>
+      <td class="num ${signClass(r.dividends)}" title="${escapeHtml(f.dividends)}">${divHtml}</td>
+      <td class="num clickable ${signClass(r.total)}" data-action="expand" title="${escapeHtml(f.total)}">${fmtNum(r.total, 2)} <span class="caret">▾</span></td>
+      <td class="num ${signClass(r.totalPct)}" title="${escapeHtml(f.pct)}">${fmtPct(r.totalPct)}</td>
+      <td class="num ${signClass(r.totalCzk)}" title="${escapeHtml(f.czk)}">${r.totalCzk != null ? `${r.estimated ? "≈ " : ""}${fmtNum(r.totalCzk, 0)}` : '<span class="muted">chybí kurz</span>'}</td>
+      <td>${positionActionsHtml(r.symbol, inst, q.price != null && !q.error ? q.price : null)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  // Napříč měnami jde sečíst jen Kč; pozice bez kurzu ČNB stranou
+  const withCzk = rows.filter((r) => r.totalCzk != null);
+  const sum = (field) => withCzk.reduce((s, r) => s + r[field], 0);
+  const missing = rows.length - withCzk.length;
+  const sumTitle = `Z prodeje ${kcText(sum("saleCzk"))} + dividendy ${kcText(sum("dividendsCzk"))} = ${kcText(sum("totalCzk"))}`;
+  tfoot.innerHTML = `
+    <tr>
+      <td colspan="${cols - 2}">Celkem ${rows.length} ${pozic(rows.length)}${missing ? ` <span class="muted">· bez kurzu ČNB mimo součet ${missing}</span>` : ""}</td>
+      <td class="num ${signClass(sum("totalCzk"))}" title="${escapeHtml(sumTitle)}"><strong>${withCzk.some((r) => r.estimated) ? "≈ " : ""}${fmtNum(sum("totalCzk"), 0)}</strong></td>
+      <td></td>
+    </tr>
+  `;
+}
+
+function setupExpand() {
+  for (const id of ["tbl-overview", "tbl-closed"]) {
+    document.querySelector(`#${id} tbody`).addEventListener("click", (e) => {
+      const cell = e.target.closest('[data-action="expand"]');
+      if (!cell) return;
+      const tr = cell.closest("tr.position");
+      if (!tr) return;
+      toggleDetail(tr.dataset.sym, tr);
+    });
+  }
 }
 
 function toggleDetail(sym, tr) {
@@ -2152,13 +2326,14 @@ function toggleDetail(sym, tr) {
   document.querySelectorAll("tr.position.expanded").forEach((p) =>
     p.classList.remove("expanded"),
   );
-  // Vytvořit nový detail
-  const detail = buildDetailRow(sym);
+  // Vytvořit nový detail přes celou šířku tabulky (Držené a Prodané mají jiný počet sloupců)
+  const colSpan = tr.closest("table").querySelectorAll("thead th").length;
+  const detail = buildDetailRow(sym, colSpan);
   tr.after(detail);
   tr.classList.add("expanded");
 }
 
-function buildDetailRow(sym) {
+function buildDetailRow(sym, colSpan) {
   const inst = state.portfolio.instruments[sym];
   const pos = state.positions[sym];
   const q = state.quotes[inst.yahoo_symbol] || {};
@@ -2166,6 +2341,7 @@ function buildDetailRow(sym) {
   const hasPrice = currentPrice != null && !q.error;
   const u = unrealizedPnl(pos, currentPrice);
   const ccy = inst.currency;
+  const isClosed = !(pos.net_qty > 0);
 
   const txs = state.portfolio.transactions
     .filter((t) => t.symbol === sym)
@@ -2305,36 +2481,38 @@ function buildDetailRow(sym) {
     html.push(`</div>`);
   }
 
-  // Otevřené pozice
-  html.push(`<div class="detail-section">`);
-  html.push(
-    `<h4>Otevřené pozice (zbývá ${fmtNum(pos.net_qty, 0)} ks)</h4>`,
-  );
-  html.push(`<table class="mini"><tbody>`);
-  for (const lot of pos.open_lots) {
+  // Otevřené pozice — prodaný titul žádné nemá
+  if (!isClosed) {
+    html.push(`<div class="detail-section">`);
     html.push(
-      `<tr>
-        <td>${lot.date}</td>
-        <td class="num">${fmtNum(lot.qty, 0)} ks</td>
-        <td class="num muted">@ ${fmtNum(lot.price, 4)} (cost ${fmtNum(lot.cost_per_unit, 4)}/ks vč. komise)</td>
-        <td class="num"><strong>${fmtNum(lot.qty * lot.cost_per_unit, 2)} ${ccy}</strong></td>
-      </tr>`,
+      `<h4>Otevřené pozice (zbývá ${fmtNum(pos.net_qty, 0)} ks)</h4>`,
     );
+    html.push(`<table class="mini"><tbody>`);
+    for (const lot of pos.open_lots) {
+      html.push(
+        `<tr>
+          <td>${lot.date}</td>
+          <td class="num">${fmtNum(lot.qty, 0)} ks</td>
+          <td class="num muted">@ ${fmtNum(lot.price, 4)} (cost ${fmtNum(lot.cost_per_unit, 4)}/ks vč. komise)</td>
+          <td class="num"><strong>${fmtNum(lot.qty * lot.cost_per_unit, 2)} ${ccy}</strong></td>
+        </tr>`,
+      );
+    }
+    html.push(`</tbody></table>`);
+    if (hasPrice) {
+      // Nereal. % = unrealized / cost_basis_open_lots
+      const unrealizedPct =
+        pos.cost_basis > 0 ? (u.value / pos.cost_basis) * 100 : 0;
+      html.push(
+        `<div class="mini-total">Aktuální cena <strong>${fmtNum(currentPrice, 2)} ${ccy}</strong> → market value <strong>${fmtNum(u.market_value, 2)} ${ccy}</strong> &nbsp;·&nbsp; <strong class="${signClass(u.value)}">Nerealizovaná Z/Z: ${fmtNum(u.value, 2)} ${ccy} (${fmtPct(unrealizedPct)})</strong></div>`,
+      );
+    } else {
+      html.push(
+        `<div class="mini-total muted">Aktuální cena z Yahoo není dostupná</div>`,
+      );
+    }
+    html.push(`</div>`);
   }
-  html.push(`</tbody></table>`);
-  if (hasPrice) {
-    // Nereal. % = unrealized / cost_basis_open_lots
-    const unrealizedPct =
-      pos.cost_basis > 0 ? (u.value / pos.cost_basis) * 100 : 0;
-    html.push(
-      `<div class="mini-total">Aktuální cena <strong>${fmtNum(currentPrice, 2)} ${ccy}</strong> → market value <strong>${fmtNum(u.market_value, 2)} ${ccy}</strong> &nbsp;·&nbsp; <strong class="${signClass(u.value)}">Nerealizovaná Z/Z: ${fmtNum(u.value, 2)} ${ccy} (${fmtPct(unrealizedPct)})</strong></div>`,
-    );
-  } else {
-    html.push(
-      `<div class="mini-total muted">Aktuální cena z Yahoo není dostupná</div>`,
-    );
-  }
-  html.push(`</div>`);
 
   // Dividendy + withholding (pokud nějaké přišly)
   const hasDividends =
@@ -2366,8 +2544,11 @@ function buildDetailRow(sym) {
     html.push(`</tbody></table>`);
     const netLocal = pos.net_dividend_local;
     const netUsd = pos.net_dividend_usd;
-    let netLine = `<strong class="${signClass(netLocal)}">Čistý dividendový výnos: ${fmtNum(netLocal, 2)} ${ccy}</strong>`;
-    if (ccy !== "USD" && netUsd) {
+    // Součet je v měně dividend — u NOV.DE (EUR titul) jsou v DKK
+    const divCcys = [...new Set(merged.map((m) => m.currency))];
+    const netCcy = divCcys.length === 1 ? divCcys[0] : ccy;
+    let netLine = `<strong class="${signClass(netLocal)}">Čistý dividendový výnos: ${fmtNum(netLocal, 2)} ${netCcy}</strong>`;
+    if (netCcy !== "USD" && netUsd) {
       netLine += ` <span class="muted">(${fmtNum(netUsd, 2)} USD)</span>`;
     }
     html.push(`<div class="mini-total">${netLine}</div>`);
@@ -2375,8 +2556,10 @@ function buildDetailRow(sym) {
   }
 
   // Sumář — kapitálová Z/Z + dividendy = Total Return (stejný výpočet jako
-  // sloupec Celkem Z/Z v přehledu i MCP konektor)
-  if (hasPrice) {
+  // sloupec Celkem Z/Z v přehledu i MCP konektor); prodaný titul cenu nepotřebuje
+  if (isClosed) {
+    html.push(closedSummaryHtml(sym));
+  } else if (hasPrice) {
     const tr = positionTotalReturn(pos, ccy, currentPrice);
     const { capitalPnl, capitalPct } = tr;
     // Dividendy v jiné měně než pozice (NOV: EUR pozice, DKK dividendy)
@@ -2440,10 +2623,43 @@ function buildDetailRow(sym) {
   tr.className = "detail";
   tr.dataset.sym = sym;
   const td = document.createElement("td");
-  td.colSpan = 13; // celá šířka tabulky Přehledu (12 datových sloupců + Akce)
+  td.colSpan = colSpan;
   td.innerHTML = html.join("");
   tr.appendChild(td);
   return tr;
+}
+
+// Souhrn prodaného titulu v detailu: v měně z FIFO, v Kč kurzy ČNB k datům
+// vypořádání a výplat (stejná čísla jako řádek tabulky Prodané) — ne dnešním
+// kurzem jako u držených pozic
+function closedSummaryHtml(sym) {
+  const r = closedPositions(state.positions, state.portfolio.instruments, state.fxRates, { estimateLatest: true })
+    .find((row) => row.symbol === sym);
+  if (!r) return "";
+  const ccy = r.currency;
+  const f = closedFormulas(r);
+  const lines = [
+    `<div>Z/Z z prodeje: <span class="${signClass(r.realized)}"><strong>${fmtNum(r.realized, 2)} ${ccy}</strong></span> <span class="muted">= prodej ${fmtNum(r.proceeds, 2)} − nákup ${fmtNum(r.cost, 2)}</span></div>`,
+  ];
+  if (r.hasDividends) {
+    lines.push(
+      `<div>+ Čisté dividendy: <span class="${signClass(r.dividends)}"><strong>${r.dividendCurrency ? `${fmtNum(r.dividends, 2)} ${r.dividendCurrency}` : "více měn"}</strong></span></div>`,
+    );
+  }
+  if (!r.hasDividends || r.dividendCurrency === ccy) {
+    lines.push(
+      `<div class="tr-total-line">= <strong>CELKEM</strong>: <span class="${signClass(r.total)}"><strong>${fmtNum(r.total, 2)} ${ccy}</strong> (${fmtPct(r.totalPct)})</span></div>`,
+    );
+  } else {
+    lines.push(`<div class="muted small tr-note">Dividendy jsou v jiné měně než titul – v měně se nesčítají, úplný výsledek je v Kč.</div>`);
+  }
+  lines.push(
+    r.totalCzk != null
+      ? `<div>V Kč: z prodeje ${kcSigned(r.saleCzk)} + dividendy ${kcSigned(r.dividendsCzk)} = <strong>${r.estimated ? "≈ " : ""}${kcSigned(r.totalCzk)}</strong></div>`
+      : `<div class="muted">V Kč: ${escapeHtml(f.czk)}</div>`,
+  );
+  const note = f.estimateNote || "Prodeje kurzem ČNB k datu vypořádání (jako Report pro účetní), dividendy k datu výplaty.";
+  return `<div class="detail-section summary"><div>${lines.join("")}<div class="muted small tr-note">${escapeHtml(note)}</div></div><span class="muted">vůči nákupu ${fmtNum(r.cost, 2)} ${ccy}</span></div>`;
 }
 
 // ---------- Transactions ----------
@@ -3273,6 +3489,7 @@ function exportCurrentViewXlsx() {
   let filenamePart = view;
 
   if (view === "overview") {
+    if (state.overviewMode === "closed") return exportClosedPositionsXlsx();
     aoa = buildOverviewAoa();
     sheetName = "Přehled pozic";
     filenamePart = "prehled-pozic";
@@ -3396,6 +3613,63 @@ function buildOverviewAoa() {
     r.hasPrice ? r.totalPct : null,
   ]);
   return [header, ...data];
+}
+
+// Export Prodaných: řádky, pořadí a sloupce jako na obrazovce. Čísla zůstávají
+// čísly — jinou měnu dividend a odhad Kč (≈) nese formát buňky; data jako datum
+// Excelu, Celkem v Kč jako vzorec součtu.
+function exportClosedPositionsXlsx() {
+  const all = closedPositions(state.positions, state.portfolio.instruments, state.fxRates, { estimateLatest: true });
+  const rows = sortedClosedRows(all);
+  const header = [
+    "Symbol", "Název", "Měna", "Nakoupeno", "Prodáno", "Kusů", "Ø nákup/ks", "Ø prodej/ks",
+    "Z/Z z prodeje", "Dividendy čistě", "Celkem Z/Z", "%", "Celkem v Kč",
+  ];
+  const dateOf = (iso) => new Date(`${iso}T00:00:00`);
+  const aoa = [header];
+  for (const r of rows) {
+    aoa.push([
+      r.symbol, r.name || "", r.currency, dateOf(r.firstBuy), dateOf(r.lastSell), r.qty, r.avgBuy, r.avgSell,
+      r.realized, r.dividendCurrency ? r.dividends : "", r.total, r.totalPct / 100, r.totalCzk ?? "",
+    ]);
+  }
+  const lastData = aoa.length; // 1-based řádek poslední pozice
+  aoa.push([
+    `Celkem ${rows.length} ${pozic(rows.length)}`, "", "", "", "", "", "", "", "", "", "", "",
+    // v = předpočtená hodnota pro prohlížeče, které vzorce nepřepočítají
+    { t: "n", f: `SUM(M2:M${lastData})`, v: rows.reduce((sum, r) => sum + (r.totalCzk ?? 0), 0) },
+  ]);
+
+  // Tečky ve formátu data musí být escapované, jinak SSF hodí „bad second format"
+  const ws = XLSX.utils.aoa_to_sheet(aoa, { dateNF: "d\\. m\\. yyyy" });
+  const lastCol = header.length - 1;
+  const totalRow = aoa.length - 1;
+  // Buňky předané jako objekt (vzorce) aoa_to_sheet nemusí započítat do rozsahu
+  ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: totalRow, c: lastCol } });
+  const numFmt = { 6: "#,##0.0000", 7: "#,##0.0000", 8: "#,##0.00", 9: "#,##0.00", 10: "#,##0.00", 11: "0.00%", 12: "#,##0" };
+  for (let rr = 0; rr <= totalRow; rr++) {
+    const row = rr > 0 ? rows[rr - 1] : null;
+    for (let c = 0; c <= lastCol; c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r: rr, c })];
+      if (!cell) continue;
+      if (rr === 0 || rr === totalRow) cell.s = { font: { bold: true } };
+      if (rr === 0 || cell.t !== "n") continue;
+      // „#,##0.####“ by celé kusy ukázal s tečkou na konci („15.“)
+      if (c === 5) cell.z = Number.isInteger(cell.v) ? "#,##0" : "#,##0.####";
+      else if (numFmt[c]) cell.z = numFmt[c];
+      if (c === 9 && row?.dividendCurrency && row.dividendCurrency !== row.currency) cell.z = `#,##0.00 "${row.dividendCurrency}"`;
+      // Dvě sekce formátu, jinak by záporný odhad vyšel „-≈ 53 597“
+      if (c === 12 && row?.estimated) cell.z = `"≈ "#,##0;"≈ "-#,##0`;
+    }
+  }
+  ws["!autofilter"] = { ref: `A1:${XLSX.utils.encode_col(lastCol)}${lastData}` };
+  ws["!cols"] = [
+    { wch: 9 }, { wch: 30 }, { wch: 6 }, { wch: 11 }, { wch: 11 }, { wch: 8 }, { wch: 12 }, { wch: 12 },
+    { wch: 13 }, { wch: 14 }, { wch: 13 }, { wch: 8 }, { wch: 13 },
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Prodané pozice");
+  XLSX.writeFile(wb, `${state.portfolio.id}-prodane-pozice-k-${pragueToday()}.xlsx`);
 }
 
 function buildAllocationAoa() {
