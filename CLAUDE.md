@@ -201,7 +201,12 @@ flowchart TD
     reálnými — Q2 2023 výpisy existují, jen jsou ve složce podkladů pod chybným názvem
     `Výpis 1.7.-30.9.2023-9.pdf` … `-12.pdf`.)
 - **23 corporate actions** (Vklad/Výběr CP) — splity, rights issues, restructurings.
-  Q1 2023 CAs filtrovány (`synthetic_cutoff_date = 2023-03-31`).
+  Q1 2023 CAs filtrovány (`synthetic_cutoff_date = 2023-03-31`). 7 párů práv (GRPN, PRX.AS 3×,
+  VNA.DE 2×, UMT.DE) bez vlivu na akcie. **GRPN do 2026-10-30 špatně:** práva odepsaná po
+  62 dnech vycházela jako bonus 1 646 ks za 0 + zánik 1 646 ks skutečných akcií → prodeje
+  8. 2. a 7. 3. 2024 (823 ks) měly nákup 0. Realizováno GRPN bylo o 2 636 USD vyšší, Report pro
+  účetní 2024 (KB) o 57 134 Kč (240 701 → 183 567 Kč), inventura 31. 12. 2023 ukazovala GRPN
+  3 292 ks místo 1 646. Přiznání 2024 (podané 1. 7. 2025) z aplikace nevycházelo – ta je mladší.
 - **160 dividend** + 124 withholding tax, **129 cash flows** (vč. 10 výběrů `withdrawal`
   12/2025–7/2026 = převody na IBKR; 9 doplněno 2026-09-23 z TRN CASH, 59 800 USD 8. 7. 2026 z Q3).
 - **Počáteční kapitál:** `opening_cash` (hotovost k 30. 12. 2022 z počátečních zůstatků
@@ -487,11 +492,11 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared,portfolio-shared,akcie-den,plegin-report,tax-optimization,closed-positions}.test.mjs` — 98 unit testů
+`tests/{fifo,flex-shared,portfolio-shared,akcie-den,plegin-report,tax-optimization,closed-positions}.test.mjs` — 100 unit testů
 (`node --test tests/*.test.mjs`), ručně spočítané fixtures: FIFO matching + prorace komise,
 proceeds-authoritative ceny, splity (vč. same-day pořadí a 1:25), KB received/removed
-párování + bonus/cancellation, orphan sells, settle data v closed lots, dividendy, Flex
-transformace (vč. settle_date), hotovost k datu (i odhad KB mezi výpisy), Total Return pozice, `computePositionsAt`
+párování + bonus/cancellation, práva odepsaná po víc než 30 dnech (GRPN), orphan sells,
+settle data v closed lots, dividendy, Flex transformace (vč. settle_date), hotovost k datu (i odhad KB mezi výpisy), Total Return pozice, `computePositionsAt`
 volby (výchozí chování inventury beze změny), merge overlay (dedupe, forex, vklady,
 párování symbolu přes ISIN), kurzy, toky kapitálu + XIRR (proti sazbě spočtené předem),
 Celkový výnos s výběry, MCP report (split po datu, neobchodovaný den, chybějící cena,
@@ -524,9 +529,13 @@ total_invested, open_lots, closed_lots (vč. buy/sell_settle_date), splits,
 dividend_records, withholding_records, net_dividend_local, … }`.
 
 **Corporate actions:** `type:"split"` (`ratio_from`/`ratio_to`), a KB formát
-`received_share`/`removed_share` — `preprocessCorporateActions()` páruje v okně 30 dnů
-na stejném ISIN → auto-detect split. Unpaired `received_share` = bonus shares (lot za
+`received_share`/`removed_share` — `preprocessCorporateActions()` nejdřív páruje **práva**:
+připsání a pozdější odepsání se stejným `isin_event` (jiným než `isin_underlying`) a stejným
+počtem kusů = `type:"rights"` bez ohledu na odstup, loty akcie nemění, v detailu pozice řádek
+„práva – bez vlivu“ (od 2026-10-30, předtím GRPN rozbité – viz KB data). Zbytek páruje v okně
+30 dnů na stejném ISIN → auto-detect split. Unpaired `received_share` = bonus shares (lot za
 nulový cost), unpaired `removed_share` = cancellation (FIFO konzumace bez realized P/L).
+Záznamy v `splits` nesou `kind` (`split` / `bonus` / `cancellation` / `rights`).
 Split z IBKR Flex (typ `FS` dopředný / `RS` zpětný) převádí `transformFlexCorpAction`
 na `type:"split"` s poměrem z popisu „SPLIT 2 FOR 1“ (od 2026-10-28 – předtím se tiše
 ignoroval a APH měl od 2. 9. 2026 poloviční kusy za dnešní cenu, alert „pokles ≥ 20 %“

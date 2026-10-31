@@ -122,7 +122,7 @@ Vrací mapu `symbol → { net_qty, cost_basis, avg_open_price, realized_pnl, tot
 
 Corporate actions:
 - `type: "split"` (klasický IBKR formát s ratio_from + ratio_to)
-- `type: "received_share"` / `"removed_share"` (KB formát) — preprocessing páruje v okně 30 dnů na stejném `isin_underlying` → auto-detect split, unpaired received = bonus shares, unpaired removed = cancellation
+- `type: "received_share"` / `"removed_share"` (KB formát) — práva (stejný `isin_event` připsaný a později odepsaný ve stejném počtu) jsou bez vlivu na akcii; ostatní preprocessing páruje v okně 30 dnů na stejném `isin_underlying` → auto-detect split, unpaired received = bonus shares, unpaired removed = cancellation
 
 ## Testy
 
@@ -131,7 +131,7 @@ cd web/
 node --test tests/*.test.mjs
 ```
 
-98 unit testů (FIFO engine, inventura k datu, Flex transformace a merge overlay, MCP a ranní report, Daňová optimalizace, Prodané pozice) – ručně spočítané fixtures.
+100 unit testů (FIFO engine, inventura k datu, Flex transformace a merge overlay, MCP a ranní report, Daňová optimalizace, Prodané pozice) – ručně spočítané fixtures.
 Běží i v CI při každém pushi (`.github/workflows/tests.yml`).
 
 ## Lokální vývoj

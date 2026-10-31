@@ -2333,6 +2333,14 @@ function toggleDetail(sym, tr) {
   tr.classList.add("expanded");
 }
 
+function corpActionLabel(sp) {
+  if (sp.kind === "bonus") return "bonusové akcie";
+  if (sp.kind === "cancellation") return "zánik kusů";
+  if (sp.kind === "rights") return "práva – bez vlivu";
+  const direction = sp.ratio_to > sp.ratio_from ? "forward split" : "reverse split";
+  return `${sp.ratio_to}:${sp.ratio_from} ${direction}`;
+}
+
 function buildDetailRow(sym, colSpan) {
   const inst = state.portfolio.instruments[sym];
   const pos = state.positions[sym];
@@ -2400,27 +2408,31 @@ function buildDetailRow(sym, colSpan) {
   );
   html.push(`</div>`);
 
-  // Corporate actions (zatím jen splity)
+  // Corporate actions: splity, bonusové akcie, zánik kusů, práva
   if (pos.splits && pos.splits.length > 0) {
     html.push(`<div class="detail-section">`);
     html.push(`<h4>Splity / Corporate actions</h4>`);
     html.push(`<table class="mini"><tbody>`);
     for (const sp of pos.splits) {
-      const ratio = `${sp.ratio_to}:${sp.ratio_from}`;
-      const direction =
-        sp.ratio_to > sp.ratio_from ? "forward split" : "reverse split";
       html.push(
         `<tr>
           <td>${sp.date}</td>
-          <td><strong>${ratio} ${direction}</strong></td>
+          <td><strong>${corpActionLabel(sp)}</strong></td>
           <td class="muted">${escapeHtml(sp.note || "")}</td>
         </tr>`,
       );
     }
     html.push(`</tbody></table>`);
-    html.push(
-      `<div class="mini-total muted">Split mění počet kusů a cenu za 1 ks, ale celková nákupní hodnota zůstává stejná.</div>`,
-    );
+    if (pos.splits.some((sp) => sp.kind === "split")) {
+      html.push(
+        `<div class="mini-total muted">Split mění počet kusů a cenu za 1 ks, ale celková nákupní hodnota zůstává stejná.</div>`,
+      );
+    }
+    if (pos.splits.some((sp) => sp.kind === "rights")) {
+      html.push(
+        `<div class="mini-total muted">Práva mají vlastní ISIN a přišla i odešla ve stejném počtu – kusy ani nákupní cenu akcie nemění.</div>`,
+      );
+    }
     html.push(`</div>`);
   }
 

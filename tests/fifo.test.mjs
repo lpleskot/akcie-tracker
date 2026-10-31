@@ -254,6 +254,44 @@ test("computePositionsAt: KB pár přes hranici data se nerozpadne na cancellati
   close(computePositionsAt(txs, cas, "2026-01-03").XYZ.net_qty, 200);
 });
 
+test("práva odepsaná po 62 dnech nespotřebují loty akcie (GRPN 2023/24)", () => {
+  const txs = [
+    tx({ symbol: "GRPN", date: "2023-03-17", quantity: 100, price: 4 }),
+    tx({ symbol: "GRPN", date: "2023-05-11", quantity: 100, price: 3 }),
+    tx({ symbol: "GRPN", date: "2024-01-16", type: "SELL", quantity: 150, price: 10 }),
+    tx({ symbol: "GRPN", date: "2024-03-07", type: "SELL", quantity: 50, price: 12 }),
+  ];
+  const cas = [
+    { type: "received_share", date: "2023-11-28", symbol: "GRPN", isin_event: "R", isin_underlying: "I", quantity: 200, name: "GROUPON, INC.-RIGHT" },
+    { type: "removed_share", date: "2024-01-29", symbol: "GRPN", isin_event: "R", isin_underlying: "I", quantity: 200, name: "X-GROUPON, INC.-RIGHT" },
+  ];
+  const pos = computePositions(txs, cas).GRPN;
+  // Bez párování: zánik práv vzal posledních 50 ks z lotu @ 3 a prodej 7. 3.
+  // šel proti právům za 0 → realized 1 550 místo 1 400
+  close(pos.realized_pnl, 150 * 10 - (100 * 4 + 50 * 3) + 50 * 12 - 50 * 3);
+  close(pos.net_qty, 0);
+  assert.deepEqual(pos.closed_lots.map((c) => c.buy_cost_per_unit), [4, 3, 3]);
+  assert.deepEqual(pos.splits.map((sp) => sp.kind), ["rights"]);
+  // Inventura 31. 12. 2023: práva nejsou akcie GRPN
+  const at = computePositionsAt(txs, cas, "2023-12-31").GRPN;
+  close(at.net_qty, 200);
+  close(at.cost_basis, 700);
+});
+
+test("vlastní ISIN akcie dovnitř a ven po 90 dnech zůstává bonus + cancellation", () => {
+  const pos = computePositions(
+    [tx({ symbol: "XYZ", date: "2026-01-05", quantity: 10, price: 100 })],
+    [
+      { type: "received_share", date: "2026-02-01", symbol: "XYZ", isin_event: "I", isin_underlying: "I", quantity: 5 },
+      { type: "removed_share", date: "2026-05-02", symbol: "XYZ", isin_event: "I", isin_underlying: "I", quantity: 5 },
+    ],
+  ).XYZ;
+  // Zánik 5 ks bere nejstarší lot, zbude 5 ks @ 100 a 5 ks za 0
+  close(pos.net_qty, 10);
+  close(pos.cost_basis, 500);
+  assert.deepEqual(pos.splits.map((sp) => sp.kind), ["bonus", "cancellation"]);
+});
+
 import { cashAtDate } from "../assets/js/fifo.js";
 
 test("cashAtDate: IBKR denní NAV — poslední snapshot k datu", () => {

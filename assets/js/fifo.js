@@ -25,6 +25,9 @@ import { flexDate } from "./flex-shared.js";
 
 /**
  * Pre-process KB-style corporate actions:
+ *   - Práva (received_share a později removed_share se stejným isin_event,
+ *     jiným než isin_underlying, ve stejném počtu kusů) → RIGHTS, bez ohledu
+ *     na odstup. Kusy ani nákupní cenu akcie nemění.
  *   - received_share + removed_share spárované ve 30 dnech na stejném
  *     isin_underlying → SPLIT (forward / reverse podle směru qty).
  *   - Unpaired received_share → BONUS_SHARES (přidat lot za 0).
@@ -38,9 +41,14 @@ export function preprocessCorporateActions(corps) {
   // Index podle isin_underlying pro rychlé párování
   for (let i = 0; i < corps.length; i++) {
     const c = corps[i];
-    // Už normalizované eventy (split / bonus / cancellation) projdou beze změny —
-    // computePositionsAt normalizuje předem, aby datumový filtr nerozbil párování.
-    if (c.type === "split" || c.type === "bonus_shares" || c.type === "cancellation") {
+    // Už normalizované eventy (split / bonus / cancellation / práva) projdou beze
+    // změny — computePositionsAt normalizuje předem, aby datumový filtr nerozbil párování.
+    if (
+      c.type === "split" ||
+      c.type === "bonus_shares" ||
+      c.type === "cancellation" ||
+      c.type === "rights"
+    ) {
       result.push(c);
       consumed.add(i);
       continue;
@@ -51,9 +59,38 @@ export function preprocessCorporateActions(corps) {
       byIsin.get(k).push({ ...c, _idx: i });
     }
   }
-  // Pro každý isin: najít páry (received + removed) ve 30 dnech
   for (const [, items] of byIsin) {
     items.sort((a, b) => a.date.localeCompare(b.date));
+    // Práva (upisovací, volba dividendy v akciích) mají vlastní ISIN. KB je
+    // připíše a po upsání, výplatě nebo propadnutí odepíše ve stejném počtu —
+    // často po víc než 30 dnech (GRPN 28. 11. 2023 → 29. 1. 2024). Jako bonus
+    // + cancellation by zánik práv spotřeboval nejstarší skutečné loty akcie
+    // a pozdější prodeje by šly proti nulové nákupní ceně.
+    for (const a of items) {
+      if (a.type !== "received_share" || consumed.has(a._idx)) continue;
+      if (!a.isin_event || a.isin_event === a.isin_underlying) continue;
+      const pair = items.find(
+        (b) =>
+          b.type === "removed_share" &&
+          !consumed.has(b._idx) &&
+          b.isin_event === a.isin_event &&
+          b.date >= a.date &&
+          Math.abs(b.quantity - a.quantity) < 1e-9,
+      );
+      if (!pair) continue;
+      result.push({
+        type: "rights",
+        date: a.date,
+        removed_date: pair.date,
+        symbol: a.symbol || a.isin_underlying,
+        quantity: a.quantity,
+        name: a.name,
+        isin_event: a.isin_event,
+      });
+      consumed.add(a._idx);
+      consumed.add(pair._idx);
+    }
+    // Ostatní: najít páry (received + removed) ve 30 dnech
     for (let i = 0; i < items.length; i++) {
       if (consumed.has(items[i]._idx)) continue;
       const a = items[i];
@@ -133,8 +170,9 @@ export function computePositions(
   dividends = [],
   withholdingTax = [],
 ) {
-  // Předzpracování corporate actions: spárovat received_share + removed_share
-  // ve 30denním okně se stejným isin_underlying → split event.
+  // Předzpracování corporate actions: práva (stejný isin_event dovnitř i ven)
+  // → bez vlivu; spárovat received_share + removed_share ve 30denním okně se
+  // stejným isin_underlying → split event.
   // Unpaired received_share = bonus shares (add zero-cost lot).
   // Unpaired removed_share = cancellation (consume FIFO bez realized).
   const processedCorps = preprocessCorporateActions(corporateActions);
@@ -184,10 +222,20 @@ export function computePositions(
           lot.cost_per_unit /= ratio;
         }
         st.splits.push({
+          kind: "split",
           date: ev.date,
           ratio_from: ev.ratio_from,
           ratio_to: ev.ratio_to,
           note: ev.note || "",
+        });
+      } else if (ev.type === "rights") {
+        // Loty akcie se nemění — záznam jen pro detail pozice
+        s(ev.symbol).splits.push({
+          kind: "rights",
+          date: ev.date,
+          ratio_from: 0,
+          ratio_to: 0,
+          note: `${ev.name || "Práva"}: ${ev.quantity} ks připsáno ${ev.date}, odepsáno ${ev.removed_date}`,
         });
       } else if (ev.type === "bonus_shares") {
         // Bonus / spinoff shares: přidat lot za nulový cost
@@ -201,6 +249,7 @@ export function computePositions(
           cost_per_unit: 0,
         });
         s(sym).splits.push({
+          kind: "bonus",
           date: ev.date,
           ratio_from: 0,
           ratio_to: 0,
@@ -219,6 +268,7 @@ export function computePositions(
           if (lot.qty <= 1e-9) lots.shift();
         }
         s(sym).splits.push({
+          kind: "cancellation",
           date: ev.date,
           ratio_from: 0,
           ratio_to: 0,
@@ -395,7 +445,8 @@ export function computePositions(
  * ořežou na datum ≤ date a jdou do FIFO (net_dividend_local, …).
  *
  * Corporate actions se nejdřív normalizují nad celou historií (párování
- * received/removed v 30denním okně nesmí rozbít datumový filtr) a použijí
+ * received/removed v 30denním okně ani práva přes konec roku nesmí rozbít
+ * datumový filtr) a použijí
  * se jen ty s datem ≤ date. Split PO datu se tedy neaplikuje — kusy odpovídají
  * stavu k tomu dni (a k ceně z burzy je nutná korekce, viz splitFactorAfter).
  */
