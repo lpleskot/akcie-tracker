@@ -1,4 +1,16 @@
 {
+  "owners": [
+    {
+      "id": "plegi-invest",
+      "name": "PLEGI invest s.r.o.",
+      "type": "firma"
+    },
+    {
+      "id": "lukas-pleskot",
+      "name": "Lukáš Pleskot",
+      "type": "osoba"
+    }
+  ],
   "portfolios": [
     {
       "id": "plegi-invest-ibkr",
@@ -6,7 +18,8 @@
       "short": "IBKR",
       "broker": "Interactive Brokers",
       "primary": true,
-      "file": "plegi-invest-ibkr.json"
+      "file": "plegi-invest-ibkr.json",
+      "owner": "plegi-invest"
     },
     {
       "id": "plegi-invest-kb",
@@ -14,7 +27,17 @@
       "short": "KB",
       "broker": "Komerční banka",
       "primary": false,
-      "file": "plegi-invest-kb.json"
+      "file": "plegi-invest-kb.json",
+      "owner": "plegi-invest"
+    },
+    {
+      "id": "lukas-pleskot-lynx",
+      "name": "Lukáš Pleskot Lynx",
+      "short": "Lynx",
+      "broker": "LYNX (Interactive Brokers)",
+      "primary": false,
+      "file": "lukas-pleskot-lynx.json",
+      "owner": "lukas-pleskot"
     }
   ]
 }

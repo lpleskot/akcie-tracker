@@ -1,6 +1,7 @@
 # Lokální secrets pro `npx wrangler dev` – zkopíruj jako .dev.vars (je v .gitignore
 # i .assetsignore). Hodnoty produkce jsou jen v secretech Workeru (wrangler secret put).
 FLEX_TOKEN=
+LYNX_FLEX_TOKEN=
 ADMIN_KEY=
 MCP_TOKEN=
 PLEGIN_REPORT_TOKEN=

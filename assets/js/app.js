@@ -34,6 +34,14 @@ import {
   unrealizedTotals,
   withPositions,
 } from "./tax-optimization.js";
+import {
+  OWNER_TYPES,
+  OWNER_TYPE_LABELS,
+  companiesOf,
+  ownerIdFromName,
+  resolveOwners,
+  validateOwnerSettings,
+} from "./owners.js";
 
 const MANIFEST_URL = "./data/portfolios/manifest.json";
 const PORTFOLIO_BASE = "./data/portfolios/";
@@ -44,10 +52,17 @@ const WATCHLIST_URL = "/api/watchlist";
 const ALERTS_URL = "/api/alerts";
 const NOTES_URL = "/api/notes";
 const JOURNAL_URL = "/api/journal";
+const SETTINGS_URL = "/api/settings";
 const QUOTE_URL = "/api/quote";
 
 // LocalStorage key pro pamatování posledního výběru portfolia
 const LS_PORTFOLIO = "akcie-tracker.portfolio";
+const LS_COMPANY = "akcie-tracker.company";
+
+// Taby z hlavičky: přehledy za firmu a Nastavení. Nezávisí na zvoleném portfoliu,
+// dlaždice a výběr portfolia se u nich schovají.
+const COMPANY_VIEWS = new Set(["tax", "positions-at"]);
+const HEADER_VIEWS = new Set([...COMPANY_VIEWS, "settings"]);
 
 const state = {
   manifest: null,
@@ -57,12 +72,19 @@ const state = {
   quotes: {},
   fxRates: null,
   view: "overview",
+  // Vlastníci portfolií: uložené nastavení (/api/settings) a výsledek s manifestem
+  ownerSettings: null,
+  owners: null,
+  companyId: null,
+  // Rozepsané změny v Nastavení — při návratu do tabu se formulář nepřekreslí
+  settingsDirty: false,
+  settingsBaseline: "",
   // Inventurní výpis pozic k datu (tab Pozice k datu) — cache portfolií per session
   positionsAt: {
     date: null, rows: null, cashRows: null, cashMissing: null,
     portfolios: null, fxValidFor: null, loading: false,
   },
-  // Daňová optimalizace (za celou společnost) — sestaví se při prvním otevření tabu
+  // Daňová optimalizace (za zvolenou firmu) — sestaví se při prvním otevření tabu
   taxOpt: { data: null, loading: false, selected: new Set(), sort: { key: "pnlCzk", dir: "asc" } },
   sort: { key: "sym", dir: "asc" },
   // Přehled pozic: držené („open“), nebo celé prodané tituly („closed“) s vlastním řazením
@@ -123,17 +145,21 @@ init().catch((err) => {
 async function init() {
   setStatus("Načítám manifest…");
 
-  // 1) Load manifest, FX rates, watchlist, alerts, notes, journal paralelně
-  const [manifestRes, fxRes, watchRes, alertsRes, notesRes, journalRes] = await Promise.all([
+  // 1) Load manifest, FX rates, watchlist, alerts, notes, journal, nastavení paralelně
+  const [manifestRes, fxRes, watchRes, alertsRes, notesRes, journalRes, settingsRes] = await Promise.all([
     fetch(MANIFEST_URL, { cache: "no-cache" }),
     fetch(FX_URL, { cache: "no-cache" }),
     fetch(WATCHLIST_URL, { cache: "no-cache" }),
     fetch(ALERTS_URL, { cache: "no-cache" }),
     fetch(NOTES_URL, { cache: "no-cache" }),
     fetch(JOURNAL_URL, { cache: "no-cache" }),
+    fetch(SETTINGS_URL, { cache: "no-cache" }).catch(() => null),
   ]);
   if (!manifestRes.ok) throw new Error(`Manifest ${manifestRes.status}`);
   state.manifest = await manifestRes.json();
+  // Bez uloženého nastavení (nebo když API neodpoví) platí vlastníci z manifestu
+  state.ownerSettings = settingsRes?.ok ? (await settingsRes.json()).settings : null;
+  state.owners = resolveOwners(state.manifest, state.ownerSettings);
   state.fxRates = fxRes.ok ? await fxRes.json() : { dates: {} };
   state.watchlist = watchRes.ok ? await watchRes.json() : { items: [] };
   state.alerts = alertsRes.ok ? await alertsRes.json() : { rules: [], fired: {} };
@@ -148,6 +174,7 @@ async function init() {
   const primary = state.manifest.portfolios.find((p) => p.primary);
   const found = state.manifest.portfolios.find((p) => p.id === savedId);
   state.portfolioId = found?.id || primary?.id || state.manifest.portfolios[0]?.id;
+  state.companyId = pickCompany(localStorage.getItem(LS_COMPANY));
 
   // 3) Load aktivního portfolia
   await loadActivePortfolio();
@@ -170,8 +197,10 @@ async function init() {
   setupJournal();
   setupPortfolioHistory();
   setupPortfolioSwitcher();
+  setupCompanySwitcher();
   setupPositionsAt();
   setupTaxOpt();
+  setupSettings();
 
   // 5) Fetch live quotes
   await refreshQuotes();
@@ -249,7 +278,7 @@ async function loadActivePortfolio() {
       (Date.now() - new Date(state.overlayStats.last_import).getTime()) / 86400000;
     if (ageDays > 4) {
       state.loadWarnings.push(
-        `Poslední auto-import z IBKR proběhl před ${Math.floor(ageDays)} dny — zkontroluj worker flex-import.`,
+        `Poslední auto-import (${meta.short || meta.broker}) proběhl před ${Math.floor(ageDays)} dny — zkontroluj worker flex-import.`,
       );
     }
   }
@@ -288,22 +317,9 @@ function makeEmptyPortfolio(meta) {
 }
 
 function setupPortfolioSwitcher() {
-  const list = state.manifest.portfolios || [];
-  if (list.length < 2) return; // jediné portfolio — selector neukazujeme
-
-  const wrap = document.getElementById("portfolio-switcher");
   const sel = document.getElementById("portfolio-select");
-  if (!sel || !wrap) return;
-  sel.innerHTML = "";
-  for (const p of list) {
-    const o = document.createElement("option");
-    o.value = p.id;
-    o.textContent = p.name;
-    sel.appendChild(o);
-  }
-  sel.value = state.portfolioId;
-  wrap.hidden = false;
-
+  if (!sel) return;
+  renderPortfolioOptions();
   sel.addEventListener("change", async () => {
     state.portfolioId = sel.value;
     localStorage.setItem(LS_PORTFOLIO, state.portfolioId);
@@ -314,10 +330,354 @@ function setupPortfolioSwitcher() {
   });
 }
 
+// Portfolia seskupená podle vlastníků (Nastavení), portfolio bez vlastníka na konci
+function renderPortfolioOptions() {
+  const sel = document.getElementById("portfolio-select");
+  if (!sel) return;
+  const metas = new Map((state.manifest.portfolios || []).map((p) => [p.id, p]));
+  const group = (label, list) => {
+    const g = document.createElement("optgroup");
+    g.label = label;
+    for (const p of list) {
+      const o = document.createElement("option");
+      o.value = p.id;
+      o.textContent = p.name;
+      g.appendChild(o);
+    }
+    sel.appendChild(g);
+  };
+  sel.innerHTML = "";
+  for (const owner of state.owners.owners) {
+    if (owner.portfolios.length) group(owner.name, owner.portfolios.map((id) => metas.get(id)));
+  }
+  const orphans = (state.manifest.portfolios || []).filter((p) => !state.owners.ownerOf[p.id]);
+  if (orphans.length) group("Bez vlastníka", orphans);
+  sel.value = state.portfolioId;
+}
+
+// ---------- Firma (přehledy za firmu) ----------
+// Uložená volba, jinak vlastník aktivního portfolia, jinak první firma
+function pickCompany(preferred) {
+  const ids = companiesOf(state.owners).map((c) => c.id);
+  if (ids.includes(preferred)) return preferred;
+  const own = state.owners.ownerOf[state.portfolioId];
+  return ids.includes(own) ? own : ids[0] || null;
+}
+
+function currentCompany() {
+  return companiesOf(state.owners).find((c) => c.id === state.companyId) || null;
+}
+
+function companyPortfolioLabel(company) {
+  const metas = new Map((state.manifest.portfolios || []).map((p) => [p.id, p]));
+  return (company?.portfolios || []).map((id) => metas.get(id)?.short || metas.get(id)?.name || id).join(", ");
+}
+
+// Přehledy za firmu počítají jen portfolia zvolené firmy — nikdy jiné firmy ani osob
+function companyPortfolios(list) {
+  return list.filter(({ meta }) => state.owners.ownerOf[meta.id] === state.companyId);
+}
+
+function setupCompanySwitcher() {
+  const sel = document.getElementById("company-select");
+  if (!sel) return;
+  renderCompanyOptions();
+  sel.addEventListener("change", () => setCompany(sel.value));
+}
+
+function renderCompanyOptions() {
+  const sel = document.getElementById("company-select");
+  if (!sel) return;
+  sel.innerHTML = "";
+  for (const c of companiesOf(state.owners)) {
+    const o = document.createElement("option");
+    o.value = c.id;
+    o.textContent = c.name;
+    sel.appendChild(o);
+  }
+  sel.value = state.companyId || "";
+}
+
+function setCompany(id) {
+  state.companyId = id;
+  try {
+    localStorage.setItem(LS_COMPANY, id);
+  } catch {}
+  resetCompanyViews();
+  renderHeader();
+  if (state.view === "tax") buildTaxOpt();
+  else if (state.view === "positions-at") buildPositionsAt();
+}
+
+// Výsledky patří k jedné firmě — po změně firmy nebo vlastníků se sestaví znovu
+function resetCompanyViews() {
+  state.taxOpt.data = null;
+  state.taxOpt.selected = new Set();
+  state.positionsAt.rows = null;
+  for (const id of ["tax-cards", "tax-wrap", "pa-title", "pa-wrap", "pa-cash-wrap", "pa-summary"]) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = true;
+  }
+  for (const id of ["tax-count", "pa-count"]) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = "";
+  }
+}
+
+// ---------- Nastavení: vlastníci portfolií ----------
+let newOwnerSeq = 0;
+
+function setupSettings() {
+  const form = document.getElementById("settings-form");
+  if (!form) return;
+  // Změna = úprava od uživatele; programové doplnění formuláře se nepočítá
+  form.addEventListener("input", (e) => {
+    if (!e.isTrusted) return;
+    if (e.target.matches("[data-owner-name]")) refreshOwnerChoices();
+    updateSettingsDirty();
+  });
+  form.addEventListener("change", (e) => {
+    if (!e.isTrusted) return;
+    refreshOwnerChoices();
+    updateSettingsDirty();
+  });
+  document.getElementById("settings-add-owner").addEventListener("click", () => {
+    const tbody = document.querySelector("#tbl-owners tbody");
+    const tr = ownerRow({ id: "", name: "", type: "firma" });
+    tbody.appendChild(tr);
+    refreshOwnerChoices();
+    updateSettingsDirty();
+    tr.querySelector("[data-owner-name]").focus();
+  });
+  document.querySelector("#tbl-owners tbody").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-owner-remove]");
+    if (!btn || btn.disabled) return;
+    btn.closest("tr").remove();
+    refreshOwnerChoices();
+    updateSettingsDirty();
+  });
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    saveSettings();
+  });
+  // Rozepsané nastavení nezmizí se zavřením stránky bez varování
+  window.addEventListener("beforeunload", (e) => {
+    if (!state.settingsDirty) return;
+    e.preventDefault();
+    e.returnValue = "";
+  });
+}
+
+function ownerRow(owner) {
+  const tr = document.createElement("tr");
+  tr.dataset.ownerId = owner.id;
+  tr.dataset.ownerKey = owner.id || `new-${++newOwnerSeq}`;
+  const name = document.createElement("input");
+  name.type = "text";
+  name.maxLength = 80;
+  name.value = owner.name;
+  name.placeholder = "Název firmy nebo jméno";
+  name.setAttribute("aria-label", "Název vlastníka");
+  name.dataset.ownerName = "";
+  const type = document.createElement("select");
+  type.setAttribute("aria-label", "Typ vlastníka");
+  type.dataset.ownerType = "";
+  for (const t of OWNER_TYPES) type.add(new Option(OWNER_TYPE_LABELS[t], t, false, t === owner.type));
+  const count = document.createElement("td");
+  count.className = "num";
+  count.dataset.ownerCount = "";
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "btn-action";
+  remove.textContent = "Odebrat";
+  remove.dataset.ownerRemove = "";
+  for (const el of [name, type]) {
+    const td = document.createElement("td");
+    td.appendChild(el);
+    tr.appendChild(td);
+  }
+  tr.appendChild(count);
+  const td = document.createElement("td");
+  td.appendChild(remove);
+  tr.appendChild(td);
+  return tr;
+}
+
+function renderSettings() {
+  const ownersBody = document.querySelector("#tbl-owners tbody");
+  const portBody = document.querySelector("#tbl-owner-portfolios tbody");
+  if (!ownersBody || !portBody) return;
+  ownersBody.innerHTML = "";
+  for (const o of state.owners.owners) ownersBody.appendChild(ownerRow(o));
+  portBody.innerHTML = "";
+  for (const p of state.manifest.portfolios || []) {
+    const tr = document.createElement("tr");
+    tr.dataset.portfolioId = p.id;
+    const sel = document.createElement("select");
+    sel.dataset.portfolioOwner = "";
+    sel.dataset.value = state.owners.ownerOf[p.id] || "";
+    sel.setAttribute("aria-label", `Vlastník portfolia ${p.name}`);
+    for (const text of [p.name, p.broker || ""]) {
+      const td = document.createElement("td");
+      td.textContent = text;
+      tr.appendChild(td);
+    }
+    const td = document.createElement("td");
+    td.appendChild(sel);
+    tr.appendChild(td);
+    portBody.appendChild(tr);
+  }
+  document.getElementById("settings-error").textContent = "";
+  refreshOwnerChoices();
+  state.settingsBaseline = settingsSnapshot();
+  state.settingsDirty = false;
+  renderSettingsState();
+}
+
+// Neuložené změny = formulář se liší od stavu po posledním vykreslení
+// (přepsat název a vrátit ho zpět změna není)
+function settingsSnapshot() {
+  const owners = [...document.querySelectorAll("#tbl-owners tbody tr")].map((tr) => [
+    tr.dataset.ownerKey,
+    tr.querySelector("[data-owner-name]").value.trim(),
+    tr.querySelector("[data-owner-type]").value,
+  ]);
+  const assignments = [...document.querySelectorAll("[data-portfolio-owner]")].map((sel) => sel.value);
+  return JSON.stringify([owners, assignments]);
+}
+
+function updateSettingsDirty() {
+  state.settingsDirty = settingsSnapshot() !== state.settingsBaseline;
+  renderSettingsState();
+}
+
+// Volby vlastníků u portfolií podle aktuálních řádků (i neuložených), počty
+// portfolií a zákaz odebrat vlastníka, který ještě něco vlastní
+function refreshOwnerChoices() {
+  const rows = [...document.querySelectorAll("#tbl-owners tbody tr")];
+  const counts = new Map(rows.map((tr) => [tr.dataset.ownerKey, 0]));
+  for (const sel of document.querySelectorAll("[data-portfolio-owner]")) {
+    const current = sel.options.length ? sel.value : sel.dataset.value;
+    sel.innerHTML = "";
+    if (!counts.has(current)) sel.add(new Option("— vyber vlastníka —", ""));
+    for (const tr of rows) {
+      const name = tr.querySelector("[data-owner-name]").value.trim() || "(bez názvu)";
+      sel.add(new Option(name, tr.dataset.ownerKey));
+    }
+    sel.value = counts.has(current) ? current : "";
+    if (counts.has(sel.value)) counts.set(sel.value, counts.get(sel.value) + 1);
+  }
+  for (const tr of rows) {
+    const n = counts.get(tr.dataset.ownerKey);
+    tr.querySelector("[data-owner-count]").textContent = String(n);
+    const btn = tr.querySelector("[data-owner-remove]");
+    btn.disabled = n > 0 || rows.length === 1;
+    btn.title = n > 0
+      ? "Nejdřív přiřaď jeho portfolia jinému vlastníkovi"
+      : rows.length === 1
+        ? "Aspoň jeden vlastník musí zůstat"
+        : "";
+  }
+}
+
+function renderSettingsState() {
+  const el = document.getElementById("settings-state");
+  if (!el) return;
+  const saved = state.ownerSettings?.updated_at;
+  el.classList.toggle("dirty", state.settingsDirty);
+  el.textContent = state.settingsDirty
+    ? "Neuložené změny"
+    : saved
+      ? `Uloženo ${new Date(saved).toLocaleString("cs-CZ", { day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}`
+      : "Výchozí nastavení z manifestu – zatím neuloženo";
+}
+
+async function saveSettings() {
+  const errEl = document.getElementById("settings-error");
+  errEl.textContent = "";
+  const rows = [...document.querySelectorAll("#tbl-owners tbody tr")];
+  // Id nového vlastníka vznikne z názvu až při uložení
+  const taken = new Set(rows.map((tr) => tr.dataset.ownerId).filter(Boolean));
+  const idOf = new Map();
+  const owners = rows.map((tr) => {
+    const name = tr.querySelector("[data-owner-name]").value.trim();
+    let id = tr.dataset.ownerId;
+    if (!id) {
+      id = ownerIdFromName(name, taken);
+      taken.add(id);
+    }
+    idOf.set(tr.dataset.ownerKey, id);
+    return { id, name, type: tr.querySelector("[data-owner-type]").value };
+  });
+  const assignments = {};
+  for (const tr of document.querySelectorAll("#tbl-owner-portfolios tbody tr")) {
+    const key = tr.querySelector("[data-portfolio-owner]").value;
+    if (!key) {
+      errEl.textContent = `Portfolio ${tr.firstChild.textContent} nemá vlastníka.`;
+      return;
+    }
+    assignments[tr.dataset.portfolioId] = idOf.get(key);
+  }
+  const { settings, error } = validateOwnerSettings({ owners, assignments });
+  if (error) {
+    errEl.textContent = error;
+    return;
+  }
+  const btn = document.getElementById("settings-save");
+  btn.disabled = true;
+  try {
+    const res = await fetch(SETTINGS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+    state.ownerSettings = json.settings;
+    state.owners = resolveOwners(state.manifest, state.ownerSettings);
+    state.companyId = pickCompany(state.companyId);
+    resetCompanyViews();
+    renderPortfolioOptions();
+    renderCompanyOptions();
+    renderSettings();
+  } catch (e) {
+    errEl.textContent = `Uložení selhalo: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // ---------- Header ----------
 function renderHeader() {
+  const view = state.view;
+  const h1 = document.getElementById("portfolio-name");
+  const metaEl = document.getElementById("portfolio-meta");
+  document.getElementById("portfolio-switcher").hidden =
+    HEADER_VIEWS.has(view) || (state.manifest.portfolios || []).length < 2;
+  document.getElementById("company-switcher").hidden = !COMPANY_VIEWS.has(view);
+  if (view === "settings") {
+    h1.textContent = "Nastavení";
+    metaEl.textContent = "Vlastníci portfolií – kdo které portfolio vlastní";
+    document.title = "Nastavení — Akcie tracker";
+    return;
+  }
+  if (COMPANY_VIEWS.has(view)) {
+    const company = currentCompany();
+    const label = companyPortfolioLabel(company);
+    h1.textContent = company?.name || "Žádná firma";
+    metaEl.textContent = company
+      ? `Firma · portfolia ${label}`
+      : "V Nastavení není žádná firma s portfoliem";
+    document.querySelectorAll("[data-company-portfolios]").forEach((el) => {
+      el.textContent = label || "žádné";
+    });
+    const viewName = view === "tax" ? "Daňová optimalizace" : "Pozice k datu";
+    document.title = `${company?.name || "Firma"} — ${viewName} — Akcie tracker`;
+    return;
+  }
+
   const p = state.portfolio;
-  document.getElementById("portfolio-name").textContent = p.name;
+  h1.textContent = p.name;
 
   // Hlavička: broker + account holder + account number, NIC víc.
   // Statické počty/období z gitového JSON byly matoucí — overlay je upravuje
@@ -340,54 +700,64 @@ function renderHeader() {
     parts.push(`🔄 poslední import ${lastImport}`);
   }
 
-  document.getElementById("portfolio-meta").textContent = parts.join(" · ");
+  metaEl.textContent = parts.join(" · ");
   document.title = `${p.name} — Akcie tracker`;
 }
 
 // ---------- Tabs ----------
 function setupTabs() {
-  const setTabSpecificButtons = (view) => {
-    // "Export pro účetní" jen na Transakce
-    const accBtn = document.getElementById("btn-export-accounting");
-    if (accBtn) accBtn.hidden = view !== "transactions";
-    // "Tisk / PDF" jen na Reportu — tiskový styl schová vše kromě aktivního tabu
-    const printBtn = document.getElementById("btn-print-report");
-    if (printBtn) printBtn.hidden = !(view === "report" || view === "positions-at");
-    // Daňová optimalizace má Načíst znovu a Export vlastní, vpravo nad tabulkou
-    for (const id of ["btn-refresh", "btn-export-xlsx"]) {
-      const btn = document.getElementById(id);
-      if (btn) btn.hidden = view === "tax";
-    }
-  };
   document.querySelectorAll(".tab").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const view = btn.dataset.view;
-      state.view = view;
-      document.querySelectorAll(".tab").forEach((t) =>
-        t.classList.toggle("active", t.dataset.view === view),
-      );
-      document.querySelectorAll(".view").forEach((v) =>
-        v.classList.toggle("active", v.id === `view-${view}`),
-      );
-      setTabSpecificButtons(view);
-      // Inventura se sestaví až při prvním otevření tabu (načítá obě portfolia + historické ceny)
-      if (view === "positions-at" && !state.positionsAt.rows && !state.positionsAt.loading) {
-        buildPositionsAt();
-      }
-      if (view === "tax" && !state.taxOpt.data && !state.taxOpt.loading) {
-        buildTaxOpt();
-      }
-    });
+    btn.addEventListener("click", () => showView(btn.dataset.view));
   });
-  // Initial state
-  setTabSpecificButtons(state.view || "overview");
+  placeViewActions(state.view);
+}
+
+function showView(view) {
+  state.view = view;
+  document.querySelectorAll(".tab").forEach((t) =>
+    t.classList.toggle("active", t.dataset.view === view),
+  );
+  document.querySelectorAll(".view").forEach((v) =>
+    v.classList.toggle("active", v.id === `view-${view}`),
+  );
+  // Dlaždice patří zvolenému portfoliu — u přehledů za firmu a Nastavení nedávají smysl
+  document.body.classList.toggle("header-view", HEADER_VIEWS.has(view));
+  placeViewActions(view);
+  renderHeader();
+  // Inventura a daňový přehled se sestaví při prvním otevření (načítají portfolia
+  // firmy + ceny) a znovu, když se mezitím změnila firma
+  if (view === "positions-at" && !state.positionsAt.loading && (!state.positionsAt.rows || positionsAtStale())) {
+    buildPositionsAt();
+  }
+  if (view === "tax" && !state.taxOpt.loading && (!state.taxOpt.data || taxOptStale())) {
+    buildTaxOpt();
+  }
+  if (view === "settings" && !state.settingsDirty) renderSettings();
+}
+
+// Jedna skupina tlačítek pro všechny taby — přesune se do lišty nad tabulkou
+// tabu, který je vidět. Tab bez lišty (Nastavení) ji nechá ve skrytém tabu.
+function placeViewActions(view) {
+  const actions = document.getElementById("view-actions");
+  const slot = document.querySelector(`#view-${view} [data-view-actions]`);
+  if (!actions || !slot) return;
+  slot.appendChild(actions);
+  document.getElementById("btn-export-accounting").hidden = view !== "transactions";
+  // Tisk se používá pro Report a inventuru — tiskový styl schová vše kromě aktivního tabu
+  document.getElementById("btn-print-report").hidden = !(view === "report" || view === "positions-at");
+  document.getElementById("btn-export-xlsx").hidden = view === "portfolio-history";
 }
 
 function setupRefresh() {
   document.getElementById("btn-refresh").addEventListener("click", () => {
+    // Přehledy za firmu si načítají portfolia i ceny samy — znovu od začátku
+    if (COMPANY_VIEWS.has(state.view)) {
+      state.positionsAt.portfolios = null;
+      if (state.view === "tax") buildTaxOpt();
+      else buildPositionsAt();
+      return;
+    }
     refreshQuotes().catch((err) => showError(err.message));
-    // Daňová optimalizace má vlastní ceny za všechna portfolia
-    if (state.taxOpt.data) buildTaxOpt();
   });
   document.getElementById("btn-export-xlsx").addEventListener("click", () => {
     exportCurrentViewXlsx();
@@ -1536,14 +1906,14 @@ function renderPhYearEnd(navRaw) {
   wrap.hidden = false;
   tbody.innerHTML = "";
   for (const [y, n] of rows) {
-    const ccy = n.currency || "USD";
+    const ccy = n.currency;
     const fx = getFxToCzk(n.date, ccy, { allowFallback: true });
-    const czk = fx != null ? n.value_usd * fx : null;
+    const czk = fx != null ? n.value * fx : null;
     tbody.innerHTML += `
       <tr>
         <td><strong>${y}</strong></td>
         <td class="num">${n.date}</td>
-        <td class="num"><strong>${fmtNum(n.value_usd, 2)} ${ccy}</strong></td>
+        <td class="num"><strong>${fmtNum(n.value, 2)} ${ccy}</strong></td>
         <td class="num">${fx != null ? fmtNum(fx, 3) : '<span class="muted">—</span>'}</td>
         <td class="num">${czk != null ? fmtNum(czk, 0) : '<span class="muted">—</span>'}</td>
       </tr>
@@ -1559,26 +1929,25 @@ function renderPortfolioHistory() {
   if (!chartEl || !tbody) return;
 
   // 1) Sebrat NAV snapshoty ze DVOU zdrojů:
-  //    - static_nav_history = jednorázový backfill z IBKR Activity Statement
-  //      (Python script + Yahoo historical, viz outputs/backfill_nav.py)
-  //    - nav_history (overlay) = denní cron z IBKR Flex Web Service
+  //    - static_nav_history = jednorázový backfill (IBKR: Activity Statement
+  //      + Yahoo, outputs/backfill_nav.py; Lynx: Flex výpisy po letech)
+  //    - nav_history (overlay) = denní cron z IB Flex Web Service
   //    Dedupe po reportDate, overlay (čerstvější) má prioritu pro stejné datum.
+  //    Hodnota je v měně účtu (IBKR USD, Lynx CZK), do Kč kurzem k danému dni.
   const navByDate = new Map();
   const ingest = (arr, source) => {
     for (const n of arr || []) {
       if (!n.reportDate || n.total == null) continue;
       const date = flexDate(n.reportDate);
-      const value_usd = parseFloat(n.total);
-      if (!date || !Number.isFinite(value_usd)) continue;
+      const value = parseFloat(n.total);
+      if (!date || !Number.isFinite(value)) continue;
       // Pokud už máme záznam pro to datum, prioritu má 'overlay' (čerstvější data)
       const existing = navByDate.get(date);
       if (!existing || source === "overlay") {
         navByDate.set(date, {
           date,
-          value_usd,
-          cash_usd: parseFloat(n.cash || 0),
-          stock_usd: parseFloat(n.stock || 0),
-          currency: n.currency || "USD",
+          value,
+          currency: n.currency || p?.base_currency || "USD",
           source,
         });
       }
@@ -1642,25 +2011,27 @@ function renderPortfolioHistory() {
     return;
   }
 
-  const fxUsdToCzk = (date) => getFxToCzk(date, "USD", { allowFallback: true });
-
   // V tabulce chronologicky obráceně (nejnovější nahoře)
   for (let i = nav.length - 1; i >= 0; i--) {
     const n = nav[i];
     const prev = i > 0 ? nav[i - 1] : null;
-    const fx = fxUsdToCzk(n.date);
-    const valueCzk = fx ? n.value_usd * fx : null;
+    const fx = getFxToCzk(n.date, n.currency, { allowFallback: true });
+    const valueCzk = fx ? n.value * fx : null;
+    // Sloupec USD: u účtu v USD hodnota sama, jinak ekvivalent kurzem ČNB
+    const usdFx = getFxToCzk(n.date, "USD", { allowFallback: true });
+    const valueUsd = n.currency === "USD" ? n.value : valueCzk != null && usdFx ? valueCzk / usdFx : null;
+    // Denní změna v měně účtu a do Kč kurzem dne — kurzový pohyb ji nezkreslí
     const dayDelta =
-      prev != null ? n.value_usd - prev.value_usd : null;
+      prev != null ? n.value - prev.value : null;
     const dayDeltaCzk = dayDelta != null && fx ? dayDelta * fx : null;
     const dayDeltaPct =
-      prev != null && prev.value_usd > 0
-        ? (dayDelta / prev.value_usd) * 100
+      prev != null && prev.value > 0
+        ? (dayDelta / prev.value) * 100
         : null;
 
     const deps = depositsByDate.get(n.date);
     const noteHtml = deps
-      ? `<span class="ph-deposit-note">💰 vklad ${deps.map((d) => `${fmtNum(d.amount, 2)} ${d.currency}`).join(", ")}</span>`
+      ? `<span class="ph-deposit-note">💰 ${deps.map((d) => `${d.amount < 0 ? "výběr" : "vklad"} ${fmtNum(Math.abs(d.amount), 2)} ${d.currency}`).join(", ")}</span>`
       : "";
 
     const rowClass = deps ? ' class="ph-row-deposit"' : "";
@@ -1668,7 +2039,7 @@ function renderPortfolioHistory() {
       <tr${rowClass}>
         <td>${n.date}</td>
         <td class="num">${valueCzk != null ? fmtNum(valueCzk, 0) : '<span class="muted">—</span>'}</td>
-        <td class="num">${fmtNum(n.value_usd, 0)}</td>
+        <td class="num">${valueUsd != null ? fmtNum(valueUsd, 0) : '<span class="muted">—</span>'}</td>
         <td class="num ${signClass(dayDeltaCzk)}">${dayDeltaCzk != null ? (dayDeltaCzk > 0 ? "+" : "") + fmtNum(dayDeltaCzk, 0) : '<span class="muted">—</span>'}</td>
         <td class="num ${signClass(dayDeltaPct)}">${dayDeltaPct != null ? fmtPct(dayDeltaPct) : '<span class="muted">—</span>'}</td>
         <td>${noteHtml}</td>
@@ -1689,55 +2060,71 @@ function renderPhGlobalTiles(navRaw, p, depositsByDateMap) {
     if (el) el.textContent = val;
   };
 
-  // Total deposits — sečíst VŠECHNY (historické + Flex overlay), dedupe by (date+amount+ccy)
-  let totalDepositsUsd = 0;
+  // Current NAV = poslední záznam v navRaw (bez ohledu na filtr), v měně účtu
+  const last = navRaw.length > 0 ? navRaw[navRaw.length - 1] : null;
+  const ccy = last?.currency || p?.base_currency || "USD";
+  const currentNav = last ? last.value : 0;
+  const currentDate = last ? last.date : null;
+
+  // Total deposits — sečíst VŠECHNY (historické + Flex overlay), dedupe by (date+amount+ccy),
+  // v měně účtu kurzem ke dni vkladu (Lynx: vklady v CZK i EUR)
+  let totalDeposits = 0;
   for (const [date, deps] of depositsByDateMap) {
     for (const d of deps) {
-      const usd =
-        d.currency === "USD" ? d.amount : convertToUsd(d.amount, d.currency, date);
-      if (Number.isFinite(usd)) totalDepositsUsd += usd;
+      const v = amountInCcy(d.amount, d.currency, ccy, date);
+      if (Number.isFinite(v)) totalDeposits += v;
     }
   }
 
-  // Current NAV = poslední záznam v navRaw (bez ohledu na filtr)
-  const last = navRaw.length > 0 ? navRaw[navRaw.length - 1] : null;
-  const currentNavUsd = last ? last.value_usd : 0;
-  const currentDate = last ? last.date : null;
-  const fxToday = currentDate
-    ? getFxToCzk(currentDate, "USD", { allowFallback: true })
-    : null;
+  const fxToday = currentDate ? getFxToCzk(currentDate, ccy, { allowFallback: true }) : null;
+  const usdToday = currentDate ? getFxToCzk(currentDate, "USD", { allowFallback: true }) : null;
 
-  const fmtMoney = (usd) => {
-    if (fxToday != null) return `${fmtNum(usd * fxToday, 0)} Kč`;
-    return `${fmtNum(usd, 0)} USD`;
+  const fmtMoney = (v) => {
+    if (fxToday != null) return `${fmtNum(v * fxToday, 0)} Kč`;
+    return `${fmtNum(v, 0)} ${ccy}`;
   };
+  // Pod hodnotou měna účtu, u korunového účtu orientačně USD
+  const subMoney = (v) =>
+    ccy !== "CZK" ? `${fmtNum(v, 0)} ${ccy} ekv.` : usdToday ? `≈ ${fmtNum(v / usdToday, 0)} USD` : "";
 
-  setText("ph-total-deposits-czk", fmtMoney(totalDepositsUsd));
-  setText("ph-total-deposits-usd", `${fmtNum(totalDepositsUsd, 0)} USD ekv.`);
+  setText("ph-total-deposits-czk", fmtMoney(totalDeposits));
+  setText("ph-total-deposits-usd", subMoney(totalDeposits));
 
-  setText("ph-current-nav-czk", fmtMoney(currentNavUsd));
-  setText("ph-current-nav-usd", `${fmtNum(currentNavUsd, 0)} USD ekv.`);
+  setText("ph-current-nav-czk", fmtMoney(currentNav));
+  setText("ph-current-nav-usd", subMoney(currentNav));
 
   // Diff
-  const diffUsd = currentNavUsd - totalDepositsUsd;
-  const diffCzk = fxToday != null ? diffUsd * fxToday : null;
+  const diff = currentNav - totalDeposits;
+  const diffCzk = fxToday != null ? diff * fxToday : null;
   const diffPct =
-    totalDepositsUsd > 0 ? (diffUsd / totalDepositsUsd) * 100 : 0;
+    totalDeposits > 0 ? (diff / totalDeposits) * 100 : 0;
 
   const diffEl = document.getElementById("ph-net-diff-czk");
   if (diffEl) {
-    const prefix = diffUsd > 0 ? "+" : "";
+    const prefix = diff > 0 ? "+" : "";
     diffEl.textContent =
       diffCzk != null
         ? `${prefix}${fmtNum(diffCzk, 0)} Kč`
-        : `${prefix}${fmtNum(diffUsd, 0)} USD`;
-    diffEl.className = `ph-tile-value ${signClass(diffUsd)}`;
+        : `${prefix}${fmtNum(diff, 0)} ${ccy}`;
+    diffEl.className = `ph-tile-value ${signClass(diff)}`;
   }
   const pctEl = document.getElementById("ph-net-diff-pct");
   if (pctEl) {
-    pctEl.textContent = `${diffUsd > 0 ? "+" : ""}${diffPct.toFixed(2)} %`;
-    pctEl.className = `ph-tile-sub ${signClass(diffUsd)}`;
+    pctEl.textContent = `${diff > 0 ? "+" : ""}${diffPct.toFixed(2)} %`;
+    pctEl.className = `ph-tile-sub ${signClass(diff)}`;
   }
+}
+
+/**
+ * Částka v měně účtu kurzem ČNB ke dni (vklad v EUR na korunový účet).
+ * Do USD stejně jako dosud convertToUsd — čísla IBKR se nemění.
+ */
+function amountInCcy(amount, from, to, date) {
+  if (from === to) return amount;
+  if (to === "USD") return convertToUsd(amount, from, date);
+  const fromFx = getFxToCzk(date, from, { allowFallback: true });
+  const toFx = getFxToCzk(date, to, { allowFallback: true });
+  return fromFx != null && toFx ? (amount * fromFx) / toFx : NaN;
 }
 
 function renderPhTiles(nav, depositsByDate) {
@@ -1753,43 +2140,41 @@ function renderPhTiles(nav, depositsByDate) {
   }
   const start = nav[0];
   const end = nav[nav.length - 1];
-  const fxStart = getFxToCzk(start.date, "USD", { allowFallback: true });
-  const fxEnd = getFxToCzk(end.date, "USD", { allowFallback: true });
-  const startCzk = fxStart ? start.value_usd * fxStart : null;
-  const endCzk = fxEnd ? end.value_usd * fxEnd : null;
-  const changeUsd = end.value_usd - start.value_usd;
+  const ccy = end.currency;
+  const ccyLabel = ccy === "CZK" ? "Kč" : ccy;
+  const fxStart = getFxToCzk(start.date, ccy, { allowFallback: true });
+  const fxEnd = getFxToCzk(end.date, ccy, { allowFallback: true });
+  const startCzk = fxStart ? start.value * fxStart : null;
+  const endCzk = fxEnd ? end.value * fxEnd : null;
+  const change = end.value - start.value;
   const changeCzk = endCzk != null && startCzk != null ? endCzk - startCzk : null;
   const changePct =
-    start.value_usd > 0 ? (changeUsd / start.value_usd) * 100 : 0;
+    start.value > 0 ? (change / start.value) * 100 : 0;
 
-  setText("ph-start-value", startCzk != null ? `${fmtNum(startCzk, 0)} Kč` : `${fmtNum(start.value_usd, 0)} USD`);
+  setText("ph-start-value", startCzk != null ? `${fmtNum(startCzk, 0)} Kč` : `${fmtNum(start.value, 0)} ${ccyLabel}`);
   setText("ph-start-date", start.date);
-  setText("ph-end-value", endCzk != null ? `${fmtNum(endCzk, 0)} Kč` : `${fmtNum(end.value_usd, 0)} USD`);
+  setText("ph-end-value", endCzk != null ? `${fmtNum(endCzk, 0)} Kč` : `${fmtNum(end.value, 0)} ${ccyLabel}`);
   setText("ph-end-date", end.date);
 
   const changeEl = document.getElementById("ph-change-value");
   if (changeEl) {
-    changeEl.textContent = changeCzk != null ? `${changeCzk > 0 ? "+" : ""}${fmtNum(changeCzk, 0)} Kč` : `${changeUsd > 0 ? "+" : ""}${fmtNum(changeUsd, 0)} USD`;
-    changeEl.className = `ph-tile-value ${signClass(changeCzk ?? changeUsd)}`;
+    changeEl.textContent = changeCzk != null ? `${changeCzk > 0 ? "+" : ""}${fmtNum(changeCzk, 0)} Kč` : `${change > 0 ? "+" : ""}${fmtNum(change, 0)} ${ccyLabel}`;
+    changeEl.className = `ph-tile-value ${signClass(changeCzk ?? change)}`;
   }
   setText("ph-change-pct", `${changePct > 0 ? "+" : ""}${changePct.toFixed(2)} %`);
 
-  // Vklady v období — sečíst všechny v daterange (start..end), per currency
+  // Vklady v období — sečíst všechny v daterange (start..end), v měně účtu
   let depCountInRange = 0;
-  let depTotalUsd = 0;
+  let depTotal = 0;
   for (const [date, deps] of depositsByDate) {
     if (date < start.date || date > end.date) continue;
     for (const d of deps) {
       depCountInRange++;
-      // Hrubý přepočet na USD pro souhrn
-      if (d.currency === "USD") depTotalUsd += d.amount;
-      else {
-        const usd = convertToUsd(d.amount, d.currency, date);
-        if (Number.isFinite(usd)) depTotalUsd += usd;
-      }
+      const v = amountInCcy(d.amount, d.currency, ccy, date);
+      if (Number.isFinite(v)) depTotal += v;
     }
   }
-  setText("ph-deposits-value", `${fmtNum(depTotalUsd, 0)} USD`);
+  setText("ph-deposits-value", `${fmtNum(depTotal, 0)} ${ccyLabel}`);
   setText("ph-deposits-count", `${depCountInRange} transakc${depCountInRange === 1 ? "e" : depCountInRange < 5 ? "í" : "í"}`);
 }
 
@@ -1802,8 +2187,9 @@ function renderNavChartSvg(nav, depositsByDate) {
   const H = 320;
   const padL = 70, padR = 20, padT = 16, padB = 32;
 
+  const ccyLabel = nav[nav.length - 1].currency === "CZK" ? "Kč" : nav[nav.length - 1].currency;
   const xs = nav.map((n) => new Date(n.date).getTime());
-  const ys = nav.map((n) => n.value_usd);
+  const ys = nav.map((n) => n.value);
   const xMin = Math.min(...xs), xMax = Math.max(...xs);
   const yMin = Math.min(...ys), yMax = Math.max(...ys);
   const yPad = (yMax - yMin) * 0.08 || yMax * 0.05 || 1;
@@ -1815,13 +2201,13 @@ function renderNavChartSvg(nav, depositsByDate) {
 
   // Line path
   const path = nav
-    .map((n, i) => `${i === 0 ? "M" : "L"}${sx(new Date(n.date).getTime()).toFixed(1)},${sy(n.value_usd).toFixed(1)}`)
+    .map((n, i) => `${i === 0 ? "M" : "L"}${sx(new Date(n.date).getTime()).toFixed(1)},${sy(n.value).toFixed(1)}`)
     .join(" ");
 
   // Area under line (subtle gradient fill)
   const areaPath =
     `M${sx(xs[0]).toFixed(1)},${(H - padB).toFixed(1)} ` +
-    nav.map((n) => `L${sx(new Date(n.date).getTime()).toFixed(1)},${sy(n.value_usd).toFixed(1)}`).join(" ") +
+    nav.map((n) => `L${sx(new Date(n.date).getTime()).toFixed(1)},${sy(n.value).toFixed(1)}`).join(" ") +
     ` L${sx(xs[xs.length - 1]).toFixed(1)},${(H - padB).toFixed(1)} Z`;
 
   // Deposit markers — větší zelené tečky + tenká vertikální vodící čára,
@@ -1830,11 +2216,12 @@ function renderNavChartSvg(nav, depositsByDate) {
     .filter((n) => depositsByDate.has(n.date))
     .map((n) => {
       const x = sx(new Date(n.date).getTime());
-      const y = sy(n.value_usd);
+      const y = sy(n.value);
       const deps = depositsByDate.get(n.date);
       const total = deps.reduce((s, d) => s + d.amount, 0);
       const ccy = deps[0]?.currency || "USD";
-      const tip = `Vklad ${n.date}: +${total.toLocaleString("cs-CZ", { maximumFractionDigits: 0 })} ${ccy}`;
+      const amount = Math.abs(total).toLocaleString("cs-CZ", { maximumFractionDigits: 0 });
+      const tip = total < 0 ? `Výběr ${n.date}: −${amount} ${ccy}` : `Vklad ${n.date}: +${amount} ${ccy}`;
       return `
         <line x1="${x.toFixed(1)}" y1="${(padT).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(H - padB).toFixed(1)}" stroke="var(--color-positive)" stroke-width="1" stroke-opacity="0.3" stroke-dasharray="2,3" />
         <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7" fill="var(--color-positive)" stroke="#fff" stroke-width="2.5"><title>${tip}</title></circle>
@@ -1849,7 +2236,7 @@ function renderNavChartSvg(nav, depositsByDate) {
     const y = sy(v);
     yTicks.push(`
       <line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="#eee" stroke-dasharray="3,3" />
-      <text x="${padL - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#888">${fmtNum(v / 1000, 0)}K USD</text>
+      <text x="${padL - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#888">${fmtNum(v / 1000, 0)}K ${ccyLabel}</text>
     `);
   }
 
@@ -4076,10 +4463,16 @@ function exportReportXlsx() {
   XLSX.writeFile(wb, fname);
 }
 
-// ---------- Pozice k datu (inventurní výpis přes všechna portfolia) ----------
-// Přesné znění nadpisu podle požadavku účetní/auditora — {DATE} = rozvahový den.
+// ---------- Pozice k datu (inventurní výpis přes všechna portfolia firmy) ----------
+// Přesné znění nadpisu podle požadavku účetní/auditora — {COMPANY} = firma
+// z Nastavení (výchozí „PLEGI invest s.r.o.“ dává doslovné znění), {DATE} = rozvahový den.
 const PA_TITLE_TEMPLATE =
-  "Přesná identifikace jednotlivých pozic cenných papírů a kryptoaktiv držených společnostmi PLEGI invest s.r.o. ke dni {DATE}, tedy název, ISIN nebo ticker, počet kusů a ocenění";
+  "Přesná identifikace jednotlivých pozic cenných papírů a kryptoaktiv držených společnostmi {COMPANY} ke dni {DATE}, tedy název, ISIN nebo ticker, počet kusů a ocenění";
+
+function positionsAtTitle(date) {
+  const company = companiesOf(state.owners).find((c) => c.id === state.positionsAt.companyId);
+  return PA_TITLE_TEMPLATE.replace("{COMPANY}", company?.name || "").replace("{DATE}", fmtCzDate(date));
+}
 
 function fmtCzDate(iso) {
   const [y, m, d] = String(iso).split("-");
@@ -4098,8 +4491,8 @@ function setupPositionsAt() {
 }
 
 // Načte VŠECHNA portfolia z manifestu (statický JSON + KV overlay) nezávisle na
-// aktivním portfoliu — inventura je za celou společnost. Cache per session,
-// data nezávisí na zvoleném datu.
+// aktivním portfoliu; přehledy za firmu si z nich vyberou svá (companyPortfolios).
+// Cache per session, data nezávisí na zvoleném datu.
 async function loadAllPortfoliosForSnapshot() {
   if (state.positionsAt.portfolios) return state.positionsAt.portfolios;
   const list = [];
@@ -4157,10 +4550,12 @@ async function buildPositionsAt() {
   document.getElementById("pa-cash-wrap").hidden = true;
   document.getElementById("pa-summary").hidden = true;
   document.getElementById("pa-title").hidden = true;
-  showStatus(`Sestavuji pozice k ${fmtCzDate(date)} — načítám portfolia, historické ceny a kurz ČNB…`);
+  showStatus(`Sestavuji pozice k ${fmtCzDate(date)} — načítám portfolia firmy, historické ceny a kurz ČNB…`);
+  const companyId = state.companyId;
 
   try {
-    const portfolios = await loadAllPortfoliosForSnapshot();
+    const portfolios = companyPortfolios(await loadAllPortfoliosForSnapshot());
+    if (!portfolios.length) throw new Error("zvolená firma nemá v Nastavení žádné portfolio");
 
     // 1) Pozice ke dni per portfolio — FIFO nad obchody vypořádanými do data
     const rows = [];
@@ -4286,12 +4681,14 @@ async function buildPositionsAt() {
     state.positionsAt.cashMissing = cashMissing;
     state.positionsAt.fxValidFor = fxData?.valid_for || null;
     state.positionsAt.portfolioCount = portfolios.length;
+    state.positionsAt.companyId = companyId;
     renderPositionsAt();
   } catch (e) {
     showStatus(`Sestavení selhalo: ${e.message}`, true);
   } finally {
     state.positionsAt.loading = false;
   }
+  if (state.view === "positions-at" && positionsAtStale()) buildPositionsAt();
 }
 
 function renderPositionsAt() {
@@ -4302,7 +4699,7 @@ function renderPositionsAt() {
   const summary = document.getElementById("pa-summary");
   const countEl = document.getElementById("pa-count");
 
-  titleEl.textContent = PA_TITLE_TEMPLATE.replace("{DATE}", fmtCzDate(date));
+  titleEl.textContent = positionsAtTitle(date);
   titleEl.hidden = false;
   statusEl.hidden = true;
   tbody.innerHTML = "";
@@ -4361,7 +4758,7 @@ function renderPositionsAt() {
   }
 
   if (countEl) {
-    countEl.textContent = `${rows.length} pozic · ${portfolioCount} portfolia`;
+    countEl.textContent = `${rows.length} ${pozic(rows.length)} · ${portfolioCount} ${portfolii(portfolioCount)}`;
   }
 
   const diff = totalValue - totalCost;
@@ -4415,7 +4812,7 @@ function exportPositionsAtXlsx() {
     alert("Nejdřív sestav pozice k datu (tlačítko Sestavit v tabu Pozice k datu).");
     return;
   }
-  const title = PA_TITLE_TEMPLATE.replace("{DATE}", fmtCzDate(date));
+  const title = positionsAtTitle(date);
   const fxNote = fxValidFor && fxValidFor !== date
     ? ` (k ${fmtCzDate(date)} nevyhlášen — použit poslední vyhlášený z ${fmtCzDate(fxValidFor)})`
     : "";
@@ -4519,10 +4916,10 @@ function exportPositionsAtXlsx() {
     XLSX.utils.book_append_sheet(wb, cws, "Hotovost");
   }
 
-  XLSX.writeFile(wb, `pozice-k-${date}.xlsx`);
+  XLSX.writeFile(wb, `${state.positionsAt.companyId}-pozice-k-${date}.xlsx`);
 }
 
-// ---------- Daňová optimalizace (za celou společnost) ----------
+// ---------- Daňová optimalizace (za zvolenou firmu) ----------
 // Výpočty v ./tax-optimization.js (čisté funkce, testované); tady načtení dat,
 // vykreslení a simulace prodeje (výběr pozic žije jen v paměti stránky).
 const QUOTE_BATCH = 50; // limit /api/quote
@@ -4531,12 +4928,12 @@ const kcText = (n) => `${fmtNum(n, 0)} Kč`;
 const kcSigned = (n) => `<span class="${signClass(n)}">${kcText(n)}</span>`;
 const nakupu = (n) => (n === 1 ? "nákup" : n >= 2 && n <= 4 ? "nákupy" : "nákupů");
 const pozic = (n) => (n >= 1 && n <= 4 ? "pozice" : "pozic"); // 1–4 pozice, 0 a 5+ pozic
+const uctu = (n) => (n === 1 ? "účet" : n >= 2 && n <= 4 ? "účty" : "účtů");
+const portfolii = (n) => (n === 1 ? "portfolio" : n >= 2 && n <= 4 ? "portfolia" : "portfolií");
 
 const TAX_DETAILS_KEY = "akcie.taxDetailsOpen";
 
 function setupTaxOpt() {
-  document.getElementById("tax-reload")?.addEventListener("click", () => buildTaxOpt());
-  document.getElementById("tax-export")?.addEventListener("click", () => exportTaxOptXlsx());
   // Rozbalené poznámky si prohlížeč pamatuje (jen pohodlí – bez úložiště zůstanou sbalené)
   const details = document.getElementById("tax-details");
   if (details) {
@@ -4596,17 +4993,24 @@ async function buildTaxOpt() {
     statusEl.classList.toggle("error", isError);
     statusEl.textContent = msg;
   };
-  showStatus("Načítám všechna portfolia a aktuální ceny…");
-  // Podaná přiznání jsou samostatná část tabu – když se nenačtou, zbytek běží dál
+  const companyId = state.companyId;
+  showStatus("Načítám portfolia firmy a aktuální ceny…");
+  // Podaná přiznání jsou samostatná část tabu – když se nenačtou, zbytek běží dál.
+  // Soubor patří jedné firmě (`owner`), u jiné firmy se neukazuje.
   const taxReturns = fetch(TAX_RETURNS_URL, { cache: "no-cache" })
     .then((res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     })
-    .then((json) => ({ overview: lossCarryOverview(json.returns), error: null }))
+    .then((json) =>
+      json.owner && json.owner !== companyId
+        ? { overview: null, error: null, otherCompany: true }
+        : { overview: lossCarryOverview(json.returns), error: null },
+    )
     .catch((e) => ({ overview: null, error: e.message }));
   try {
-    const accounts = withPositions(await loadAllPortfoliosForSnapshot());
+    const accounts = withPositions(companyPortfolios(await loadAllPortfoliosForSnapshot()));
+    if (!accounts.length) throw new Error("zvolená firma nemá v Nastavení žádné portfolio");
     const today = pragueToday();
     const year = today.slice(0, 4);
 
@@ -4629,6 +5033,7 @@ async function buildTaxOpt() {
 
     const rows = taxPositionRows(accounts, quotes, state.fxRates, today);
     state.taxOpt.data = {
+      companyId,
       today,
       year,
       rows,
@@ -4649,7 +5054,12 @@ async function buildTaxOpt() {
   } finally {
     state.taxOpt.loading = false;
   }
+  // Firma se změnila během načítání — výsledek patří té předchozí
+  if (state.view === "tax" && taxOptStale()) buildTaxOpt();
 }
+
+const taxOptStale = () => !!state.taxOpt.data && state.taxOpt.data.companyId !== state.companyId;
+const positionsAtStale = () => !!state.positionsAt.rows && state.positionsAt.companyId !== state.companyId;
 
 function renderTaxOpt() {
   const d = state.taxOpt.data;
@@ -4813,7 +5223,7 @@ function renderTaxTable() {
     </tr>
   `;
   document.getElementById("tax-count").textContent =
-    `${rows.length} ${pozic(rows.length)} · ${d.accountCount} účty · stav k ${fmtCzDate(d.today)}`;
+    `${rows.length} ${pozic(rows.length)} · ${d.accountCount} ${uctu(d.accountCount)} · stav k ${fmtCzDate(d.today)}`;
 }
 
 // Poznámka k roku v tabulce přiznání i v exportu: vznik a odečtení ztráty, dividendy
@@ -4844,15 +5254,17 @@ function taxRefundFormula(r) {
 }
 
 function renderTaxReturns() {
-  const { overview: o, error } = state.taxOpt.data.taxReturns || {};
+  const { overview: o, error, otherCompany } = state.taxOpt.data.taxReturns || {};
   const status = document.getElementById("tax-returns-status");
   const wrap = document.getElementById("tax-returns-wrap");
   const carry = document.getElementById("tax-returns-carry");
   const hint = document.getElementById("tax-details-hint");
   if (!o) {
     status.hidden = false;
-    status.classList.add("error");
-    status.textContent = `Daňová přiznání se nepodařilo načíst${error ? ` (${error})` : ""}.`;
+    status.classList.toggle("error", !otherCompany);
+    status.textContent = otherCompany
+      ? `Podaná přiznání firmy ${currentCompany()?.name || ""} zatím v aplikaci nejsou (data/tax-returns.json má jen jednu firmu).`
+      : `Daňová přiznání se nepodařilo načíst${error ? ` (${error})` : ""}.`;
     wrap.hidden = true;
     carry.textContent = "";
     hint.textContent = "";
@@ -5049,7 +5461,7 @@ function exportTaxOptXlsx() {
   ];
   XLSX.utils.book_append_sheet(wb, ws, "Daňová optimalizace");
   if (d.taxReturns?.overview) XLSX.utils.book_append_sheet(wb, taxReturnsSheet(d.taxReturns.overview), "Daňová přiznání");
-  XLSX.writeFile(wb, `danova-optimalizace-${d.year}-k-${d.today}.xlsx`);
+  XLSX.writeFile(wb, `${d.companyId}-danova-optimalizace-${d.year}-k-${d.today}.xlsx`);
 }
 
 // Druhý list exportu: podaná přiznání a kolik ztráty otevřeného roku jde odečíst zpětně

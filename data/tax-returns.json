@@ -1,5 +1,6 @@
 {
   "company": "PLEGI invest s.r.o.",
+  "owner": "plegi-invest",
   "note": "Přiznání k dani z příjmů právnických osob v Kč – hodnoty řádného přiznání, po dodatečném přiznání kvůli opravě chyby hodnoty opravené (type = dodatečné) (II. oddíl: result = ř. 10, base = ř. 220, loss_deducted = ř. 230, base_after_deductions = ř. 250, rate = ř. 280, tax = ř. 290, separate_base = ř. 331, separate_tax = ř. 335, tax_total = ř. 340; loss = daňová ztráta roku, loss_used = kde byla odečtena podle tabulky E pozdějších přiznání, i zpětně). Doplňuje se jednou ročně po podání přiznání ze složky daňových přiznání v OneDrive (Asistentka – General/danova_priznani/plegi invest).",
   "returns": [
     {
@@ -16,7 +17,12 @@
       "separate_tax": 0,
       "tax_total": 0,
       "loss": 41038,
-      "loss_used": [{ "year": 2023, "amount": 41038 }]
+      "loss_used": [
+        {
+          "year": 2023,
+          "amount": 41038
+        }
+      ]
     },
     {
       "year": 2023,

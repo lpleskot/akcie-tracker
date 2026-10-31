@@ -1041,7 +1041,9 @@
     }
   ],
   "cash_balance": {
-    "USD": 3008.46751585
+    "DKK": 1741.05,
+    "SEK": 915.638571722,
+    "USD": 2640.745158305
   },
   "source_activity_statement": "podklady/U23077136_20251124_20260515.csv",
   "customer_type": "Corporate",

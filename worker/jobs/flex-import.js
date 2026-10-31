@@ -1,17 +1,20 @@
 /**
- * Cron job flex-import — denně stahuje z IBKR Flex Web Service nové transakce
+ * Cron job flex-import — denně stahuje z IB Flex Web Service nové transakce
  * (Trades, CashTransactions, CorporateActions, Transfers, NAV snapshot,
  * Open Positions, M2M YTD) a ukládá je idempotentně do KV jako overlay
  * nad statický portfolio JSON.
  *
- * Vstupní body (worker/index.js): denní cron 5:00 UTC (= 7:00 Prahy v létě /
- * 6:00 v zimě) a manuální GET /run/flex-import (x-admin-key).
+ * Zdroje (FLEX_SOURCES): firemní IBKR a osobní LYNX — LYNX je introducing
+ * broker Interactive Brokers, Flex je totožný, liší se jen token a query ID.
  *
- * Flow:
+ * Vstupní body (worker/index.js): denní cron 5:00 UTC (= 7:00 Prahy v létě /
+ * 6:00 v zimě) a manuální GET /run/flex-import[?source=ibkr|lynx] (x-admin-key).
+ *
+ * Flow (pro každý zdroj):
  *   1) SendRequest(token, queryId)  →  ReferenceCode
  *   2) wait 30 s + retry             →  GetStatement(refCode)  → XML
  *   3) parse XML                     →  parsed object
- *   4) merge do KV pod klíčem `portfolio-overlay:{PORTFOLIO_ID}`
+ *   4) merge do KV pod klíčem `portfolio-overlay:{id portfolia}`
  *      — dedupe podle unikátních ID (tradeID, transactionID, actionID)
  *
  * DRY_RUN="true" → parsuje a loguje, ale neukládá. Pro bezpečné testování.
@@ -25,14 +28,50 @@ const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
+// Token je secret, query ID var ve wrangler.toml. Volitelný zdroj bez nich
+// ranní běh přeskočí (Lynx do nastavení secretu); IBKR bez nich je chyba.
+export const FLEX_SOURCES = [
+  { key: "ibkr", portfolioVar: "PORTFOLIO_ID", tokenVar: "FLEX_TOKEN", queryVar: "FLEX_QUERY_ID" },
+  { key: "lynx", portfolioId: "lukas-pleskot-lynx", tokenVar: "LYNX_FLEX_TOKEN", queryVar: "LYNX_FLEX_QUERY_ID", optional: true },
+];
+
+export function flexSource(env, key) {
+  const s = FLEX_SOURCES.find((x) => x.key === key);
+  if (!s) return null;
+  return {
+    ...s,
+    portfolioId: s.portfolioId || env[s.portfolioVar],
+    token: env[s.tokenVar],
+    queryId: env[s.queryVar],
+  };
+}
+
 // ---------- Main flow ----------
-export async function runImport(env) {
+
+// Ranní běh: zdroje po sobě (limit SendRequest je na token, souběh nic nezrychlí)
+export async function runAllImports(env) {
+  const results = {};
+  for (const { key } of FLEX_SOURCES) {
+    const src = flexSource(env, key);
+    if (src.optional && (!src.token || !src.queryId)) {
+      console.log(`⏭️  Flex ${key}: přeskočeno – chybí ${!src.token ? src.tokenVar : src.queryVar}`);
+      results[key] = { ok: true, skipped: true };
+      continue;
+    }
+    results[key] = await runImport(env, key);
+  }
+  return results;
+}
+
+export async function runImport(env, key = "ibkr") {
   const dryRun = env.DRY_RUN === "true";
-  console.log(`🚀 Flex import start — dry_run=${dryRun}, portfolio=${env.PORTFOLIO_ID}`);
+  const src = flexSource(env, key);
+  if (!src) return { ok: false, source: key, error: `Neznámý Flex zdroj „${key}“ – povolené: ${FLEX_SOURCES.map((s) => s.key).join(", ")}` };
+  console.log(`🚀 Flex import ${key} start — dry_run=${dryRun}, portfolio=${src.portfolioId}`);
 
   try {
     // 1) Stáhnout XML přes Flex API
-    const xml = await fetchFlexStatement(env.FLEX_TOKEN, env.FLEX_QUERY_ID);
+    const xml = await fetchFlexStatement(src);
     console.log(`📥 Stáhnuto ${xml.length} znaků XML`);
 
     // 2) Parse
@@ -44,7 +83,7 @@ export async function runImport(env) {
     );
 
     // 3) Načíst existující overlay z KV
-    const overlayKey = `${KV_OVERLAY_PREFIX}${env.PORTFOLIO_ID}`;
+    const overlayKey = `${KV_OVERLAY_PREFIX}${src.portfolioId}`;
     const existing = (await env.AKCIE_TRACKER_KV.get(overlayKey, "json")) || emptyOverlay();
 
     // 4) Merge — dedupe podle unikátních ID
@@ -58,7 +97,7 @@ export async function runImport(env) {
     // 5) Save — pokud DRY_RUN, neukládá
     if (dryRun) {
       console.log(`🧪 DRY_RUN — KV se neaktualizuje. Skončeno.`);
-      return { ok: true, dry_run: true, stats, parsed_counts: countParsed(parsed) };
+      return { ok: true, source: key, dry_run: true, stats, parsed_counts: countParsed(parsed) };
     }
 
     // POZOR: newNavDays MUSÍ být v podmínce — v den bez obchodů/dividend by se
@@ -72,20 +111,20 @@ export async function runImport(env) {
       console.log(`ℹ️  Žádné nové položky, KV neaktualizováno.`);
     }
 
-    return { ok: true, dry_run: false, stats };
+    return { ok: true, source: key, dry_run: false, stats };
   } catch (err) {
-    console.error(`❌ Flex import selhal: ${err.message}`);
+    console.error(`❌ Flex import ${key} selhal: ${err.message}`);
     console.error(err.stack);
     // Selhání je vidět v CF lozích; nepřímý signál v UI = žlutý banner
     // "poslední import před X dny", když overlay zestárne (R7).
-    return { ok: false, error: err.message };
+    return { ok: false, source: key, error: err.message };
   }
 }
 
 // ---------- Flex API (2-call flow) ----------
-async function fetchFlexStatement(token, queryId) {
-  if (!token) throw new Error("FLEX_TOKEN secret není nastaven");
-  if (!queryId) throw new Error("FLEX_QUERY_ID není nastaveno");
+async function fetchFlexStatement({ token, queryId, tokenVar, queryVar }) {
+  if (!token) throw new Error(`${tokenVar} secret není nastaven`);
+  if (!queryId) throw new Error(`${queryVar} není nastaveno`);
 
   // 1) SendRequest → ReferenceCode  (s retry pro 530 a "try again shortly")
   const refCode = await sendRequestWithRetry(token, queryId);
@@ -207,7 +246,7 @@ const TRADE_FIELDS = [
   "conid", "isin", "listingExchange", "dateTime", "tradeDate",
   "settleDateTarget", "transactionType", "exchange", "quantity",
   "tradePrice", "tradeMoney", "proceeds", "ibCommission",
-  "ibCommissionCurrency", "netCash", "buySell", "openCloseIndicator",
+  "ibCommissionCurrency", "taxes", "netCash", "buySell", "openCloseIndicator",
   "notes", "fxRateToBase", "cost",
 ];
 
@@ -253,7 +292,9 @@ const M2M_FIELDS = [
   "commissions", "other", "otherAccruals", "total", "totalAccruals", "code",
 ];
 
-function parseFlexXml(xml) {
+// Exportované kvůli scripts/flex-history.mjs — historie z ročních XML jde
+// stejným parserem a dedupe jako denní import
+export function parseFlexXml(xml) {
   return {
     trades: parseElements(xml, "Trade", TRADE_FIELDS),
     cashTransactions: parseElements(xml, "CashTransaction", CASH_TX_FIELDS),
@@ -265,7 +306,7 @@ function parseFlexXml(xml) {
   };
 }
 
-function parseElements(xml, tagName, fields) {
+export function parseElements(xml, tagName, fields) {
   // Najít všechny <TagName …/> nebo <TagName …>…</TagName>
   const regex = new RegExp(`<${tagName}\\s+([^>]+?)\\s*/?>`, "g");
   const items = [];
@@ -308,7 +349,7 @@ function decodeXmlEntities(s) {
 }
 
 // ---------- KV merge / overlay ----------
-function emptyOverlay() {
+export function emptyOverlay() {
   return {
     schema_version: 1,
     last_import: null,
@@ -322,7 +363,7 @@ function emptyOverlay() {
   };
 }
 
-function mergeOverlay(existing, parsed) {
+export function mergeOverlay(existing, parsed) {
   const merged = { ...emptyOverlay(), ...existing };
 
   // Indexy existujících záznamů podle dedupe klíčů

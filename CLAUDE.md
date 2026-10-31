@@ -1,6 +1,7 @@
 # CLAUDE.md — akcie-tracker
 
-> Aktualizováno 2026-10-28 (tab Daňová optimalizace – zadání PLEGIN #7; ranní report Akcie
+> Aktualizováno 2026-10-31 (osobní portfolio Lynx z IB Flex, vlastníci portfolií, oprava
+> hotovosti u měnových konverzí); 2026-10-28 (tab Daňová optimalizace – zadání PLEGIN #7; ranní report Akcie
 > do PLEGINu posílá Worker sám – PLEGIN_ZADANI_01;
 > 2026-09-23 MCP konektor pro PLEGIN + sdílený výpočet portfolia; Celkový
 > výnos z toků kapitálu + XIRR, výběry KB doplněny; migrace
@@ -12,8 +13,10 @@
 ## Stav projektu
 
 **Účel:** Privátní portfolio tracker pro PLEGI invest — dva brokery (Interactive
-Brokers + Komerční banka), do budoucna další. Slouží zároveň jako evidenční podklad
-pro účetnictví — transakční log + report v CZK + XLSX exporty.
+Brokers + Komerční banka) — a od 2026-10-31 i Lukášovo osobní portfolio u LYNX.
+Slouží zároveň jako evidenční podklad pro účetnictví — transakční log + report v CZK
++ XLSX exporty. Další v plánu: PLEGI invest 2 s.r.o. (samostatná firma) na XTB —
+XTB nemá API (vypnuté 14. 3. 2025), import z ručních exportů jako u KB.
 
 **Stack:** Statické HTML + vanilla JS ES modules, žádný framework, žádný build krok,
 žádný TypeScript. Backend = **jeden CF Worker `akcie-tracker`** (statické assety + `/api/*`
@@ -26,7 +29,7 @@ pro účetnictví — transakční log + report v CZK + XLSX exporty.
   (push do `main` → **Workers Builds**, CF git integrace → `npx wrangler deploy`;
   web, API i crony v jednom)
 - **Ranní cron** `0 5 * * *` UTC = **7:00 Prahy v létě / 6:00 v zimě**
-  (vědomý DST drift, rozhodnutí 2026-07-25): flex-import, hned po něm ranní report
+  (vědomý DST drift, rozhodnutí 2026-07-25): flex-import (IBKR, pak Lynx), hned po něm ranní report
   Akcie do PLEGINu a vyhodnocení alertů nad čerstvým overlay (`runDailyJobs` ve
   `worker/index.js`). **Pojistka reportu** `20 5,6 * * TUE-SAT` = 7:20 Prahy v létě
   i v zimě (kód pustí jen ten UTC čas, kdy je v Praze 7:xx) – viz „Ranní report do PLEGINu".
@@ -57,13 +60,29 @@ jinak se nedostanou do repa.
 - **Source of truth = pole transakcí + cash_flows**, ne uložené pozice. FIFO se počítá v runtimu.
 - **FIFO** s prorataovanou komisí do cost basis (BUY) i do net výnosu (SELL) per kus.
 - **Jedno portfolio = jeden JSON soubor** v `data/portfolios/`. `manifest.json` listuje
-  dostupná portfolia (`plegi-invest-ibkr` primary, `plegi-invest-kb`).
+  dostupná portfolia (`plegi-invest-ibkr` primary, `plegi-invest-kb`, `lukas-pleskot-lynx`)
+  a výchozí vlastníky.
 - **Multi-portfolio:** `state.portfolioId`, selector v hlavičce, localStorage memory.
   Při přepnutí: reload portfolio JSON + recompute FIFO + refresh Yahoo ceny.
   **Watchlist + Alerty + Notes + Deník = globální** (cross-portfolio).
+- **Vlastníci portfolií (od 2026-10-31):** každé portfolio patří firmě nebo osobě
+  (`assets/js/owners.js`). Výchozí stav v manifestu (`owners: [{id, name, type: firma|osoba}]`,
+  u portfolia `owner`), Lukáš ho mění v tabu **Nastavení** → KV `settings` přes
+  `/api/settings`; uložené má přednost, nové portfolio z manifestu bez uloženého přiřazení
+  dostane vlastníka z manifestu (`resolveOwners`). **Přehledy za firmu (Daňová optimalizace,
+  Pozice k datu) počítají vždy jen portfolia jedné firmy** (`companyPortfolios`), osobní
+  portfolia ani jiné firmy se nepřimíchají; výběr firmy v hlavičce, localStorage
+  `akcie-tracker.company`. `data/tax-returns.json` patří firmě `owner` (plegi-invest), u jiné
+  firmy se podaná přiznání neukazují. Vlastníci v manifestu: PLEGI invest s.r.o. (firma: IBKR,
+  KB), Lukáš Pleskot (osoba: Lynx). **MCP `akcie_den`** zná vlastníky stejně (`resolveOwners`
+  nad manifestem + KV `settings`): souhrn `vse` sčítá jen firemní portfolia, osobní jsou
+  v seznamu s `vlastnik.typ = "osoba"`; čerstvost importu (`overlay`) je jen z firemních.
+  **Ranní report** z osobních ukazuje jen denní pohyb (viz „Ranní report do PLEGINu").
+  Alerty hlídají dál jen IBKR (`PORTFOLIO_ID`).
 - **Hybridní data model:**
   - **Statický JSON** v gitu = historický snapshot, manuálně commitnutý
-  - **KV overlay** = denní auto-import přes IBKR Flex (Worker `flex-import` → KV `portfolio-overlay:{id}`)
+  - **KV overlay** = denní auto-import přes IB Flex (Worker `flex-import` → KV `portfolio-overlay:{id}`;
+    zdroje IBKR a Lynx, `FLEX_SOURCES` ve `worker/jobs/flex-import.js`)
   - `mergeOverlayIntoPortfolio()` (`portfolio-shared.js`, volá frontend i Worker) přidává overlay eventy ke statickému JSON,
     dedupe podle `flex_id` (= IBKR `tradeID` / `transactionID` / `actionID`)
 - **Účetně rozhoduje datum VYPOŘÁDÁNÍ (settle_date)**, ne datum obchodu — určuje rok
@@ -127,7 +146,14 @@ jinak se nedostanou do repa.
   převádí měnu a účtuje forex trade (`assetCategory="CASH"`, symbol `BASE.QUOTE`
   jako `EUR.USD`, `USD.DKK`). `mergeOverlayIntoPortfolio` je přes `isForexConversion()`
   vyřazuje z transakcí/pozic a účtuje je jako **oboustrannou konverzi cashe**
-  (base měna ← `quantity`, quote měna ← `netCash`).
+  (base měna ← `quantity`, quote měna ← `proceeds`, poplatek ← `ibCommission`
+  v `ibCommissionCurrency`). **`netCash` je u konverzí v IB Flexu vždy 0** — do 2026-10-31
+  se quote noha brala z něj a hotovost IBKR byla o 6 000 USD vyšší než u IB (konverze
+  EUR.USD 11. 6. 2026). Ověřeno na historii Lynx 2021–2026 proti Cash Report IB na cent.
+- **Kolkovné a burzovní daně** (HK 0,1 %, UK 0,5 %, FR 0,4 %) vede IB v poli `taxes`
+  (netCash = proceeds + ibCommission + taxes); `transformFlexTrade` je přičítá do `commission`,
+  takže jsou v cost basis i v realizované Z/Z. Hongkongské kódy (`468`) dostávají Yahoo
+  symbol čtyřmístně (`0468.HK`).
 
 ---
 
@@ -154,9 +180,18 @@ flowchart TD
   XML entity v atributech se dekódují. Merge dedupe by ID; **NAV snapshot AKUMULUJE
   by reportDate — nepřepisovat!** KV se ukládá i když přibyly JEN nové NAV dny (R3 —
   jinak by klidné dny mizely z grafu; Flex okno je ~7 dní). Manuální `/run/flex-import`
-  vyžaduje header `x-admin-key` = secret `ADMIN_KEY`. Při selhání loguje (bez e-mailu);
+  vyžaduje header `x-admin-key` = secret `ADMIN_KEY`; `?source=ibkr|lynx` = jeden zdroj,
+  bez parametru všechny. Při selhání loguje (bez e-mailu);
   nepřímý signál = žlutý banner v UI, když overlay zestárne >4 dny (R7). Secrets:
   `FLEX_TOKEN`, `ADMIN_KEY`; var `FLEX_QUERY_ID` (1514926), `DRY_RUN` pro test bez zápisu.
+  **Zdroje (`FLEX_SOURCES`, od 2026-10-31):** `ibkr` (portfolio z `PORTFOLIO_ID`, token
+  `FLEX_TOKEN`, var `FLEX_QUERY_ID`) a `lynx` (portfolio `lukas-pleskot-lynx`, secret
+  `LYNX_FLEX_TOKEN`, var `LYNX_FLEX_QUERY_ID`). Ranní běh `runAllImports` je bere po sobě;
+  Lynx je volitelný — bez tokenu nebo query ID se přeskočí, IBKR bez nich je chyba.
+  Pojistka reportu v 7:20 opakuje jen import IBKR (čerstvost reportu je firemní).
+  Flex query Lynx („akcie-tracker" v LYNX portálu) má stejné sekce jako IBKR + Cash Report:
+  Trades jen Execution, Open Positions jen Summary, Cash Transactions Detail, Period
+  Last 7 Calendar Days, yyyyMMdd / HHmmss / středník, Breakout by Day No.
   **Údržba overlay (~1× ročně):** overlay v KV roste donekonečna — promítnout obsah do
   statického portfolio JSON (commit) a overlay klíč smazat; další import začne načisto.
 - **alerts**: čte watchlist + alerts + **portfolio-overlay přímo z KV**, statický
@@ -188,6 +223,29 @@ flowchart TD
 - `data/portfolio-history-plegi-invest-ibkr.json` — NAV backfill od inception
   (jednorázově `outputs/backfill_nav.py`: Activity Statement CSV + Yahoo historical close),
   obsahuje i `deposits[]`. Tolerance vs IBKR snapshot ~1,5 % (dividend accruals + FX rounding).
+- **`cash_balance` po měnách podle Cash Report výpisu k 15. 5. 2026** (DKK 1 741,05,
+  SEK 915,64, USD 2 640,75; opraveno 2026-10-31 — dřív celé v USD jako Base Currency
+  Summary 3 008,47). Spolu s opravou konverzí sedí hotovost appky s NAV IB na centy
+  (35 034,42 vs 35 034,39 USD k 30. 10. 2026).
+
+### `lukas-pleskot-lynx.json` (LYNX = introducing broker IB, account U5834510, osobní)
+- **Vlastník Lukáš Pleskot (osoba)** — v přehledech za firmu ani v daňovém tabu není.
+  Měna účtu **CZK** (NAV v Kč), vklady v CZK a EUR.
+- **Zdroj:** výpisy IB Flex po letech 2021-06-28 → 2026-10-30 (`podklady/lynx/*.xml`, mimo git)
+  převedené `scripts/flex-history.mjs` — stejný parser, dedupe a transformace jako denní
+  import, takže záznamy nesou `flex_id` a overlay je nezdvojí. Skript před zápisem ověří
+  hotovost po měnách proti Cash Report a pozice proti Open Positions; při nesouladu nic
+  nezapíše. Dál denní import (zdroj `lynx`).
+- 140 obchodů (+167 měnových konverzí jen v hotovosti), 33 dividend, 49 srážek, 25 pohybů
+  hotovosti (13 vkladů/výběrů, úroky), 1 corporate action (SMSI reverse split 1:8, 4/2024),
+  12 držených titulů. Evolution přes `--seed` z IBKR jako `EVO` (Lynx ho vede jako `EVOs`/`EVOG.ST`).
+- `data/portfolio-history-lukas-pleskot-lynx.json` — denní NAV z Flexu (1 395 dní, CZK).
+  Tab Historie portfolia počítá v měně účtu (IBKR USD, Lynx CZK) — Kč kurzem ČNB k danému
+  dni, sloupec USD u korunového účtu jako ekvivalent.
+- Kurzy ČNB pro dny Lynx 2021–2025 doplnil `scripts/fx-backfill.mjs` (+91 dní, HKD).
+- **Celkový výnos na dlaždici** se počítá jako u ostatních účtů v USD (vklady v USD kurzem
+  ke dni vkladu) a převádí do Kč dnešním kurzem — u korunového účtu se proto mírně liší od
+  Rozdílu v Historii portfolia, který počítá v Kč.
 
 ### `plegi-invest-kb.json` (Komerční banka, account 1609386)
 - **Zdroj:** KB TRN CP (PDF) + KB TRN CASH (PDF) + KB STAV PTF (snapshoty).
@@ -251,9 +309,11 @@ flowchart TD
   přes received/removed CA a zbytky doprodané → net_qty 0.
 
 ### `data/fx_rates.json`
-- ČNB rates pro 12 měn, **448 dnů**: rok 2026 souvisle (backfill všech všedních dnů
-  2026-07-25 — settle data Flex auto-importů padají kamkoliv), starší roky jen settle
-  dny transakcí. Auto-update denně 14:35 UTC (`fx-update.mjs` — ČNB API `lang=EN`,
+- ČNB rates pro 13 měn (HKD od 2026-10-31), od 2021-06-28: rok 2026 souvisle (backfill všech všedních dnů
+  2026-07-25 — settle data Flex auto-importů padají kamkoliv), starší roky jen dny
+  transakcí (Lynx 2021–2025 doplnil `scripts/fx-backfill.mjs <portfolio.json>` — chybějící
+  den celý, u existujícího jen chybějící měnu; seznam měn a stažení dne ve `scripts/cnb.mjs`).
+  Auto-update denně 14:35 UTC (`fx-update.mjs` — ČNB API `lang=EN`,
   `validFor` per-rate; forward-only od max data — **starší díry doplňovat ručně**,
   stejný entry formát, serializace `JSON.stringify(data, null, 2) + "\n"`, klíče
   chronologicky). Víkendy/svátky: API vrací poslední vyhlášené kurzy, ukládají se pod
@@ -264,10 +324,20 @@ flowchart TD
 
 ## Frontend taby (v pořadí)
 
-`overview` Přehled pozic · `transactions` Transakce · `dividends` Dividendy ·
-`allocation` Alokace · `alerts` Alerty · `watchlist` Watchlist · `journal` Deník investora ·
-`report` Report pro účetní · `tax` Daňová optimalizace · `positions-at` Pozice k datu ·
-`portfolio-history` Hodnota portfolia
+Lišta tabů zvoleného portfolia: `overview` Přehled pozic · `transactions` Transakce ·
+`dividends` Dividendy · `allocation` Alokace · `alerts` Alerty · `watchlist` Watchlist ·
+`journal` Deník investora · `report` Report pro účetní · `portfolio-history` Hodnota portfolia.
+
+V hlavičce vedle výběru portfolia (od 2026-10-31, přání Lukáše): přehledy za firmu `tax`
+Daňová optimalizace · `positions-at` Pozice k datu a `settings` Nastavení. U nich se místo
+výběru portfolia ukáže výběr firmy (Nastavení žádný), dlaždice portfolia se schovají
+(`body.header-view`) a nadpis je jméno firmy. Zpět = klik na tab portfolia.
+
+**Načíst znovu / Tisk / PDF / Export pro účetní / Export XLSX** jsou jedna skupina tlačítek
+(`#view-actions`), kterou `placeViewActions` přesune do lišty `[data-view-actions]` nad
+tabulkou aktivního tabu — vpravo, samostatný řádek, Export XLSX poslední. Tisk jen Report
+a Pozice k datu, Export pro účetní jen Transakce, Hodnota portfolia export nemá. U přehledů
+za firmu Načíst znovu načte znovu portfolia i ceny.
 
 - **Přehled pozic:** expandable detail per pozice (nákupy/prodeje/FIFO matching/split/
   dividendy/Total Return + Poznámka), sloupce vč. **Nereal. Z/Z** (jen otevřené loty)
@@ -291,8 +361,8 @@ flowchart TD
   (stejné seskupení, barevné řádky, kurz s datem) + tisk/PDF. Výpočet prodejů v Kč je
   sdílená `realizedSales()` (`portfolio-shared.js`) — obrazovka, export i Daňová
   optimalizace (refaktor 2026-10-28 ověřen proti původnímu kódu: 151 prodejů, 0 rozdílů).
-- **Daňová optimalizace (od 2026-10-28, zadání PLEGIN #7):** za celou společnost (obě
-  portfolia, nezávisle na aktivním). Dlaždice: **Realizováno <rok>** (prodeje vypořádané
+- **Daňová optimalizace (od 2026-10-28, zadání PLEGIN #7):** za zvolenou firmu (všechna
+  její portfolia podle Nastavení, nezávisle na aktivním). Dlaždice: **Realizováno <rok>** (prodeje vypořádané
   v aktuálním pražském roce = součet Reportu pro účetní za IBKR + KB), **Odhad daně z prodejů**
   (21 % DPPO jen z kladného výsledku prodejů), **Nerealizovaný zisk / ztráta** (jen pozice,
   které jdou prodat), **Simulace** (výsledek roku po prodeji zaškrtnutých pozic, nic se
@@ -302,9 +372,7 @@ flowchart TD
   v Kč (cena `/api/quote` × poslední kurz ČNB), Z/Z v měně (= Nereal. Z/Z v Přehledu)
   a **Z/Z v Kč (daňově)** — rozdíl je kurzový. Klik na řádek = držené nákupy (loty).
   Tituly stažené z burzy (CNE.TO) v tabu nejsou – nejdou prodat a daňově s nimi pracovat
-  nejde (Lukáš 2026-10-28). **Načíst znovu a Export XLSX** má tab vlastní, vpravo nad
-  tabulkou (`.table-toolbar`); tlačítka v hlavní liště jsou na něm schovaná
-  (`setTabSpecificButtons`).
+  nejde (Lukáš 2026-10-28). Načíst znovu a Export XLSX jsou ve sdílené liště nad tabulkou.
   Čerstvý nákup s vypořádáním po posledním dni v kurzech dostane poslední kurz „odhadem".
   Výpočty `assets/js/tax-optimization.js` (čisté funkce, testy). **Daňový rámec
   (Lukáš 2026-10-28):** PLEGI invest je **mikro účetní jednotka** (0 zaměstnanců) →
@@ -337,8 +405,9 @@ flowchart TD
   ř. 230 = tabulka E, lhůty). Stav k 2026-10-28: přiznání 2022–2025 (ztráta 2022
   41 038 Kč odečtena 2023), ztrátu 2026 jde zpětně odečíst až 528 540 Kč (vrátí se až
   110 880 Kč).
-- **Pozice k datu (inventura):** stav pozic k rozvahovému dni **přes všechna portfolia**
-  (načte obě z manifestu + overlay, nezávisle na aktivním) — název, ISIN, ticker, kusy,
+- **Pozice k datu (inventura):** stav pozic k rozvahovému dni **přes všechna portfolia
+  zvolené firmy** (načte je z manifestu + overlay, nezávisle na aktivním; jméno firmy
+  z Nastavení jde do nadpisu auditora — výchozí „PLEGI invest s.r.o.“ = doslovné znění) — název, ISIN, ticker, kusy,
   cena k datu, ocenění v měně i CZK, pořizovací cena CZK (FIFO loty × kurz k vypořádání),
   oceňovací rozdíl. Kusy = `computePositionsAt` (obchody **vypořádané** ≤ datum, CA ≤ datum).
   Cena = `/api/quote-at` (Yahoo close posledního obchodního dne ≤ datum, datum baru v pásmu
@@ -392,6 +461,7 @@ flowchart TD
 | `GET/POST /api/alerts` | KV `alerts` CRUD (add/delete/update/rearm) |
 | `GET/POST /api/notes` | KV `notes` — globální mapa symbol → text |
 | `GET/POST /api/journal` | KV `journal` CRUD |
+| `GET/POST /api/settings` | KV `settings` — vlastníci portfolií (`owners`, `assignments`, `updated_at`); POST přepíše celé, validace `validateOwnerSettings` sdílená s frontendem, chyba = 400 s českou hláškou |
 | `GET /api/portfolio-overlay/[id]` | KV `portfolio-overlay:{id}` read pro frontend merge |
 | `GET /api/quote-at?symbols=…&date=YYYY-MM-DD` | Yahoo závěrečná cena k datu (poslední bar ≤ datum, minor units fix, **split-adjusted!**), cache 7 dní pro data starší 2 dnů |
 | `GET /api/fx-at?date=YYYY-MM-DD` | Kurzy ČNB k datu živě (stejný tvar jako `fx_rates.json` entry, `valid_for`), cache 30 dní |
@@ -474,13 +544,18 @@ Nahrazuje Claude úlohu „PLEGIN — report Akcie" (PLEGIN_ZADANI_01, předán�
   `error`; HTTP 401 token, 400 datum, 503 vypnuto, 502 chyba dat nebo PLEGINu.
 - **Vypínač:** var `PLEGIN_REPORT = "off"` (s deployem); bez secretu `PLEGIN_REPORT_TOKEN`
   se nic neposílá (`disabled`). Import a alerty běží nezávisle.
+- **Osobní účty (od 2026-10-31, Lynx):** jen denní pohyb pozic (Lukáš: „bude mi tam stačit
+  jen denní pohyb na pozicích") — dlaždice `Lynx (osobní) za den` na konci a tabulka
+  `Lynx (osobní) – denní pohyb (N)` (Titul, Den %, Den Kč) za firemními tabulkami; bez
+  hotovosti, Total Return a Kontextu. Souhrn `Portfolio za den`, Nejlepší/Nejhorší i Kontext
+  jsou jen za firmu (`vse` z `akcie_den`), osobní účet je v textu souhrnu až na konci.
 
-**KV klíče (sdílené):** `watchlist`, `alerts`, `notes`, `journal`,
+**KV klíče (sdílené):** `watchlist`, `alerts`, `notes`, `journal`, `settings`,
 `portfolio-overlay:{id}`, `fired:alert:{ruleId}:{symbol}`, `fired:watch:{itemId}:{ruleId}`,
 `plegin-report:{datum}`.
 
 **Secrets:** Worker `akcie-tracker` (CF Dashboard → Settings → Variables and Secrets):
-`FLEX_TOKEN`, `ADMIN_KEY`, `MCP_TOKEN` (bez něj je `/mcp` zavřený — 401),
+`FLEX_TOKEN`, `LYNX_FLEX_TOKEN` (Lynx, vkládá Lukáš), `ADMIN_KEY`, `MCP_TOKEN` (bez něj je `/mcp` zavřený — 401),
 `PLEGIN_REPORT_TOKEN` (report token PLEGINu), `REPORT_RUN_TOKEN` (ruční běh reportu).
 Binding `PLEGIN` (service `todo`), var `PLEGIN_REPORT`. Lokálně `.dev.vars` (v `.gitignore`
 i `.assetsignore`, vzor `.dev.vars.example`). Deploy běží přes Workers Builds pod CF účtem — GitHub
@@ -492,15 +567,18 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared,portfolio-shared,akcie-den,plegin-report,tax-optimization,closed-positions}.test.mjs` — 100 unit testů
+`tests/{fifo,flex-shared,flex-import,portfolio-shared,akcie-den,plegin-report,tax-optimization,closed-positions,owners}.test.mjs` — 113 unit testů
 (`node --test tests/*.test.mjs`), ručně spočítané fixtures: FIFO matching + prorace komise,
 proceeds-authoritative ceny, splity (vč. same-day pořadí a 1:25), KB received/removed
 párování + bonus/cancellation, práva odepsaná po víc než 30 dnech (GRPN), orphan sells,
 settle data v closed lots, dividendy, Flex transformace (vč. settle_date), hotovost k datu (i odhad KB mezi výpisy), Total Return pozice, `computePositionsAt`
-volby (výchozí chování inventury beze změny), merge overlay (dedupe, forex, vklady,
-párování symbolu přes ISIN), kurzy, toky kapitálu + XIRR (proti sazbě spočtené předem),
+volby (výchozí chování inventury beze změny), merge overlay (dedupe, forex vč. konverze
+s netCash 0 a poplatku v měně účtu, vklady, amount_usd dividend, párování symbolu přes
+ISIN), kolkovné v komisi, Yahoo symbol HK, Flex zdroje IBKR + Lynx a parser XML,
+kurzy, toky kapitálu + XIRR (proti sazbě spočtené předem),
 Celkový výnos s výběry, MCP report (split po datu, neobchodovaný den, chybějící cena,
-delisted, součty `vse`), ranní report do PLEGINu (vzorky ze skutečných dnů 23., 26.
+delisted, součty `vse` bez osobních portfolií), ranní report do PLEGINu (osobní účet jen
+denní pohyb; vzorky ze skutečných dnů 23., 26.
 a 27. 10. 2026: `tests/fixtures/akcie-den-*.json` = výstup `akcie_den`,
 `plegin-akcie-skutecne.json` = reporty Claude úlohy z týchž dat; svátek, nečerstvý import,
 neznámý ticker, víkend a pojistka v létě/zimě, běh s falešným KV a PLEGINem, token
@@ -508,7 +586,8 @@ ručního běhu), Daňová optimalizace (prodeje v Kč a strict kurzy, pořizova
 s odhadem čerstvého nákupu, kurzový rozdíl, delisted a chybějící cena mimo součty, rok
 podle vypořádání, dividendy, simulace, zpětné odečtení ztráty a dopočty v
 `data/tax-returns.json`), Prodané pozice (souhrn v měně i v Kč, odhad kurzu čerstvého
-prodeje, dividendy v jiné měně). CI: `.github/workflows/tests.yml` při každém pushi (neblokuje
+prodeje, dividendy v jiné měně), vlastníci portfolií (manifest vs. uložené nastavení, nové
+portfolio, validace /api/settings). CI: `.github/workflows/tests.yml` při každém pushi (neblokuje
 deploy — červený běh = signál). Uzavírá REVIZE R9 (2026-07-25).
 
 **Lokální `wrangler dev`:** stav persistovat MIMO repo
@@ -549,29 +628,32 @@ Cost basis prorataována o proporcionální komisi.
 
 ```
 web/                                    ← repo root = asset složka Workeru
-├── index.html                          ← 11 tabů, modaly, #warnings banner
-├── assets/js/{app.js, fifo.js, flex-shared.js, portfolio-shared.js, tax-optimization.js, vendor/xlsx-js-style.min.js}
-│                                       ← fifo+flex-shared+portfolio-shared sdílené s Workerem,
-│                                         tax-optimization = výpočty tabu Daňová optimalizace
+├── index.html                          ← 9 tabů portfolia + 3 v hlavičce, modaly, #warnings banner
+├── assets/js/{app.js, fifo.js, flex-shared.js, portfolio-shared.js, tax-optimization.js, owners.js, vendor/xlsx-js-style.min.js}
+│                                       ← fifo+flex-shared+portfolio-shared+owners sdílené s Workerem,
+│                                         tax-optimization = výpočty tabu Daňová optimalizace,
+│                                         owners = vlastníci portfolií (Nastavení, /api/settings)
 ├── assets/css/styles.css
 ├── worker/index.js                     ← entry: /api/* + /mcp router + scheduled dispatch
-├── worker/api/{lib,quote,quote-at,fx-at,watchlist,alerts,notes,journal,portfolio-overlay,plegin-report}.js
+├── worker/api/{lib,quote,quote-at,fx-at,watchlist,alerts,notes,journal,settings,portfolio-overlay,plegin-report}.js
 ├── worker/mcp/{server,akcie-den}.js    ← MCP konektor pro PLEGIN (protokol + nástroj)
 ├── worker/jobs/{alerts,flex-import,plegin-report}.js ← cron joby (plegin-report = ranní report do PLEGINu)
 ├── wrangler.toml                       ← name, assets, crony, KV + service binding, vars
 ├── .assetsignore                       ← co se neservíruje (worker/, *.md, .dev.vars*, …)
 ├── .dev.vars.example                   ← vzor lokálních secretů pro wrangler dev
-├── data/portfolios/{manifest,plegi-invest-ibkr,plegi-invest-kb}.json
-├── data/portfolio-history-plegi-invest-ibkr.json, data/fx_rates.json
+├── data/portfolios/{manifest,plegi-invest-ibkr,plegi-invest-kb,lukas-pleskot-lynx}.json
+├── data/portfolio-history-{plegi-invest-ibkr,lukas-pleskot-lynx}.json, data/fx_rates.json
 ├── data/tax-returns.json               ← podaná přiznání k DPPO (doplnit jednou ročně)
 ├── tests/*.test.mjs, tests/fixtures/   ← unit testy (node --test, R9) + vzorky skutečných dnů
 ├── .github/workflows/{fx-update-cron,tests}.yml
-├── scripts/fx-update.mjs
+├── scripts/fx-update.mjs               ← denní ČNB (GH Action); seznam měn a stažení dne v cnb.mjs
+├── scripts/fx-backfill.mjs             ← doplní ČNB pro dny portfolia se starší historií
+├── scripts/flex-history.mjs            ← historie účtu z ročních IB Flex XML → portfolio JSON + NAV
 ├── _headers                            ← CSP, HSTS, cache
 ├── REVIZE_REPORT.md                    ← zjištění a stav revizí kódu
 └── CLAUDE.md                           ← TENTO soubor
 
-~/Projects/akcie-tracker/  (mimo git)   podklady/, inspirace/ (PROJECT_PLAYBOOK.md = stará kopie)
+~/Projects/akcie-tracker/  (mimo git)   podklady/ (vč. lynx/*.xml – výpisy Lynx po letech), inspirace/ (PROJECT_PLAYBOOK.md = stará kopie)
 ```
 
 ---

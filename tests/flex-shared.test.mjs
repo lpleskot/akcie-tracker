@@ -56,6 +56,23 @@ test("transformFlexTrade SELL: záporné qty → kladné, type SELL", () => {
   assert.equal(t.settle_date, null); // bez settleDateTarget — FIFO fallbackne na date
 });
 
+test("transformFlexTrade: kolkovné (taxes) patří do komise – UK nákup CRST", () => {
+  const t = transformFlexTrade({
+    tradeID: "125",
+    tradeDate: "20220308",
+    symbol: "CRST",
+    buySell: "BUY",
+    quantity: "350",
+    tradePrice: "2.74",
+    proceeds: "-959",
+    ibCommission: "-10",
+    taxes: "-4.795",
+    netCash: "-973.795",
+    currency: "GBP",
+  });
+  assert.equal(t.commission, -14.795); // = netCash − proceeds
+});
+
 test("isForexConversion: CASH kategorie i BASE.QUOTE symbol", () => {
   assert.equal(isForexConversion({ assetCategory: "CASH", symbol: "EUR.USD" }), true);
   assert.equal(isForexConversion({ symbol: "USD.DKK" }), true);
@@ -67,6 +84,9 @@ test("deriveYahooSymbol: burzovní přípony + ponechání existujících", () =
   assert.equal(deriveYahooSymbol("ERIC-B", "SFB"), "ERIC-B.ST");
   assert.equal(deriveYahooSymbol("AAPL", "NASDAQ"), "AAPL"); // US bez přípony
   assert.equal(deriveYahooSymbol("SHEL.L", "LSE"), "SHEL.L"); // už má tečku
+  // Hongkong: Yahoo chce čtyřmístný kód
+  assert.equal(deriveYahooSymbol("468", "SEHK"), "0468.HK");
+  assert.equal(deriveYahooSymbol("9988", "SEHK"), "9988.HK");
 });
 
 test("ensureInstrument: doplní auto-added, nepřepisuje existující", () => {

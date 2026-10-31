@@ -18,6 +18,8 @@
   --color-zebra: #fafaf8;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --radius: 6px;
+  /* Šipka výběru (barva --color-text-muted) — viz pravidlo select níže */
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236b6b66' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --font-sans:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
     sans-serif;
@@ -44,6 +46,19 @@ a {
   color: var(--color-accent);
   text-decoration: none;
 }
+
+/* Výběr se šipkou odsazenou od okraje — nativní šipka Chromu sedí u samé hrany
+   a padding-right ji neposune. Jednotlivé výběry mění jen background-color
+   (zkratka background by šipku smazala) a vpravo nechávají místo na šipku. */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: var(--select-arrow);
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+  max-width: 100%;
+}
 @media (hover: hover) {
   a:hover {
     text-decoration: underline;
@@ -66,25 +81,48 @@ header.app-header {
   margin-bottom: 8px;
 }
 
-#portfolio-switcher {
+/* Vpravo v hlavičce: výběr portfolia (nebo firmy u přehledů za firmu)
+   a taby, které na zvoleném portfoliu nezávisí */
+.header-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-left: auto; /* drží navigaci u pravého okraje, i kdyby flex-wrap shazoval řádek */
+  min-width: 0;
+}
+.switcher {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto; /* drží switcher u pravého okraje, i kdyby flex-wrap shazoval řádek */
+  min-width: 0;
 }
-#portfolio-switcher select {
-  padding: 6px 28px 6px 10px;
+.switcher[hidden] {
+  display: none;
+}
+.switcher select {
+  padding: 6px 36px 6px 10px;
   font-size: 13px;
   font-weight: 600;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: var(--color-surface);
+  background-color: var(--color-surface);
   font-family: inherit;
   cursor: pointer;
 }
-#portfolio-switcher select:focus {
+.switcher select:focus {
   outline: 2px solid var(--color-accent);
   outline-offset: -1px;
+}
+.header-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+/* Dlaždice patří zvolenému portfoliu — u přehledů za firmu a Nastavení se schovají */
+body.header-view #summary-cards {
+  display: none;
 }
 
 header.app-header h1 {
@@ -247,8 +285,11 @@ button.primary {
   border-radius: var(--radius);
   font-family: inherit;
   font-size: 13px;
-  background: var(--color-surface);
+  background-color: var(--color-surface);
   color: var(--color-text);
+}
+.modal select {
+  padding-right: 36px;
 }
 .modal input:focus,
 .modal select:focus {
@@ -371,9 +412,12 @@ button.primary {
   font-size: 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: var(--color-surface);
+  background-color: var(--color-surface);
   font-family: inherit;
   color: var(--color-text);
+}
+select.filter-input {
+  padding-right: 36px;
 }
 .filter-dash {
   color: var(--color-text-muted);
@@ -829,6 +873,9 @@ button.primary {
 .rule-row input {
   padding: 5px 8px !important;
   font-size: 12px !important;
+}
+.rule-row select {
+  padding-right: 36px !important;
 }
 .rule-row .rule-remove {
   position: static;
@@ -1537,6 +1584,132 @@ footer.app-footer {
   text-align: center;
 }
 
+/* ------- Nastavení: vlastníci portfolií ------- */
+.settings-form {
+  max-width: 760px;
+}
+.settings-title {
+  margin: 20px 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.settings-form .table-wrap {
+  margin-bottom: 10px;
+}
+/* Pevné rozvržení: pole se vejdou i na telefon, nic nepřetéká do strany */
+#tbl-owners,
+#tbl-owner-portfolios {
+  table-layout: fixed;
+}
+#tbl-owners th:nth-child(2) {
+  width: 120px;
+}
+#tbl-owners th:nth-child(3) {
+  width: 84px;
+}
+#tbl-owners .settings-col-action {
+  width: 96px;
+}
+#tbl-owners td,
+#tbl-owner-portfolios td {
+  white-space: normal;
+  vertical-align: middle;
+}
+/* Formulář se do strany neposouvá — ukotvené záhlaví a první sloupec
+   (mobil, tablet) tu nemají smysl */
+#tbl-owners th,
+#tbl-owners td,
+#tbl-owner-portfolios th,
+#tbl-owner-portfolios td {
+  position: static;
+  box-shadow: none;
+}
+.settings-form input[type="text"],
+.settings-form select {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  font: inherit;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+.settings-form select {
+  padding-right: 36px;
+}
+.settings-form input[type="text"]:focus,
+.settings-form select:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -1px;
+  border-color: var(--color-accent);
+}
+.settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+.settings-state.dirty {
+  color: var(--color-negative);
+}
+.settings-error {
+  margin-top: 8px;
+  text-align: right;
+  color: var(--color-negative);
+  font-size: 13px;
+}
+.settings-error:empty {
+  display: none;
+}
+/* Telefon: řádky Nastavení pod sebe — název přes celou šířku, ovládání pod ním */
+@media (max-width: 600px) {
+  #tbl-owners thead,
+  #tbl-owner-portfolios thead {
+    display: none;
+  }
+  #tbl-owners,
+  #tbl-owners tbody,
+  #tbl-owner-portfolios,
+  #tbl-owner-portfolios tbody {
+    display: block;
+  }
+  #tbl-owners tr,
+  #tbl-owner-portfolios tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  #tbl-owners td,
+  #tbl-owner-portfolios td {
+    display: block;
+    position: static;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  #tbl-owners td:first-child,
+  #tbl-owner-portfolios td:last-child {
+    grid-column: 1 / -1;
+  }
+  #tbl-owners td[data-owner-count]::before {
+    content: "Portfolií ";
+    color: var(--color-text-muted);
+  }
+  #tbl-owner-portfolios td:first-child {
+    font-weight: 600;
+  }
+  #tbl-owner-portfolios td:nth-child(2) {
+    grid-column: 2 / -1;
+    color: var(--color-text-muted);
+  }
+}
+
 /* Hide views when not active */
 .view {
   display: none;
@@ -1652,14 +1825,23 @@ footer.app-footer {
   header.app-header .portfolio-meta {
     font-size: 12px;
   }
-  /* Switcher pod hlavičku přes celou šířku — na mobilu není kam ho tlačit vpravo */
-  #portfolio-switcher {
+  /* Výběr a taby z hlavičky pod název přes celou šířku — na mobilu není kam je tlačit vpravo */
+  .header-nav {
     margin-left: 0;
     width: 100%;
+    justify-content: flex-start;
   }
-  #portfolio-switcher select {
+  .switcher {
+    width: 100%;
+  }
+  .switcher select {
     flex: 1;
     min-width: 0;
+    min-height: 44px;
+  }
+  .settings-form input[type="text"],
+  .settings-form select {
+    min-height: 44px;
   }
 
   /* Dlaždice 2 ve sloupci — 6 dlaždic pod sebou zabralo celou obrazovku */

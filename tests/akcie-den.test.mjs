@@ -188,6 +188,32 @@ test("akcie_den: vse sčítá v Kč, výnos = Σ zisků / čistý vložený kapi
   assert.deepEqual(r.varovani, []);
 });
 
+test("akcie_den: osobní portfolio je v seznamu s vlastníkem, do vse se nepočítá", () => {
+  const firma = { id: "f", name: "Firma s.r.o.", type: "firma" };
+  const osoba = { id: "o", name: "Lukáš Pleskot", type: "osoba" };
+  const loaded = [
+    { meta: { id: "a" }, portfolio: portfolioA(), lastImport: "2026-09-22T05:00:12Z", owner: firma },
+    { meta: { id: "b" }, portfolio: portfolioB(), lastImport: "2026-09-23T05:00:00Z", owner: osoba },
+  ];
+  for (const l of loaded) l.open = openPositionsAt(l.portfolio, DATUM);
+  const r = buildAkcieDenReport({ datum: DATUM, today: "2026-09-23", loaded, quotes: QUOTES, fxRates: FX, origin: null });
+  assert.deepEqual(r.portfolia.map((p) => p.vlastnik), [
+    { id: "f", nazev: "Firma s.r.o.", typ: "firma" },
+    { id: "o", nazev: "Lukáš Pleskot", typ: "osoba" },
+  ]);
+  // vse = jen A; nejhorší EEE je z osobního B, proto v souhrnu chybí
+  assert.equal(r.vse.hodnota_pozic_czk, r.portfolia[0].hodnota_pozic_czk);
+  assert.equal(r.vse.den.zmena_czk, r.portfolia[0].den.zmena_czk);
+  assert.equal(r.vse.nejhorsi.portfolio, "a");
+  assert.equal(r.vse.celkovy_vynos.vlozeno_usd, 2000);
+  // čerstvost importu je firemní — pozdější import osobního účtu ji nemění
+  assert.equal(r.overlay.last_import, "2026-09-22T05:00:12Z");
+
+  // dotaz jen na osobní portfolio: vse je ono samo
+  const only = buildAkcieDenReport({ datum: DATUM, today: "2026-09-23", loaded: [loaded[1]], quotes: QUOTES, fxRates: FX, origin: null });
+  assert.equal(only.vse.hodnota_pozic_czk, only.portfolia[0].hodnota_pozic_czk);
+});
+
 test("akcie_den: KB — počáteční kapitál a výběry z evidence, vklad po datu se nepočítá", () => {
   const b = portfolioB();
   delete b.total_deposits_usd;

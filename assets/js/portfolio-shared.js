@@ -147,6 +147,13 @@ export function mergeOverlayIntoPortfolio(portfolio, overlay, fxRates) {
     return symbol === rec.symbol ? rec : { ...rec, symbol, flex_symbol: rec.symbol };
   };
 
+  // Dlaždice Dividendy sčítá amount_usd jako statické záznamy — bez něj
+  // dividendy z auto-importu chyběly (IBKR od 5/2026, celý Lynx)
+  const withUsd = (rec) => {
+    const usd = fxRates ? amountToUsd(fxRates, rec.amount, rec.currency, rec.date) : NaN;
+    return Number.isFinite(usd) ? { ...rec, amount_usd: usd } : rec;
+  };
+
   // 1) Trades — dopad do hotovosti = netCash (signed, už po komisi)
   for (const t of overlay.trades || []) {
     if (!t.tradeID || existingTradeIds.has(t.tradeID)) continue;
@@ -156,14 +163,17 @@ export function mergeOverlayIntoPortfolio(portfolio, overlay, fxRates) {
     // Forex konverze (IBKR mění měnu při nákupu titulu v cizí měně) NEJSOU
     // pozice: symbol je měnový pár "BASE.QUOTE". Obě nohy jdou jen do hotovosti:
     //   base měna  = symbol před tečkou, delta = quantity (signed)
-    //   quote měna = t.currency, delta = netCash (signed, po komisi)
+    //   quote měna = t.currency, delta = proceeds (signed)
+    //   poplatek   = ibCommission v ibCommissionCurrency (Lynx účtuje v CZK)
+    // netCash je u konverzí v IB Flexu vždy 0 — quote noha z něj se ztrácela
+    // a hotovost IBKR vycházela o konverzi EUR.USD z 11. 6. 2026 (5 749 USD) vyšší.
+    // Ověřeno na historii Lynx 2021–2026: zůstatky po měnách sedí s Cash Report IB.
     if (isForexConversion(t)) {
       existingTradeIds.add(t.tradeID);
       const [baseCcy] = symbol.split(".");
-      const qty = parseFloat(t.quantity);
-      const netCash = parseFloat(t.netCash);
-      if (Number.isFinite(qty)) addCash(baseCcy, qty);
-      if (Number.isFinite(netCash)) addCash(t.currency, netCash);
+      addCash(baseCcy, parseFloat(t.quantity));
+      addCash(t.currency, parseFloat(t.proceeds));
+      addCash(t.ibCommissionCurrency || t.currency, parseFloat(t.ibCommission));
       continue;
     }
 
@@ -183,7 +193,7 @@ export function mergeOverlayIntoPortfolio(portfolio, overlay, fxRates) {
     const amt = parseFloat(c.amount);
     if (/Dividends/i.test(type)) {
       if (existingDivIds.has(c.transactionID)) continue;
-      const div = paired(transformFlexDividend(c), c);
+      const div = withUsd(paired(transformFlexDividend(c), c));
       ensureInstrument(portfolio, div.symbol, c);
       portfolio.dividends.push(div);
       existingDivIds.add(c.transactionID);
@@ -191,7 +201,7 @@ export function mergeOverlayIntoPortfolio(portfolio, overlay, fxRates) {
       addCash(c.currency, amt);
     } else if (/Withholding/i.test(type)) {
       if (existingWithholdingIds.has(c.transactionID)) continue;
-      portfolio.withholding_tax.push(paired(transformFlexWithholding(c), c));
+      portfolio.withholding_tax.push(withUsd(paired(transformFlexWithholding(c), c)));
       existingWithholdingIds.add(c.transactionID);
       stats.withholding++;
       addCash(c.currency, amt); // amount je už záporný

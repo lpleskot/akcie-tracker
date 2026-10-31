@@ -88,8 +88,8 @@ function overlay() {
       // T0 už je ve statickém JSON → přeskočit
       { tradeID: "T0", symbol: "AAA", tradeDate: "20260102", buySell: "BUY", quantity: "10", netCash: "-100", currency: "USD" },
       { tradeID: "T1", symbol: "AAA", tradeDate: "20260915", settleDateTarget: "20260916", buySell: "BUY", quantity: "5", tradePrice: "10", proceeds: "-50", ibCommission: "0", netCash: "-50", currency: "USD" },
-      // forex konverze: +20 EUR, −22 USD, žádná pozice
-      { tradeID: "FX1", symbol: "EUR.USD", assetCategory: "CASH", tradeDate: "20260916", buySell: "BUY", quantity: "20", netCash: "-22", currency: "USD" },
+      // forex konverze: +20 EUR, −22 USD, žádná pozice (IB u konverzí vrací netCash 0)
+      { tradeID: "FX1", symbol: "EUR.USD", assetCategory: "CASH", tradeDate: "20260916", buySell: "BUY", quantity: "20", proceeds: "-22", ibCommission: "0", ibCommissionCurrency: "USD", netCash: "0", currency: "USD" },
     ],
     cash_transactions: [
       { transactionID: "D1", type: "Dividends", symbol: "AAA", amount: "5", currency: "USD", dateTime: "20260918" },
@@ -121,9 +121,27 @@ test("mergeOverlayIntoPortfolio: dedupe, forex jen do hotovosti, dividendy, vkla
   close(p.cash_balance.EUR, 220);
   // vklad 200 EUR kurzem k 21. 9. → USD
   close(p.total_deposits_usd, 1000 + (200 * 24.3) / 20.8);
+  // dividendy z overlay nesou amount_usd jako statické — dlaždice Dividendy je sčítá
+  assert.deepEqual([p.dividends[0].amount_usd, p.withholding_tax[0].amount_usd], [5, -0.75]);
   assert.equal(p.nav_history.length, 1);
   // statický snapshot se nemutuje — merge pracuje nad kopií
   assert.deepEqual(origCash, { USD: 100 });
+});
+
+test("mergeOverlayIntoPortfolio: konverze s netCash 0 – obě měny i poplatek v měně účtu (Lynx)", () => {
+  const p = { transactions: [], instruments: {}, cash_balance: { CZK: 40000 } };
+  mergeOverlayIntoPortfolio(p, {
+    trades: [
+      // Lynx 8. 7. 2021: koupě 1 349 EUR za CZK, poplatek 100 CZK
+      { tradeID: "L1", symbol: "EUR.CZK", assetCategory: "CASH", buySell: "BUY", quantity: "1349", proceeds: "-34882.442", ibCommission: "-100", ibCommissionCurrency: "CZK", netCash: "0", currency: "CZK" },
+      // prodej těch 1 349 EUR za HKD, poplatek opět v CZK
+      { tradeID: "L2", symbol: "EUR.HKD", assetCategory: "CASH", buySell: "SELL", quantity: "-1349", proceeds: "12404.66", ibCommission: "-112.59", ibCommissionCurrency: "CZK", netCash: "0", currency: "HKD" },
+    ],
+  }, null);
+  close(p.cash_balance.CZK, 40000 - 34882.442 - 100 - 112.59, 1e-6);
+  close(p.cash_balance.EUR, 0);
+  close(p.cash_balance.HKD, 12404.66);
+  assert.equal(p.transactions.length, 0); // konverze není pozice
 });
 
 test("mergeOverlayIntoPortfolio: opakovaný merge téhož overlay nic nezdvojí", () => {

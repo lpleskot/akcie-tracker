@@ -115,6 +115,32 @@ test("Kontext 27. 10.: účty a tituly dne, hvězdička, hotovost KB, nečerstv�
   ]);
 });
 
+test("osobní účet (Lynx): dlaždice a tabulka jen s denním pohybem, firemní souhrn beze změny", () => {
+  const firma = buildPleginReport(den("2026-10-27"));
+  const d = den("2026-10-27");
+  const ibkr = d.portfolia.find((p) => p.id === "plegi-invest-ibkr");
+  d.portfolia.push({
+    ...structuredClone(ibkr),
+    id: "lukas-pleskot-lynx",
+    nazev: "Lukáš Pleskot Lynx",
+    vlastnik: { id: "lukas-pleskot", nazev: "Lukáš Pleskot", typ: "osoba" },
+    pozice: ibkr.pozice.slice(0, 2),
+  });
+  const r = buildPleginReport(d);
+
+  // Firemní dlaždice, tabulky a Kontext zůstávají, osobní účet je až za nimi
+  assert.deepEqual(r.sections[0].items.slice(0, -1), firma.sections[0].items);
+  const tile = r.sections[0].items.at(-1);
+  assert.equal(tile.label, "Lynx (osobní) za den");
+  assert.ok(!r.sections[0].items.some((t) => t.label.includes("hotovost Lynx")));
+  const lynx = r.sections[3];
+  assert.equal(plain(lynx.title), "Lynx (osobní) – denní pohyb (2)");
+  assert.deepEqual(lynx.columns, ["Titul", "Den %", "Den Kč"]);
+  assert.deepEqual(lynx.rows.map((row) => row[0]), ibkr.pozice.slice(0, 2).map((p) => `${p.symbol} · ${SHORT_NAMES[p.symbol] || p.nazev}`));
+  assert.equal(r.sections[4].body, firma.sections[3].body); // Kontext jen za firmu
+  assert.ok(plain(r.summary).startsWith(plain(firma.summary).slice(0, 40)));
+});
+
 test("Kontext: odhad hotovosti KB mezi výpisy se nevydává za výpis", () => {
   const d = den("2026-10-27");
   Object.assign(d.portfolia.find((p) => p.id === "plegi-invest-kb"), {

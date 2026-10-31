@@ -14,9 +14,20 @@
           <h1 id="portfolio-name">Akcie tracker</h1>
           <div class="portfolio-meta" id="portfolio-meta">Načítám…</div>
         </div>
-        <div id="portfolio-switcher" hidden>
-          <label for="portfolio-select" class="muted small">Portfolio:</label>
-          <select id="portfolio-select" class="filter-input"></select>
+        <div class="header-nav">
+          <div id="portfolio-switcher" class="switcher" hidden>
+            <label for="portfolio-select" class="muted small">Portfolio:</label>
+            <select id="portfolio-select" class="filter-input"></select>
+          </div>
+          <div id="company-switcher" class="switcher" hidden>
+            <label for="company-select" class="muted small">Firma:</label>
+            <select id="company-select" class="filter-input"></select>
+          </div>
+          <nav class="header-views" aria-label="Přehledy za firmu a nastavení">
+            <button class="tab" type="button" data-view="tax">Daňová optimalizace</button>
+            <button class="tab" type="button" data-view="positions-at">Pozice k datu</button>
+            <button class="tab" type="button" data-view="settings">Nastavení</button>
+          </nav>
         </div>
       </header>
 
@@ -35,14 +46,8 @@
           <button class="tab" data-view="watchlist">Watchlist</button>
           <button class="tab" data-view="journal">Deník investora</button>
           <button class="tab" data-view="report">Report pro účetní</button>
-          <button class="tab" data-view="tax">Daňová optimalizace</button>
-          <button class="tab" data-view="positions-at">Pozice k datu</button>
           <button class="tab" data-view="portfolio-history">Hodnota portfolia</button>
         </div>
-        <button id="btn-refresh" class="btn">Načíst znovu</button>
-        <button id="btn-export-xlsx" class="btn">Export XLSX</button>
-        <button id="btn-export-accounting" class="btn" hidden>Export pro účetní</button>
-        <button id="btn-print-report" class="btn" hidden>Tisk / PDF</button>
       </div>
 
       <section id="view-overview" class="view active">
@@ -71,6 +76,16 @@
           <strong>Celkem v Kč</strong> = výsledek prodejů kurzem ČNB k datu vypořádání (jako Report pro
           účetní) + čisté dividendy kurzem ČNB k datu výplaty. Klikni na Celkem Z/Z – ukáže nákupy,
           prodeje a dividendy. Částečně prodané tituly zůstávají v Držených, jejich prodeje jsou v detailu.
+        </div>
+        <!-- Lišta nad tabulkou aktivního tabu: skupina tlačítek se přesouvá do
+             [data-view-actions] tabu, který je zrovna vidět (showView v app.js) -->
+        <div class="table-toolbar" data-view-actions>
+          <span class="table-toolbar-actions" id="view-actions">
+            <button id="btn-refresh" class="btn" type="button">Načíst znovu</button>
+            <button id="btn-print-report" class="btn" type="button" hidden>Tisk / PDF</button>
+            <button id="btn-export-accounting" class="btn" type="button" hidden>Export pro účetní</button>
+            <button id="btn-export-xlsx" class="btn" type="button">Export XLSX</button>
+          </span>
         </div>
         <div class="table-wrap" id="overview-wrap">
           <table id="tbl-overview">
@@ -172,6 +187,7 @@
           <button id="filter-clear" class="btn-link" type="button">Vymazat datum</button>
           <span class="filter-count" id="filter-count"></span>
         </div>
+        <div class="table-toolbar" data-view-actions></div>
         <div class="table-wrap">
           <table id="tbl-transactions">
             <thead>
@@ -215,6 +231,7 @@
           Rozdíl ukazuje, jak se relativní pozice posunula díky růstu/poklesu trhu.
           Všechno převedeno do USD aktuálním kurzem ČNB pro porovnání napříč měnami.
         </div>
+        <div class="table-toolbar" data-view-actions></div>
         <div class="table-wrap">
           <table id="tbl-allocation">
             <thead>
@@ -259,6 +276,7 @@
           a aktuální cenu označit jako benchmark — pak vidíte, jak se ticker
           pohnul od chvíle, kdy jste ho začal sledovat.
         </div>
+        <div class="table-toolbar" data-view-actions></div>
         <div id="watchlist-empty" class="status" hidden>
           Žádné tickery zatím ve watchlistu. Přidejte první přes tlačítko <strong>+ Přidat ticker</strong> nahoře.
         </div>
@@ -296,6 +314,7 @@
           Splněná pravidla se označí jako „fired" (vidíte je zde) — znovu se nevyhodnotí,
           dokud kliknete na tlačítko <strong>Re-arm</strong> u daného pravidla.
         </div>
+        <div class="table-toolbar" data-view-actions></div>
         <div id="alerts-content"></div>
       </section>
 
@@ -323,6 +342,7 @@
           </div>
         </div>
 
+        <div class="table-toolbar" data-view-actions></div>
         <div id="journal-list"></div>
       </section>
 
@@ -343,6 +363,7 @@
           dohledané nákupní loty a přepočet na CZK kurzem ČNB k datu transakce.
           Účetní zajímají pouze tituly, kde v daném roce došlo k prodeji.
         </div>
+        <div class="table-toolbar" data-view-actions></div>
         <div id="report-content"></div>
         <div id="report-summary"></div>
       </section>
@@ -357,7 +378,8 @@
           <button id="tax-select-clear" class="btn-link" type="button">Zrušit výběr</button>
         </div>
         <div class="report-intro muted">
-          Za celou společnost (<strong>všechna portfolia</strong>). U každé držené pozice je vidět,
+          Za celou firmu – <strong>všechna její portfolia</strong> (<span data-company-portfolios></span>),
+          osobní portfolia se nepočítají. U každé držené pozice je vidět,
           co by daňově znamenal prodej dnes: nákup kurzem ČNB k datu vypořádání každého
           otevřeného nákupu (FIFO, stejně jako Report pro účetní), prodej dnešní cenou
           a posledním vyhlášeným kurzem ČNB. Zaškrtnutím pozic ve sloupci Prodat se spočítá,
@@ -407,12 +429,8 @@
             </ul>
           </div>
         </details>
-        <div class="table-toolbar">
+        <div class="table-toolbar" data-view-actions>
           <span class="filter-count" id="tax-count"></span>
-          <span class="table-toolbar-actions">
-            <button id="tax-reload" class="btn" type="button">Načíst znovu</button>
-            <button id="tax-export" class="btn" type="button">Export XLSX</button>
-          </span>
         </div>
         <div class="table-wrap" id="tax-wrap" hidden>
           <table id="tbl-tax">
@@ -446,14 +464,16 @@
           <span class="filter-count" id="pa-count"></span>
         </div>
         <div class="report-intro muted">
-          Inventurní výpis pozic k rozvahovému dni <strong>přes všechna portfolia</strong>:
+          Inventurní výpis pozic k rozvahovému dni <strong>přes všechna portfolia firmy</strong>
+          (<span data-company-portfolios></span>):
           název, ISIN / ticker, počet kusů a ocenění. Kusy odpovídají obchodům
           <strong>vypořádaným</strong> do daného dne včetně (stejná konvence jako Report pro
           účetní). Ocenění = závěrečný kurz burzy k datu × kusy, přepočet kurzem ČNB k datu.
           Součástí je i <strong>hotovost u brokerů</strong> ke stejnému dni, takže
           „Majetek celkem“ odpovídá rozvaze. Pro účetní použij
-          <strong>Export XLSX</strong> v liště nahoře.
+          <strong>Export XLSX</strong> nad tabulkou.
         </div>
+        <div class="table-toolbar" data-view-actions></div>
         <h3 id="pa-title" class="pa-title" hidden></h3>
         <div id="pa-status" class="status" hidden></div>
         <div class="table-wrap" id="pa-wrap" hidden>
@@ -498,6 +518,52 @@
         <div id="pa-summary" class="report-summary-box" hidden></div>
       </section>
 
+      <section id="view-settings" class="view">
+        <div class="report-intro muted">
+          Kdo které portfolio vlastní. <strong>Daňová optimalizace</strong> a <strong>Pozice k datu</strong>
+          počítají vždy za jednu firmu – jen z jejích portfolií, portfolia osob se do nich nepočítají.
+          Nové portfolio (další broker nebo účet) přidává Claude při prvním importu dat, tady se jen přiřadí
+          vlastníkovi.
+        </div>
+        <form id="settings-form" class="settings-form" novalidate>
+          <h3 class="settings-title">Vlastníci</h3>
+          <div class="table-wrap">
+            <table id="tbl-owners">
+              <thead>
+                <tr>
+                  <th>Název</th>
+                  <th>Typ<span class="hint" title="Firma: počítá se do Daňové optimalizace a Pozic k datu. Osoba: osobní portfolio, do přehledů za firmu se nepočítá.">i</span></th>
+                  <th class="num">Portfolií</th>
+                  <th class="settings-col-action"></th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <button type="button" id="settings-add-owner" class="btn">+ Přidat vlastníka</button>
+
+          <h3 class="settings-title">Portfolia</h3>
+          <div class="table-wrap">
+            <table id="tbl-owner-portfolios">
+              <thead>
+                <tr>
+                  <th>Portfolio</th>
+                  <th>Broker</th>
+                  <th>Vlastník</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="settings-actions">
+            <span class="settings-state muted small" id="settings-state" aria-live="polite"></span>
+            <button type="submit" class="btn primary" id="settings-save">Uložit</button>
+          </div>
+          <div class="settings-error" id="settings-error" role="alert"></div>
+        </form>
+      </section>
+
       <section id="view-dividends" class="view">
         <div class="filter-bar">
           <span class="filter-label">Hledat:</span>
@@ -516,6 +582,7 @@
           <div class="filter-chips" id="div-year-chips"></div>
           <span class="filter-count" id="dividends-count"></span>
         </div>
+        <div class="table-toolbar" data-view-actions></div>
         <div class="table-wrap">
           <table id="tbl-dividends">
             <thead>
@@ -555,10 +622,11 @@
         <div class="report-intro muted">
           Vývoj celkové hodnoty portfolia (pozice + cash) v čase.
           <strong class="pos">Zelené tečky</strong> = den s vkladem cashu — hodnota tehdy
-          vzrostla díky tobě, ne díky trhu. Zdroj dat: denní NAV snapshoty z IBKR Flex,
-          přepočet CZK přes ČNB kurz k danému dni.
+          vzrostla díky tobě, ne díky trhu. Zdroj dat: denní NAV snapshoty z IB Flex
+          (IBKR, Lynx) v měně účtu, přepočet CZK přes ČNB kurz k danému dni.
         </div>
 
+        <div class="table-toolbar" data-view-actions></div>
         <!-- Globální (fixní) přehled — nezávislý na zvoleném období -->
         <div class="ph-tile-row ph-tile-row-global">
           <div class="ph-tile ph-tile-emphasized">

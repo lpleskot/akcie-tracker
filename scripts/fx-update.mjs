@@ -11,13 +11,9 @@
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { fetchCnbDay } from "./cnb.mjs";
 
 const FILE = "data/fx_rates.json";
-const CNB_API = "https://api.cnb.cz/cnbapi/exrates/daily";
-const CURRENCIES = [
-  "CAD", "DKK", "EUR", "JPY", "NOK", "PLN", "SEK", "CHF",
-  "GBP", "USD", "AUD", "HUF",
-];
 
 const data = JSON.parse(readFileSync(FILE, "utf-8"));
 data.dates = data.dates || {};
@@ -36,47 +32,22 @@ let failedDay = null; // fail-fast: den, na kterém fetch selhal
 
 let d = startDate;
 while (d <= today) {
-  // lang=EN — ČNB API od 2026 vrací na lang=CS chybu HTTP 400 (typeMismatch)
-  const url = `${CNB_API}?date=${d}&lang=EN`;
   try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": "akcie-tracker-fx-update/1.0" },
-    });
-    if (!res.ok) {
-      // Fail-fast: NEpokračovat za chybný den. Další běh startuje od max
-      // data v JSON — den přeskočený kvůli chybě by v kurzech chyběl navždy
-      // a strict getFxToCzk() by pro něj vracel null (daňový report).
-      failedDay = `${d}: HTTP ${res.status}`;
-      break;
-    }
-    const payload = await res.json();
-    const rates = payload?.rates || [];
-    if (rates.length === 0) {
+    const entry = await fetchCnbDay(d);
+    if (!entry) {
       console.log(`   ${d}: žádné kurzy (víkend/svátek)`);
-      skipped++;
-      d = nextDay(d);
-      continue;
-    }
-    // validFor je nově per-rate (payload.validFor už ČNB nevrací); fallback na d
-    const validFor = payload?.validFor || rates[0]?.validFor || d;
-    const entry = { valid_for: validFor, rates: {} };
-    for (const r of rates) {
-      const code = r.currencyCode;
-      if (CURRENCIES.includes(code)) {
-        entry.rates[code] = { rate: r.rate, amount: r.amount ?? 1 };
-      }
-    }
-    if (Object.keys(entry.rates).length === 0) {
-      console.log(`   ${d}: žádná z požadovaných měn`);
       skipped++;
     } else {
       data.dates[d] = entry;
       added++;
       console.log(
-        `   ${d}: ✓ valid_for ${validFor}, ${Object.keys(entry.rates).length} měn`,
+        `   ${d}: ✓ valid_for ${entry.valid_for}, ${Object.keys(entry.rates).length} měn`,
       );
     }
   } catch (e) {
+    // Fail-fast: NEpokračovat za chybný den. Další běh startuje od max
+    // data v JSON — den přeskočený kvůli chybě by v kurzech chyběl navždy
+    // a strict getFxToCzk() by pro něj vracel null (daňový report).
     failedDay = `${d}: ${e.message}`;
     break;
   }

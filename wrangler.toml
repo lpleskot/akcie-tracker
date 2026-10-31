@@ -44,6 +44,9 @@ id = "6d78ccbecdc64d7e9798f1ed39fca35d"
 [vars]
 PORTFOLIO_ID = "plegi-invest-ibkr"
 FLEX_QUERY_ID = "1514926"
+# Lynx (osobní portfolio lukas-pleskot-lynx) — query ID z LYNX portálu, token
+# je secret LYNX_FLEX_TOKEN. Dokud chybí jedno z nich, ranní import Lynx přeskočí.
+LYNX_FLEX_QUERY_ID = ""
 # DRY_RUN = "true" → flex-import parsuje a loguje, ale nezapíše do KV.
 DRY_RUN = "false"
 # PLEGIN_REPORT = "off" vypne ranní report do PLEGINu (po importu, pojistka
@@ -53,6 +56,8 @@ PLEGIN_REPORT = "on"
 # Secrets — nastavit v CF dashboardu (Worker → Settings → Variables and Secrets)
 # nebo přes `wrangler secret put <NÁZEV>`:
 #   FLEX_TOKEN          — token z IBKR Flex Web Service Configuration (povinné)
+#   LYNX_FLEX_TOKEN     — token z LYNX Flex Web Service Configuration (osobní
+#                         portfolio; bez něj se Lynx v importu přeskočí)
 #   ADMIN_KEY           — ochrana manuálních /run/* endpointů (bez něj zavřeno)
 #   MCP_TOKEN           — přístup k /mcp (bez něj zavřeno)
 #   PLEGIN_REPORT_TOKEN — report token PLEGINu, smí jen report „akcie"

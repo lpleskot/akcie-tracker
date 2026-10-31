@@ -25,6 +25,7 @@ Settings → Variables and Secrets, nebo `npx wrangler secret put <NÁZEV>`):
 | Secret | K čemu |
 | --- | --- |
 | `FLEX_TOKEN` | IBKR Flex Web Service token (denní import) |
+| `LYNX_FLEX_TOKEN` | LYNX Flex Web Service token (denní import osobního portfolia Lynx; bez něj se Lynx přeskočí); vkládá Lukáš sám: `cd ~/Projects/akcie-tracker/web && npx wrangler secret put LYNX_FLEX_TOKEN` |
 | `ADMIN_KEY` | ochrana manuálních `/run/*` endpointů (bez něj zavřeno = 403) |
 | `MCP_TOKEN` | přístup k `/mcp` (MCP konektor pro PLEGIN; bez něj 401) |
 | `PLEGIN_REPORT_TOKEN` | report token PLEGINu jen pro key `akcie` — ranní report (bez něj se neposílá); vytváří a nastavuje PLEGIN (zadání 13 v `~/Projects/todo`) |
@@ -38,14 +39,15 @@ Nový token pro ruční běh (obě strany najednou, hodnota se nevypisuje):
 jsou vidět v tabu Alerty, selhání jobů v CF lozích (Worker → Observability).
 
 Cron triggery, service binding `PLEGIN` (Worker `todo`) a vars (`PORTFOLIO_ID`,
-`FLEX_QUERY_ID`, `DRY_RUN`, `PLEGIN_REPORT`) jsou v `wrangler.toml` — deployují
-se automaticky. Binding vyžaduje, aby Worker `todo` na stejném účtu existoval.
+`FLEX_QUERY_ID`, `LYNX_FLEX_QUERY_ID`, `DRY_RUN`, `PLEGIN_REPORT`) jsou
+v `wrangler.toml` — deployují se automaticky. Binding vyžaduje, aby Worker `todo` na stejném účtu existoval.
 
 ## Ověření po deployi
 
 - `https://akcie-tracker.lukas-pleskot.workers.dev/` — načte se aplikace, pozice spočítané
 - `/api/quote?symbols=AAPL` — JSON s aktuální cenou
-- `/api/portfolio-overlay/plegi-invest-ibkr` — JSON overlay (data z KV)
+- `/api/portfolio-overlay/plegi-invest-ibkr` — JSON overlay (data z KV);
+  `/api/portfolio-overlay/lukas-pleskot-lynx` po prvním importu Lynx
 - `/run/alerts` bez klíče → 403; s `x-admin-key: <ADMIN_KEY>` a `?dry=1` → JSON triggerů
 - `/CLAUDE.md`, `/worker/index.js` → 404 (`.assetsignore` funguje)
 - Ráno: v logu Workeru (Observability → Logs) běh importu, hned po něm řádek
@@ -104,7 +106,9 @@ Routes → Add Custom domain → **nová self-hosted Access aplikace na tu domé
 
 **Flex import selhává (log ve Worker → Observability):**
 - IBKR WAF občas vrací 530 — job má retry; opakované selhání = zkontrolovat
-  platnost `FLEX_TOKEN` (expiruje ~1× ročně v IBKR Client Portal)
+  platnost `FLEX_TOKEN` (expiruje ~1× ročně v IBKR Client Portal),
+  u Lynx `LYNX_FLEX_TOKEN` (LYNX portál → Flex Web Service Configuration).
+  Řádky v logu nesou zdroj: `Flex import ibkr …` / `Flex import lynx …`.
 
 **Stránka po deployi zobrazuje starou verzi:**
 - Hard reload (Cmd+Shift+R); `/data/*` má `no-cache`, `/assets/*` revalidaci

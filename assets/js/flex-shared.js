@@ -45,6 +45,8 @@ export const IBKR_EXCHANGE_SUFFIX = {
 export function deriveYahooSymbol(symbol, listingExchange) {
   if (!symbol) return symbol;
   if (symbol.includes(".")) return symbol; // už má příponu / je to pár
+  // Hongkong: IB vede kód bez úvodních nul („468"), Yahoo čtyřmístně („0468.HK")
+  if (listingExchange === "SEHK" && /^\d+$/.test(symbol)) return `${symbol.padStart(4, "0")}.HK`;
   const suffix = IBKR_EXCHANGE_SUFFIX[listingExchange];
   return suffix ? symbol + suffix : symbol;
 }
@@ -105,7 +107,10 @@ export function transformFlexTrade(t) {
   // Pro náš JSON drží quantity vždy kladné, type rozhoduje směr.
   const type = t.buySell === "SELL" ? "SELL" : "BUY";
   const proceeds = parseFloat(t.proceeds);
-  const commission = parseFloat(t.ibCommission);
+  // Kolkovné a burzovní daně (HK 0,1 %, UK 0,5 %, FR 0,4 %) vede IB zvlášť v `taxes`
+  // (netCash = proceeds + ibCommission + taxes) — do nákladů obchodu patří jako komise
+  const taxes = parseFloat(t.taxes);
+  const commission = parseFloat(t.ibCommission) + (Number.isFinite(taxes) ? taxes : 0);
   return {
     id: `flex-trade-${t.tradeID}`,
     flex_id: t.tradeID,

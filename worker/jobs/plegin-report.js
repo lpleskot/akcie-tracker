@@ -34,7 +34,7 @@ const STATUS_TTL_S = 60 * 86400;
 
 const REPORT = { key: "akcie", name: "Akcie", icon: "📈", color: "#16a34a" };
 
-const ACCOUNT_LABELS = { "plegi-invest-ibkr": "IBKR", "plegi-invest-kb": "KB" };
+const ACCOUNT_LABELS = { "plegi-invest-ibkr": "IBKR", "plegi-invest-kb": "KB", "lukas-pleskot-lynx": "Lynx" };
 
 // Titul v tabulkách = „<symbol> · <krátký název>" — tvary schválené Lukášem
 // v reportech Claude úlohy (do 28. 10. 2026), bez Inc/Corp/ADR. Obsahuje
@@ -65,6 +65,7 @@ export const SHORT_NAMES = {
   EEFT: "Euronet",
   EVO: "Evolution",
   "EVO.ST": "Evolution",
+  FIG: "Figma",
   "FILA.MI": "Fila",
   GOOG: "Alphabet",
   GRPN: "Groupon",
@@ -86,6 +87,7 @@ export const SHORT_NAMES = {
   NOW: "ServiceNow",
   NU: "Nu Holdings",
   ON: "onsemi",
+  ORCL: "Oracle",
   OUST: "Ouster",
   "P911.DE": "Porsche",
   "PKN.WA": "Orlen",
@@ -299,8 +301,12 @@ function contextBody(den, accounts, fresh) {
   const all = den.portfolia.flatMap((p) => p.pozice);
   if (all.some((p) => !p.cena_chybi && !p.obchodovano)) paragraphs.push(NOT_TRADED_SENTENCE);
 
+  // Hvězdička patří ke sloupci Total Return — ten mají jen tabulky firemních účtů
   const starred = [...new Map(
-    all.filter((p) => p.total_return?.div_stejna_mena === false).map((p) => [p.symbol, titul(p)]),
+    accounts
+      .flatMap((a) => a.p.pozice)
+      .filter((p) => p.total_return?.div_stejna_mena === false)
+      .map((p) => [p.symbol, titul(p)]),
   ).values()];
   if (starred.length === 1) {
     paragraphs.push(`\\* ${starred[0]} vyplácí dividendy v jiné měně, Total Return je jen kapitálový.`);
@@ -327,11 +333,17 @@ function contextBody(den, accounts, fresh) {
  * Report pro POST /api/reports PLEGINu z výstupu akcie_den (portfolio vse).
  * Struktura podle přílohy zadání 01: 7 dlaždic bez hodnot portfolia, tabulka
  * pozic za každý účet, Kontext, odkaz do appky.
+ * Osobní účty (vlastník typu osoba): jen denní pohyb — dlaždice a tabulka
+ * pozic s Den % a Den Kč, bez hotovosti, Total Return a Kontextu
+ * (Lukáš 31. 10. 2026). Souhrn, Nejlepší/Nejhorší a Kontext jsou za firmu.
  */
 export function buildPleginReport(den) {
   const datum = den.datum;
   const fresh = isImportFresh(den.overlay, datum);
-  const accounts = den.portfolia.map((p) => ({ p, label: ACCOUNT_LABELS[p.id] || p.nazev || p.id }));
+  const label = (p) => ACCOUNT_LABELS[p.id] || p.nazev || p.id;
+  const isPersonal = (p) => p.vlastnik?.typ === "osoba";
+  const accounts = den.portfolia.filter((p) => !isPersonal(p)).map((p) => ({ p, label: label(p) }));
+  const personal = den.portfolia.filter(isPersonal).map((p) => ({ p, label: label(p) }));
   const { nejlepsi, nejhorsi } = den.vse;
 
   const summary = [
@@ -341,6 +353,7 @@ export function buildPleginReport(den) {
       nejlepsi && `nejlepší ${nejlepsi.symbol} ${pct(nejlepsi.zmena_pct)}`,
       nejhorsi && `nejhorší ${nejhorsi.symbol} ${pct(nejhorsi.zmena_pct)}`,
     ].filter(Boolean).join(", "),
+    ...personal.map((a) => `${a.label} ${kc(a.p.den.zmena_czk)}`),
   ].filter(Boolean).join(" · ");
 
   const sections = [
@@ -352,6 +365,7 @@ export function buildPleginReport(den) {
         ...accounts.map(cashTile),
         extremeTile("Nejlepší", nejlepsi, den, true),
         extremeTile("Nejhorší", nejhorsi, den, false),
+        ...personal.map((a) => dayTile(`${a.label} (osobní) za den`, a.p.den)),
       ].filter(Boolean),
     },
     ...accounts.map((a) => ({
@@ -359,6 +373,12 @@ export function buildPleginReport(den) {
       title: `${a.label} ${NDASH} pozice (${a.p.pozice.length})`,
       columns: ["Titul", "Den %", "Total Return %", "Total Return Kč"],
       rows: a.p.pozice.map(positionRow),
+    })),
+    ...personal.map((a) => ({
+      type: "table",
+      title: `${a.label} (osobní) ${NDASH} denní pohyb (${a.p.pozice.length})`,
+      columns: ["Titul", "Den %", "Den Kč"],
+      rows: a.p.pozice.map((x) => [titul(x), denCell(x), x.den ? kc(x.den.zmena_czk) : NDASH]),
     })),
     { type: "text", title: "Kontext", body: contextBody(den, accounts, fresh) },
     // Pevná adresa appky, ne den.odkaz — ten nese hostitele, přes kterého běh

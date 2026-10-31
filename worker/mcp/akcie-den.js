@@ -13,6 +13,10 @@
  * - ceny = uzavřené denní závěry burzy (ne živá cena), kurzy ČNB k datu;
  * - hotovost k datu (cashAtDate): IBKR denní NAV snapshot, KB kvartální
  *   snapshot ze STAV PTF — dlaždice v appce ukazuje cash_balance.
+ *
+ * Vlastníci (Nastavení, owners.js): souhrn `vse` sčítá jen firemní portfolia,
+ * osobní (vlastník typu osoba, Lynx) jsou v seznamu zvlášť — ranní report
+ * z nich ukazuje jen denní pohyb pozic.
  */
 
 import { computePositionsAt, positionTotalReturn, splitFactorAfter, cashAtDate } from "../../assets/js/fifo.js";
@@ -27,6 +31,7 @@ import {
   xirrPct,
 } from "../../assets/js/portfolio-shared.js";
 import { flexDate } from "../../assets/js/flex-shared.js";
+import { resolveOwners } from "../../assets/js/owners.js";
 import { fetchAssetJson, fetchYahooCloseAt } from "../api/lib.js";
 
 export const AKCIE_DEN_TOOL = "akcie_den";
@@ -40,12 +45,14 @@ export async function toolDefinition(env) {
     name: AKCIE_DEN_TOOL,
     title: "Akcie – stav portfolia k závěru dne",
     description:
-      "Stav akciových portfolií PLEGI invest k závěru obchodního dne. U každé držené " +
-      "pozice denní změna (%, v měně, v Kč) a Total Return (realizovaná + nerealizovaná " +
-      "Z/Z + čisté dividendy, v % z investice); za portfolio hodnota pozic, hotovost, " +
-      "denní změna a celkový výnos od založení. Čísla odpovídají appce akcie-tracker. " +
-      "Ceny jsou uzavřené denní závěry burzy; obchodovano=false znamená, že burza ten den " +
-      "neobchodovala a denní změna pozice se do souhrnu nepočítá. Vrací JSON.",
+      "Stav akciových portfolií PLEGI invest a osobních portfolií Lukáše k závěru obchodního " +
+      "dne. U každé držené pozice denní změna (%, v měně, v Kč) a Total Return (realizovaná " +
+      "+ nerealizovaná Z/Z + čisté dividendy, v % z investice); za portfolio hodnota pozic, " +
+      "hotovost, denní změna a celkový výnos od založení. Souhrn vse sčítá jen firemní " +
+      "portfolia; osobní (vlastnik.typ = osoba) jsou v seznamu, ale do vse se nepočítají. " +
+      "Čísla odpovídají appce akcie-tracker. Ceny jsou uzavřené denní závěry burzy; " +
+      "obchodovano=false znamená, že burza ten den neobchodovala a denní změna pozice se " +
+      "do souhrnu nepočítá. Vrací JSON.",
     inputSchema: {
       type: "object",
       properties: {
@@ -72,16 +79,22 @@ export async function toolDefinition(env) {
  * report. Chyby vstupu hází s textem pro model (server je vrátí jako isError).
  */
 export async function runAkcieDen(env, args, { origin, now = new Date() } = {}) {
-  const [manifest, fxRates] = await Promise.all([
+  const [manifest, fxRates, settings] = await Promise.all([
     fetchAssetJson(env, "/data/portfolios/manifest.json"),
     fetchAssetJson(env, "/data/fx_rates.json"),
+    env.AKCIE_TRACKER_KV.get("settings", "json"),
   ]);
   const today = pragueToday(now);
   const { datum, portfolioId } = parseArgs(args, manifest.portfolios.map((p) => p.id), today);
 
+  // Vlastníci z Nastavení (KV settings), bez nich výchozí z manifestu — jako appka
+  const { owners, ownerOf } = resolveOwners(manifest, settings);
   const metas = manifest.portfolios.filter((m) => portfolioId === "vse" || m.id === portfolioId);
   const loaded = await Promise.all(metas.map((meta) => loadPortfolio(env, meta, fxRates)));
-  for (const l of loaded) l.open = openPositionsAt(l.portfolio, datum);
+  for (const l of loaded) {
+    l.open = openPositionsAt(l.portfolio, datum);
+    l.owner = owners.find((o) => o.id === ownerOf[l.meta.id]) || null;
+  }
 
   const symbols = [
     ...new Set(
@@ -213,10 +226,17 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
   let lastImport = null;
   let navDo = null;
 
-  for (const { meta, portfolio, open, lastImport: li } of loaded) {
-    if (li && (!lastImport || li > lastImport)) lastImport = li;
+  // vse = firemní portfolia (osobní by míchala firmu s Lukášem); dotaz jen
+  // na osobní portfolio má vse z něj samotného
+  const company = loaded.filter((l) => l.owner?.type !== "osoba");
+  const counted = new Set((company.length ? company : loaded).map((l) => l.meta.id));
+
+  for (const { meta, portfolio, open, lastImport: li, owner } of loaded) {
+    const inVse = counted.has(meta.id);
+    // Čerstvost importu hlídá report firmy — osobní účet ji neovlivní
+    if (inVse && li && (!lastImport || li > lastImport)) lastImport = li;
     const nd = latestNavDate(portfolio);
-    if (nd && (!navDo || nd > navDo)) navDo = nd;
+    if (inVse && nd && (!navDo || nd > navDo)) navDo = nd;
 
     const rows = open.map((o) => positionRow(o, portfolio, datum, quotes, fxFor, varovani));
     rows.forEach((r) => r.mena && currencies.add(r.mena));
@@ -265,12 +285,14 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
         asOf: datum,
         usdToCzk,
       });
-      sum.usd += vynos.usd;
-      sum.vlozeno += vynos.vlozeno;
-      sum.vybrano += vynos.vybrano;
-      sum.assetsUsd += assetsUsd;
-      sum.flows.push(...flows);
-    } else {
+      if (inVse) {
+        sum.usd += vynos.usd;
+        sum.vlozeno += vynos.vlozeno;
+        sum.vybrano += vynos.vybrano;
+        sum.assetsUsd += assetsUsd;
+        sum.flows.push(...flows);
+      }
+    } else if (inVse) {
       sum.usdOk = false;
     }
 
@@ -278,6 +300,7 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
     portfolia.push({
       id: meta.id,
       nazev: meta.name || portfolio.name || meta.id,
+      vlastnik: owner ? { id: owner.id, nazev: owner.name, typ: owner.type } : null,
       hodnota_pozic_czk: round(pozice, 0),
       cash_czk: round(cash.czk, 0),
       hodnota_celkem_czk: round(celkem, 0),
@@ -301,6 +324,7 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
       pozice: rows.sort(byDayChangeDesc).map(rowOut),
     });
 
+    if (!inVse) continue;
     sum.pozice += pozice;
     sum.cash += cash.czk;
     sum.zmena += zmena;
@@ -308,6 +332,7 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
     sum.neobchodovalo += neobchodovalo;
     sum.chybi += chybi;
   }
+  const tradedVse = traded.filter((t) => counted.has(t.portfolio));
 
   if (datum === today) {
     varovani.push("datum je dnešek – závěrečné ceny burz, které ještě obchodují, nemusí být finální.");
@@ -346,8 +371,8 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
       hodnota_celkem_czk: round(sum.pozice + sum.cash, 0),
       den: denOut(sum.zmena, sum.pozice, sum.obchodovalo, sum.neobchodovalo, sum.chybi),
       celkovy_vynos: vseVynos,
-      nejlepsi: extreme(traded, 1, true),
-      nejhorsi: extreme(traded, -1, true),
+      nejlepsi: extreme(tradedVse, 1, true),
+      nejhorsi: extreme(tradedVse, -1, true),
     },
     overlay: { last_import: lastImport, nav_do: navDo },
     varovani,
