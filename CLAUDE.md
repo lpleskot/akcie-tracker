@@ -69,11 +69,16 @@ jinak se nedostanou do repa.
   (`assets/js/owners.js`). Výchozí stav v manifestu (`owners: [{id, name, type: firma|osoba}]`,
   u portfolia `owner`), Lukáš ho mění v tabu **Nastavení** → KV `settings` přes
   `/api/settings`; uložené má přednost, nové portfolio z manifestu bez uloženého přiřazení
-  dostane vlastníka z manifestu (`resolveOwners`). **Přehledy za firmu (Daňová optimalizace,
-  Pozice k datu) počítají vždy jen portfolia jedné firmy** (`companyPortfolios`), osobní
-  portfolia ani jiné firmy se nepřimíchají; výběr firmy v hlavičce, localStorage
-  `akcie-tracker.company`. `data/tax-returns.json` patří firmě `owner` (plegi-invest), u jiné
-  firmy se podaná přiznání neukazují. Vlastníci v manifestu: PLEGI invest s.r.o. (firma: IBKR,
+  dostane vlastníka z manifestu (`resolveOwners`). **Přehledy za vlastníka (Daňová optimalizace,
+  Pozice k datu) počítají vždy jen portfolia jednoho vlastníka** (`ownerPortfolios`) — firma
+  nikdy cizí firmu ani osobu a naopak; výběr **Vlastník** v hlavičce (skupiny Firmy / Osoby,
+  `ownersWithPortfolios`), localStorage `akcie-tracker.company` (název klíče z doby jen firem).
+  Části tabů jen pro firmu nebo jen pro osobu nesou `data-owner-only="firma|osoba"` a přepíná
+  je `renderHeader`. `data/tax-returns.json` patří firmě `owner` (plegi-invest), u jiné
+  firmy se podaná přiznání neukazují. **Osoba (od 2026-10-31)** má v Daňové optimalizaci
+  vlastní pohled podle pravidel fyzických osob (`assets/js/tax-person.js`, viz „Daňová
+  optimalizace – fyzická osoba"); Pozice k datu jsou stejné, nadpis „… – vlastník {jméno}".
+  Vlastníci v manifestu: PLEGI invest s.r.o. (firma: IBKR,
   KB), Lukáš Pleskot (osoba: Lynx). **MCP `akcie_den`** zná vlastníky stejně (`resolveOwners`
   nad manifestem + KV `settings`): souhrn `vse` sčítá jen firemní portfolia, osobní jsou
   v seznamu s `vlastnik.typ = "osoba"`; čerstvost importu (`overlay`) je jen z firemních.
@@ -328,10 +333,10 @@ Lišta tabů zvoleného portfolia: `overview` Přehled pozic · `transactions` T
 `dividends` Dividendy · `allocation` Alokace · `alerts` Alerty · `watchlist` Watchlist ·
 `journal` Deník investora · `report` Report pro účetní · `portfolio-history` Hodnota portfolia.
 
-V hlavičce vedle výběru portfolia (od 2026-10-31, přání Lukáše): přehledy za firmu `tax`
+V hlavičce vedle výběru portfolia (od 2026-10-31, přání Lukáše): přehledy za vlastníka `tax`
 Daňová optimalizace · `positions-at` Pozice k datu a `settings` Nastavení. U nich se místo
-výběru portfolia ukáže výběr firmy (Nastavení žádný), dlaždice portfolia se schovají
-(`body.header-view`) a nadpis je jméno firmy. Zpět = klik na tab portfolia.
+výběru portfolia ukáže výběr vlastníka – firmy i osoby (Nastavení žádný), dlaždice
+portfolia se schovají (`body.header-view`) a nadpis je jméno vlastníka. Zpět = klik na tab portfolia.
 
 **Načíst znovu / Tisk / PDF / Export pro účetní / Export XLSX** jsou jedna skupina tlačítek
 (`#view-actions`), kterou `placeViewActions` přesune do lišty `[data-view-actions]` nad
@@ -405,9 +410,40 @@ za firmu Načíst znovu načte znovu portfolia i ceny.
   ř. 230 = tabulka E, lhůty). Stav k 2026-10-28: přiznání 2022–2025 (ztráta 2022
   41 038 Kč odečtena 2023), ztrátu 2026 jde zpětně odečíst až 528 540 Kč (vrátí se až
   110 880 Kč).
+- **Daňová optimalizace – fyzická osoba (od 2026-10-31, Lukáš: „pohled, kde jasně vidím,
+  jak dlouho to držím a kdy mi vyprší časový test"):** když je ve výběru vlastník typu
+  osoba (Lynx). Pravidla (`assets/js/tax-person.js`, ověřeno z odborných zdrojů 10/2026):
+  prodej CP je osvobozený po **časovém testu 3 roky** (§ 4 odst. 1 ZDP, každý nákup zvlášť,
+  FIFO, písm. u)) nebo když **příjmy ze všech prodejů za rok ≤ 100 000 Kč** (prodejní cena,
+  ne zisk, písm. t)); zdanitelné prodeje se v roce sčítají, ztráta se nepřenáší; daň 15 %
+  (23 % nad 36násobek průměrné mzdy); strop osvobození 40 mil. Kč jen 2025; osvobozené nad
+  5 mil. Kč oznámit (§ 38v). **Do limitu 100 000 Kč patří VŠECHNY prodeje roku, i se splněným
+  časovým testem** — ověřeno 2026-10-31 v Pokynu GFŘ D-59 (k tehdejším písm. w) a x)): limit
+  „neposuzuje okamžik nabytí", osvobození podle výše příjmu a časového testu „nelze
+  kombinovat"; zákon (§ 4 odst. 1 písm. t), znění 8/2026) úhrn nijak nezužuje.
+  **Časový test** opatrně od **vypořádání nákupu** do **dne obchodu prodeje** (`timeTestDate`
+  = den po 3. výročí; 29. 2. → 28. 2.) — výklad dne nabytí není jednotný — a u držených nákupů
+  navíc **rezerva `SAFETY_DAYS` = 3 dny** (Lukáš: „ať vidím, že musím radši čekat"):
+  `safeFrom` = od kdy prodávat, „bez daně" až od něj, mezi koncem lhůty a koncem rezervy
+  `inBuffer` („rezerva, počkej"). U proběhlých prodejů se test hodnotí bez rezervy, prodej
+  v ní je `tight` („✓ splněn · těsně"). **Daňový rok** (filtr nahoře, firma i osoba): roky
+  s prodejem nebo dividendou (`taxYears`), výsledky roku se počítají z načtených účtů až při
+  přepnutí (`taxYearView`, cache `byYear`); hodnoty „dnes" (držené pozice, časový test) na
+  roku nezávisí, **Simulace jen u letošního roku** (dlaždice i řádky exportu). Dlaždice:
+  Prodeje <rok> proti limitu, Zdanitelný výsledek (zisky/ztráty bez testu, osvobozeno testem),
+  Odhad daně, Bez daně jde prodat dnes, Další časový test (s rezervou), Simulace (celé
+  zaškrtnuté tituly: příjem do limitu, daň jen z nákupů bez testu), Dividendy. Tabulka
+  `#tbl-tax-lots`: řádek titulu (kusy, nejstarší držení, „✓ X ks · další <datum>") a pod
+  ním jeho nákupy (Drženo, Časový test „✓ od …" / „<datum> · za N dní", do 90 dní
+  zvýrazněno, konec samotné lhůty v bublině). Tabulka Prodeje <rok> po nákupech (příjem,
+  výdaje vč. komisí, Z/Z, test splněn / nesplněn) — podklad pro přiznání. Kč jako u firmy
+  (kurz ČNB k vypořádání). `realizedSales` nese u nákupů `net` / `gross` (podíl na prodeji)
+  kvůli testu po nákupech. Export XLSX: listy Časový test (konec lhůty i prodávat od) a Prodeje.
+  Lynx 2025 (pro kontrolu přiznání): prodeje 2 144 264 Kč, zdanitelný výsledek 389 001 Kč.
 - **Pozice k datu (inventura):** stav pozic k rozvahovému dni **přes všechna portfolia
-  zvolené firmy** (načte je z manifestu + overlay, nezávisle na aktivním; jméno firmy
-  z Nastavení jde do nadpisu auditora — výchozí „PLEGI invest s.r.o.“ = doslovné znění) — název, ISIN, ticker, kusy,
+  zvoleného vlastníka** (načte je z manifestu + overlay, nezávisle na aktivním; jméno firmy
+  z Nastavení jde do nadpisu auditora — výchozí „PLEGI invest s.r.o.“ = doslovné znění;
+  u osoby nadpis bez „společnostmi" a „– vlastník {jméno}" na konci) — název, ISIN, ticker, kusy,
   cena k datu, ocenění v měně i CZK, pořizovací cena CZK (FIFO loty × kurz k vypořádání),
   oceňovací rozdíl. Kusy = `computePositionsAt` (obchody **vypořádané** ≤ datum, CA ≤ datum).
   Cena = `/api/quote-at` (Yahoo close posledního obchodního dne ≤ datum, datum baru v pásmu
@@ -567,7 +603,7 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared,flex-import,portfolio-shared,akcie-den,plegin-report,tax-optimization,closed-positions,owners}.test.mjs` — 113 unit testů
+`tests/{fifo,flex-shared,flex-import,portfolio-shared,akcie-den,plegin-report,tax-optimization,tax-person,closed-positions,owners}.test.mjs` — 122 unit testů
 (`node --test tests/*.test.mjs`), ručně spočítané fixtures: FIFO matching + prorace komise,
 proceeds-authoritative ceny, splity (vč. same-day pořadí a 1:25), KB received/removed
 párování + bonus/cancellation, práva odepsaná po víc než 30 dnech (GRPN), orphan sells,
@@ -585,7 +621,7 @@ neznámý ticker, víkend a pojistka v létě/zimě, běh s falešným KV a PLEG
 ručního běhu), Daňová optimalizace (prodeje v Kč a strict kurzy, pořizovací cena lotů
 s odhadem čerstvého nákupu, kurzový rozdíl, delisted a chybějící cena mimo součty, rok
 podle vypořádání, dividendy, simulace, zpětné odečtení ztráty a dopočty v
-`data/tax-returns.json`), Prodané pozice (souhrn v měně i v Kč, odhad kurzu čerstvého
+`data/tax-returns.json`), daň fyzické osoby (časový test, 29. 2., limit 100 000 Kč, simulace), Prodané pozice (souhrn v měně i v Kč, odhad kurzu čerstvého
 prodeje, dividendy v jiné měně), vlastníci portfolií (manifest vs. uložené nastavení, nové
 portfolio, validace /api/settings). CI: `.github/workflows/tests.yml` při každém pushi (neblokuje
 deploy — červený běh = signál). Uzavírá REVIZE R9 (2026-07-25).
@@ -629,9 +665,10 @@ Cost basis prorataována o proporcionální komisi.
 ```
 web/                                    ← repo root = asset složka Workeru
 ├── index.html                          ← 9 tabů portfolia + 3 v hlavičce, modaly, #warnings banner
-├── assets/js/{app.js, fifo.js, flex-shared.js, portfolio-shared.js, tax-optimization.js, owners.js, vendor/xlsx-js-style.min.js}
+├── assets/js/{app.js, fifo.js, flex-shared.js, portfolio-shared.js, tax-optimization.js, tax-person.js, owners.js, vendor/xlsx-js-style.min.js}
 │                                       ← fifo+flex-shared+portfolio-shared+owners sdílené s Workerem,
 │                                         tax-optimization = výpočty tabu Daňová optimalizace,
+│                                         tax-person = daň fyzické osoby (časový test),
 │                                         owners = vlastníci portfolií (Nastavení, /api/settings)
 ├── assets/css/styles.css
 ├── worker/index.js                     ← entry: /api/* + /mcp router + scheduled dispatch

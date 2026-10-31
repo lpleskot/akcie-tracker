@@ -18,9 +18,24 @@ import {
   simulateSale,
   taxEstimate,
   taxPositionRows,
+  taxYears,
   unrealizedTotals,
   withPositions,
 } from "../assets/js/tax-optimization.js";
+
+test("taxYears: letošní a roky s prodejem (podle vypořádání) nebo dividendou, od nejnovějšího", () => {
+  const tx = (date, settle, type, quantity) => ({ symbol: "A", date, settle_date: settle, type, quantity, price: 10, proceeds: (type === "BUY" ? -10 : 10) * quantity, commission: 0 });
+  const accounts = withPositions([{
+    meta: { id: "x" },
+    portfolio: {
+      // prodej 30. 12. 2022 s vypořádáním 3. 1. 2023 patří do 2023
+      transactions: [tx("2021-06-01", "2021-06-03", "BUY", 5), tx("2022-12-30", "2023-01-03", "SELL", 5)],
+      corporate_actions: [],
+      dividends: [{ symbol: "A", date: "2021-09-01", amount: 1, currency: "USD" }],
+    },
+  }]);
+  assert.deepEqual(taxYears(accounts, "2026"), ["2026", "2023", "2021"]);
+});
 
 function close(actual, expected, eps = 1e-6) {
   assert.ok(Math.abs(actual - expected) < eps, `očekáváno ${expected}, dostal ${actual}`);

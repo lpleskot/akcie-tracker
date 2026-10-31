@@ -22,8 +22,8 @@ Privátní portfolio tracker pro PLEGI invest přes Interactive Brokers a Komer�
 - Manifest v `data/portfolios/manifest.json` listuje dostupná portfolia a výchozí vlastníky
 - Watchlist, alerty, poznámky a deník jsou globální (napříč brokery)
 - **Nastavení** (v hlavičce): vlastníci portfolií – firma nebo osoba – a které portfolio
-  komu patří. Daňová optimalizace a Pozice k datu počítají vždy za jednu firmu, osobní
-  portfolia se do nich nepočítají. Uloženo v KV (`/api/settings`)
+  komu patří. Daňová optimalizace a Pozice k datu počítají vždy za jednoho vlastníka
+  (firmu, nebo osobu), nic se nemíchá. Uloženo v KV (`/api/settings`)
 - Načíst znovu a exporty jsou v liště vpravo nad tabulkou každého tabu
 
 ### Přehled pozic
@@ -65,7 +65,7 @@ Privátní portfolio tracker pro PLEGI invest přes Interactive Brokers a Komer�
 - XLSX export (barevné řádky, kurz s datem platnosti) + **Tisk / PDF** (tiskový styl)
 
 ### Daňová optimalizace
-- Za zvolenou firmu (všechna její portfolia, v hlavičce vedle výběru portfolia): výsledek prodejů v aktuálním roce (jako
+- Za zvolenou firmu (všechna její portfolia; v hlavičce vedle výběru portfolia, vlastník se volí nahoře): výsledek prodejů v aktuálním roce (jako
   Report pro účetní), odhad daně 21 %, nerealizovaný zisk a ztráta v Kč kurzy ČNB
   (nákup kurzem k vypořádání každého drženého nákupu) a dividendy roku
 - Tabulka pozic se Z/Z v měně i v Kč (daňově), rozbalení na jednotlivé nákupy,
@@ -75,10 +75,16 @@ Privátní portfolio tracker pro PLEGI invest přes Interactive Brokers a Komer�
   odečíst zpětně od základu dvou předchozích let (vrácená daň) nebo 5 let dopředu
 - PLEGI invest je mikro účetní jednotka: akcie se k 31. 12. nepřeceňují, do daně jde
   jen prodej a ztráta z prodeje se od zisků odečte
+- **Fyzická osoba** (vlastník typu osoba – Lynx): časový test 3 roky u každého drženého
+  nákupu (jak dlouho ho držíš a od kdy ho jde prodat bez daně), prodeje roku proti limitu
+  100 000 Kč (všechny prodeje roku, Pokyn GFŘ D-59), zdanitelný výsledek a odhad daně 15 %,
+  simulace prodeje; časový test s rezervou 3 dny; tabulka prodejů roku po nákupech jako
+  podklad pro přiznání; XLSX export (Časový test, Prodeje)
+- Přepínání daňového roku (firma i osoba) – prodeje a dividendy minulých let
 - Orientační výpočet, ne daňové poradenství
 
 ### Pozice k datu (inventura)
-- Stav pozic k rozvahovému dni (typicky 31. 12.) přes všechna portfolia firmy: název, ISIN,
+- Stav pozic k rozvahovému dni (typicky 31. 12.) přes všechna portfolia zvoleného vlastníka: název, ISIN,
   ticker, kusy, závěrečná cena k datu, ocenění v měně i CZK (kurz ČNB k datu),
   pořizovací cena v CZK a oceňovací rozdíl
 - XLSX export s přesným zněním požadavku auditora v záhlaví; Tisk / PDF
@@ -138,7 +144,7 @@ cd web/
 node --test tests/*.test.mjs
 ```
 
-113 unit testů (FIFO engine, inventura k datu, Flex transformace, import a merge overlay, MCP a ranní report, Daňová optimalizace, Prodané pozice, vlastníci portfolií) – ručně spočítané fixtures.
+122 unit testů (FIFO engine, inventura k datu, Flex transformace, import a merge overlay, MCP a ranní report, Daňová optimalizace firmy i osoby, Prodané pozice, vlastníci portfolií) – ručně spočítané fixtures.
 Běží i v CI při každém pushi (`.github/workflows/tests.yml`).
 
 ## Lokální vývoj

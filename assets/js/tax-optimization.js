@@ -192,6 +192,23 @@ export function dividendsInYear(accounts, fxRates, year) {
   return out;
 }
 
+/**
+ * Daňové roky k přepínání: letošní a každý rok s prodejem (podle vypořádání)
+ * nebo dividendou — od nejnovějšího.
+ */
+export function taxYears(accounts, currentYear) {
+  const years = new Set([currentYear]);
+  for (const { portfolio, positions } of accounts) {
+    for (const pos of Object.values(positions)) {
+      for (const cl of pos.closed_lots || []) {
+        if (!cl.orphan) years.add((cl.sell_settle_date || cl.sell_date).slice(0, 4));
+      }
+    }
+    for (const d of portfolio.dividends || []) if (d.date) years.add(d.date.slice(0, 4));
+  }
+  return [...years].filter((y) => y <= currentYear).sort().reverse();
+}
+
 /** Součty prodejných pozic: nerealizovaný zisk a ztráta v Kč. */
 export function unrealizedTotals(rows) {
   const t = { gains: 0, losses: 0, gainCount: 0, lossCount: 0, excluded: [] };

@@ -317,11 +317,15 @@ export function realizedSales(positions, instruments, fxRates, { from, to, estim
         };
         eventsMap.set(key, ev);
       }
+      // net/gross = podíl tohoto nákupu na prodeji (po komisi / prodejní cena) —
+      // časový test fyzické osoby se posuzuje po nákupech
       ev.buys.push({
         date: cl.buy_settle_date || cl.buy_date,
         trade_date: cl.buy_date,
         qty: cl.qty,
         total: cl.qty * cl.buy_cost_per_unit,
+        net: cl.qty * cl.sell_net_per_unit,
+        gross: cl.qty * cl.sell_price,
       });
       ev.sell_qty += cl.qty;
       ev.sell_net_total += cl.qty * cl.sell_net_per_unit;
@@ -337,10 +341,12 @@ export function realizedSales(positions, instruments, fxRates, { from, to, estim
     // IBKR dělí i nákupy v rámci dne — jeden řádek na datum vypořádání
     const byDate = new Map();
     for (const b of ev.buys) {
-      if (!byDate.has(b.date)) byDate.set(b.date, { date: b.date, trade_date: b.trade_date, qty: 0, total: 0 });
+      if (!byDate.has(b.date)) byDate.set(b.date, { date: b.date, trade_date: b.trade_date, qty: 0, total: 0, net: 0, gross: 0 });
       const e = byDate.get(b.date);
       e.qty += b.qty;
       e.total += b.total;
+      e.net += b.net;
+      e.gross += b.gross;
     }
     ev.buys = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
     let costCzk = 0;

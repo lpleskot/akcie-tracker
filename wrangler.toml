@@ -46,7 +46,7 @@ PORTFOLIO_ID = "plegi-invest-ibkr"
 FLEX_QUERY_ID = "1514926"
 # Lynx (osobní portfolio lukas-pleskot-lynx) — query ID z LYNX portálu, token
 # je secret LYNX_FLEX_TOKEN. Dokud chybí jedno z nich, ranní import Lynx přeskočí.
-LYNX_FLEX_QUERY_ID = ""
+LYNX_FLEX_QUERY_ID = "1691620"
 # DRY_RUN = "true" → flex-import parsuje a loguje, ale nezapíše do KV.
 DRY_RUN = "false"
 # PLEGIN_REPORT = "off" vypne ranní report do PLEGINu (po importu, pojistka

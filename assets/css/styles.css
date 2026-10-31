@@ -1060,12 +1060,12 @@ tfoot td {
 #tbl-tax tbody tr.position {
   cursor: pointer;
 }
-#tbl-tax td.tax-select {
+:is(#tbl-tax, #tbl-tax-lots) td.tax-select {
   padding: 0;
   text-align: center;
 }
 /* Klikací plocha je celý label — malé zaškrtávátko, ale velký cíl */
-#tbl-tax .tax-select-hit {
+:is(#tbl-tax, #tbl-tax-lots) .tax-select-hit {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1073,18 +1073,18 @@ tfoot td {
   min-height: 36px;
   cursor: pointer;
 }
-#tbl-tax .tax-select-hit input {
+:is(#tbl-tax, #tbl-tax-lots) .tax-select-hit input {
   width: 16px;
   height: 16px;
   margin: 0;
   cursor: pointer;
   accent-color: var(--color-accent);
 }
-#tbl-tax .tax-select-hit input:disabled {
+:is(#tbl-tax, #tbl-tax-lots) .tax-select-hit input:disabled {
   cursor: not-allowed;
 }
 /* Delší poznámky (chybějící cena nebo kurz) se zalomí, ať tabulka neutíká do šířky */
-#tbl-tax td.tax-note {
+:is(#tbl-tax, #tbl-tax-lots) td.tax-note {
   white-space: normal;
   min-width: 200px;
   font-size: 12px;
@@ -1144,6 +1144,27 @@ tfoot td {
   font-size: 12.5px;
   line-height: 1.55;
 }
+/* Daňová optimalizace osoby: řádek titulu a pod ním jeho nákupy s časovým testem */
+#tbl-tax-lots tbody tr.tt-title td {
+  border-top: 2px solid var(--color-border);
+}
+#tbl-tax-lots tbody tr.tt-lot td {
+  font-size: 12.5px;
+}
+.tt-ok {
+  color: var(--color-positive);
+  font-weight: 600;
+}
+/* Časový test doběhne do 90 dní */
+.tt-soon {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+.tax-sales-title {
+  margin: 22px 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
 /* Lišta nad tabulkou: počet vlevo, Načíst znovu a Export vpravo */
 .table-toolbar {
   display: flex;
@@ -1167,7 +1188,7 @@ tfoot td {
 }
 @media (pointer: coarse) {
   /* Dotyk: cíl aspoň 44 × 44 px */
-  #tbl-tax .tax-select-hit {
+  :is(#tbl-tax, #tbl-tax-lots) .tax-select-hit {
     min-width: 44px;
     min-height: 44px;
   }

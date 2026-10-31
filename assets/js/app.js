@@ -31,13 +31,23 @@ import {
   simulateSale,
   taxEstimate,
   taxPositionRows,
+  taxYears,
   unrealizedTotals,
   withPositions,
 } from "./tax-optimization.js";
 import {
+  PIT_RATE,
+  SAFETY_DAYS,
+  VALUE_LIMIT_CZK,
+  personSalesInYear,
+  simulatePersonSale,
+  timeTestSummary,
+  withTimeTest,
+} from "./tax-person.js";
+import {
   OWNER_TYPES,
   OWNER_TYPE_LABELS,
-  companiesOf,
+  ownersWithPortfolios,
   ownerIdFromName,
   resolveOwners,
   validateOwnerSettings,
@@ -57,12 +67,13 @@ const QUOTE_URL = "/api/quote";
 
 // LocalStorage key pro pamatování posledního výběru portfolia
 const LS_PORTFOLIO = "akcie-tracker.portfolio";
-const LS_COMPANY = "akcie-tracker.company";
+// Klíč z doby, kdy přehledy šly jen za firmu — zůstává, ať volba vydrží
+const LS_OWNER = "akcie-tracker.company";
 
-// Taby z hlavičky: přehledy za firmu a Nastavení. Nezávisí na zvoleném portfoliu,
-// dlaždice a výběr portfolia se u nich schovají.
-const COMPANY_VIEWS = new Set(["tax", "positions-at"]);
-const HEADER_VIEWS = new Set([...COMPANY_VIEWS, "settings"]);
+// Taby z hlavičky: přehledy za vlastníka (firmu nebo osobu) a Nastavení. Nezávisí
+// na zvoleném portfoliu, dlaždice a výběr portfolia se u nich schovají.
+const OWNER_VIEWS = new Set(["tax", "positions-at"]);
+const HEADER_VIEWS = new Set([...OWNER_VIEWS, "settings"]);
 
 const state = {
   manifest: null,
@@ -75,7 +86,7 @@ const state = {
   // Vlastníci portfolií: uložené nastavení (/api/settings) a výsledek s manifestem
   ownerSettings: null,
   owners: null,
-  companyId: null,
+  ownerId: null,
   // Rozepsané změny v Nastavení — při návratu do tabu se formulář nepřekreslí
   settingsDirty: false,
   settingsBaseline: "",
@@ -84,8 +95,8 @@ const state = {
     date: null, rows: null, cashRows: null, cashMissing: null,
     portfolios: null, fxValidFor: null, loading: false,
   },
-  // Daňová optimalizace (za zvolenou firmu) — sestaví se při prvním otevření tabu
-  taxOpt: { data: null, loading: false, selected: new Set(), sort: { key: "pnlCzk", dir: "asc" } },
+  // Daňová optimalizace (za zvoleného vlastníka) — sestaví se při prvním otevření tabu
+  taxOpt: { data: null, loading: false, selected: new Set(), year: null, sort: { key: "pnlCzk", dir: "asc" } },
   sort: { key: "sym", dir: "asc" },
   // Přehled pozic: držené („open“), nebo celé prodané tituly („closed“) s vlastním řazením
   overviewMode: "open",
@@ -174,7 +185,7 @@ async function init() {
   const primary = state.manifest.portfolios.find((p) => p.primary);
   const found = state.manifest.portfolios.find((p) => p.id === savedId);
   state.portfolioId = found?.id || primary?.id || state.manifest.portfolios[0]?.id;
-  state.companyId = pickCompany(localStorage.getItem(LS_COMPANY));
+  state.ownerId = pickOwner(localStorage.getItem(LS_OWNER));
 
   // 3) Load aktivního portfolia
   await loadActivePortfolio();
@@ -197,7 +208,7 @@ async function init() {
   setupJournal();
   setupPortfolioHistory();
   setupPortfolioSwitcher();
-  setupCompanySwitcher();
+  setupOwnerSwitcher();
   setupPositionsAt();
   setupTaxOpt();
   setupSettings();
@@ -355,66 +366,78 @@ function renderPortfolioOptions() {
   sel.value = state.portfolioId;
 }
 
-// ---------- Firma (přehledy za firmu) ----------
-// Uložená volba, jinak vlastník aktivního portfolia, jinak první firma
-function pickCompany(preferred) {
-  const ids = companiesOf(state.owners).map((c) => c.id);
+// ---------- Vlastník (přehledy za firmu nebo osobu) ----------
+// Uložená volba, jinak vlastník aktivního portfolia, jinak první v seznamu
+function pickOwner(preferred) {
+  const ids = ownersWithPortfolios(state.owners).map((c) => c.id);
   if (ids.includes(preferred)) return preferred;
   const own = state.owners.ownerOf[state.portfolioId];
   return ids.includes(own) ? own : ids[0] || null;
 }
 
-function currentCompany() {
-  return companiesOf(state.owners).find((c) => c.id === state.companyId) || null;
+function currentOwner() {
+  return ownersWithPortfolios(state.owners).find((c) => c.id === state.ownerId) || null;
 }
 
-function companyPortfolioLabel(company) {
+const isPerson = (owner) => owner?.type === "osoba";
+
+function ownerPortfolioLabel(owner) {
   const metas = new Map((state.manifest.portfolios || []).map((p) => [p.id, p]));
-  return (company?.portfolios || []).map((id) => metas.get(id)?.short || metas.get(id)?.name || id).join(", ");
+  return (owner?.portfolios || []).map((id) => metas.get(id)?.short || metas.get(id)?.name || id).join(", ");
 }
 
-// Přehledy za firmu počítají jen portfolia zvolené firmy — nikdy jiné firmy ani osob
-function companyPortfolios(list) {
-  return list.filter(({ meta }) => state.owners.ownerOf[meta.id] === state.companyId);
+// Přehledy za vlastníka počítají jen jeho portfolia — firma nikdy cizí firmu ani osobu
+// a naopak (osoba se daní jinak, viz tax-person.js)
+function ownerPortfolios(list) {
+  return list.filter(({ meta }) => state.owners.ownerOf[meta.id] === state.ownerId);
 }
 
-function setupCompanySwitcher() {
-  const sel = document.getElementById("company-select");
+function setupOwnerSwitcher() {
+  const sel = document.getElementById("owner-select");
   if (!sel) return;
-  renderCompanyOptions();
-  sel.addEventListener("change", () => setCompany(sel.value));
+  renderOwnerOptions();
+  sel.addEventListener("change", () => setOwner(sel.value));
 }
 
-function renderCompanyOptions() {
-  const sel = document.getElementById("company-select");
+// Firmy a osoby ve skupinách — osoba má jiný daňový pohled (časový test)
+function renderOwnerOptions() {
+  const sel = document.getElementById("owner-select");
   if (!sel) return;
   sel.innerHTML = "";
-  for (const c of companiesOf(state.owners)) {
-    const o = document.createElement("option");
-    o.value = c.id;
-    o.textContent = c.name;
-    sel.appendChild(o);
+  const owners = ownersWithPortfolios(state.owners);
+  for (const [type, label] of [["firma", "Firmy"], ["osoba", "Osoby"]]) {
+    const list = owners.filter((c) => c.type === type);
+    if (!list.length) continue;
+    const g = document.createElement("optgroup");
+    g.label = label;
+    for (const c of list) {
+      const o = document.createElement("option");
+      o.value = c.id;
+      o.textContent = c.name;
+      g.appendChild(o);
+    }
+    sel.appendChild(g);
   }
-  sel.value = state.companyId || "";
+  sel.value = state.ownerId || "";
 }
 
-function setCompany(id) {
-  state.companyId = id;
+function setOwner(id) {
+  state.ownerId = id;
   try {
-    localStorage.setItem(LS_COMPANY, id);
+    localStorage.setItem(LS_OWNER, id);
   } catch {}
-  resetCompanyViews();
+  resetOwnerViews();
   renderHeader();
   if (state.view === "tax") buildTaxOpt();
   else if (state.view === "positions-at") buildPositionsAt();
 }
 
-// Výsledky patří k jedné firmě — po změně firmy nebo vlastníků se sestaví znovu
-function resetCompanyViews() {
+// Výsledky patří k jednomu vlastníkovi — po jeho změně nebo změně vlastníků se sestaví znovu
+function resetOwnerViews() {
   state.taxOpt.data = null;
   state.taxOpt.selected = new Set();
   state.positionsAt.rows = null;
-  for (const id of ["tax-cards", "tax-wrap", "pa-title", "pa-wrap", "pa-cash-wrap", "pa-summary"]) {
+  for (const id of ["tax-cards", "tax-wrap", "tax-person-wrap", "tax-sales-title", "tax-sales-wrap", "pa-title", "pa-wrap", "pa-cash-wrap", "pa-summary"]) {
     const el = document.getElementById(id);
     if (el) el.hidden = true;
   }
@@ -635,10 +658,10 @@ async function saveSettings() {
     if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
     state.ownerSettings = json.settings;
     state.owners = resolveOwners(state.manifest, state.ownerSettings);
-    state.companyId = pickCompany(state.companyId);
-    resetCompanyViews();
+    state.ownerId = pickOwner(state.ownerId);
+    resetOwnerViews();
     renderPortfolioOptions();
-    renderCompanyOptions();
+    renderOwnerOptions();
     renderSettings();
   } catch (e) {
     errEl.textContent = `Uložení selhalo: ${e.message}`;
@@ -654,25 +677,30 @@ function renderHeader() {
   const metaEl = document.getElementById("portfolio-meta");
   document.getElementById("portfolio-switcher").hidden =
     HEADER_VIEWS.has(view) || (state.manifest.portfolios || []).length < 2;
-  document.getElementById("company-switcher").hidden = !COMPANY_VIEWS.has(view);
+  document.getElementById("owner-switcher").hidden = !OWNER_VIEWS.has(view);
   if (view === "settings") {
     h1.textContent = "Nastavení";
     metaEl.textContent = "Vlastníci portfolií – kdo které portfolio vlastní";
     document.title = "Nastavení — Akcie tracker";
     return;
   }
-  if (COMPANY_VIEWS.has(view)) {
-    const company = currentCompany();
-    const label = companyPortfolioLabel(company);
-    h1.textContent = company?.name || "Žádná firma";
-    metaEl.textContent = company
-      ? `Firma · portfolia ${label}`
-      : "V Nastavení není žádná firma s portfoliem";
-    document.querySelectorAll("[data-company-portfolios]").forEach((el) => {
+  if (OWNER_VIEWS.has(view)) {
+    const owner = currentOwner();
+    const label = ownerPortfolioLabel(owner);
+    h1.textContent = owner?.name || "Žádný vlastník";
+    metaEl.textContent = owner
+      ? `${isPerson(owner) ? "Osoba" : "Firma"} · portfolia ${label}`
+      : "V Nastavení není žádný vlastník s portfoliem";
+    document.querySelectorAll("[data-owner-portfolios]").forEach((el) => {
       el.textContent = label || "žádné";
     });
+    // Části tabů jen pro firmu nebo jen pro osobu (daň firmy vs. časový test)
+    const type = isPerson(owner) ? "osoba" : "firma";
+    document.querySelectorAll("[data-owner-only]").forEach((el) => {
+      el.hidden = el.dataset.ownerOnly !== type;
+    });
     const viewName = view === "tax" ? "Daňová optimalizace" : "Pozice k datu";
-    document.title = `${company?.name || "Firma"} — ${viewName} — Akcie tracker`;
+    document.title = `${owner?.name || "Vlastník"} — ${viewName} — Akcie tracker`;
     return;
   }
 
@@ -751,7 +779,7 @@ function placeViewActions(view) {
 function setupRefresh() {
   document.getElementById("btn-refresh").addEventListener("click", () => {
     // Přehledy za firmu si načítají portfolia i ceny samy — znovu od začátku
-    if (COMPANY_VIEWS.has(state.view)) {
+    if (OWNER_VIEWS.has(state.view)) {
       state.positionsAt.portfolios = null;
       if (state.view === "tax") buildTaxOpt();
       else buildPositionsAt();
@@ -4468,10 +4496,14 @@ function exportReportXlsx() {
 // z Nastavení (výchozí „PLEGI invest s.r.o.“ dává doslovné znění), {DATE} = rozvahový den.
 const PA_TITLE_TEMPLATE =
   "Přesná identifikace jednotlivých pozic cenných papírů a kryptoaktiv držených společnostmi {COMPANY} ke dni {DATE}, tedy název, ISIN nebo ticker, počet kusů a ocenění";
+// U osoby stejný výpis bez „společnostmi"; jméno na konci, ať se nemusí skloňovat
+const PA_TITLE_TEMPLATE_PERSON =
+  "Přesná identifikace jednotlivých pozic cenných papírů a kryptoaktiv ke dni {DATE}, tedy název, ISIN nebo ticker, počet kusů a ocenění – vlastník {COMPANY}";
 
 function positionsAtTitle(date) {
-  const company = companiesOf(state.owners).find((c) => c.id === state.positionsAt.companyId);
-  return PA_TITLE_TEMPLATE.replace("{COMPANY}", company?.name || "").replace("{DATE}", fmtCzDate(date));
+  const owner = ownersWithPortfolios(state.owners).find((c) => c.id === state.positionsAt.ownerId);
+  const template = isPerson(owner) ? PA_TITLE_TEMPLATE_PERSON : PA_TITLE_TEMPLATE;
+  return template.replace("{COMPANY}", owner?.name || "").replace("{DATE}", fmtCzDate(date));
 }
 
 function fmtCzDate(iso) {
@@ -4491,7 +4523,7 @@ function setupPositionsAt() {
 }
 
 // Načte VŠECHNA portfolia z manifestu (statický JSON + KV overlay) nezávisle na
-// aktivním portfoliu; přehledy za firmu si z nich vyberou svá (companyPortfolios).
+// aktivním portfoliu; přehledy za vlastníka si z nich vyberou svá (ownerPortfolios).
 // Cache per session, data nezávisí na zvoleném datu.
 async function loadAllPortfoliosForSnapshot() {
   if (state.positionsAt.portfolios) return state.positionsAt.portfolios;
@@ -4550,12 +4582,12 @@ async function buildPositionsAt() {
   document.getElementById("pa-cash-wrap").hidden = true;
   document.getElementById("pa-summary").hidden = true;
   document.getElementById("pa-title").hidden = true;
-  showStatus(`Sestavuji pozice k ${fmtCzDate(date)} — načítám portfolia firmy, historické ceny a kurz ČNB…`);
-  const companyId = state.companyId;
+  showStatus(`Sestavuji pozice k ${fmtCzDate(date)} — načítám portfolia, historické ceny a kurz ČNB…`);
+  const ownerId = state.ownerId;
 
   try {
-    const portfolios = companyPortfolios(await loadAllPortfoliosForSnapshot());
-    if (!portfolios.length) throw new Error("zvolená firma nemá v Nastavení žádné portfolio");
+    const portfolios = ownerPortfolios(await loadAllPortfoliosForSnapshot());
+    if (!portfolios.length) throw new Error("zvolený vlastník nemá v Nastavení žádné portfolio");
 
     // 1) Pozice ke dni per portfolio — FIFO nad obchody vypořádanými do data
     const rows = [];
@@ -4681,7 +4713,7 @@ async function buildPositionsAt() {
     state.positionsAt.cashMissing = cashMissing;
     state.positionsAt.fxValidFor = fxData?.valid_for || null;
     state.positionsAt.portfolioCount = portfolios.length;
-    state.positionsAt.companyId = companyId;
+    state.positionsAt.ownerId = ownerId;
     renderPositionsAt();
   } catch (e) {
     showStatus(`Sestavení selhalo: ${e.message}`, true);
@@ -4916,7 +4948,7 @@ function exportPositionsAtXlsx() {
     XLSX.utils.book_append_sheet(wb, cws, "Hotovost");
   }
 
-  XLSX.writeFile(wb, `${state.positionsAt.companyId}-pozice-k-${date}.xlsx`);
+  XLSX.writeFile(wb, `${state.positionsAt.ownerId}-pozice-k-${date}.xlsx`);
 }
 
 // ---------- Daňová optimalizace (za zvolenou firmu) ----------
@@ -4932,20 +4964,37 @@ const uctu = (n) => (n === 1 ? "účet" : n >= 2 && n <= 4 ? "účty" : "účtů
 const portfolii = (n) => (n === 1 ? "portfolio" : n >= 2 && n <= 4 ? "portfolia" : "portfolií");
 
 const TAX_DETAILS_KEY = "akcie.taxDetailsOpen";
+const TAX_PERSON_DETAILS_KEY = "akcie.taxPersonDetailsOpen";
 
 function setupTaxOpt() {
   // Rozbalené poznámky si prohlížeč pamatuje (jen pohodlí – bez úložiště zůstanou sbalené)
-  const details = document.getElementById("tax-details");
-  if (details) {
+  for (const [id, key] of [["tax-details", TAX_DETAILS_KEY], ["tax-person-details", TAX_PERSON_DETAILS_KEY]]) {
+    const details = document.getElementById(id);
+    if (!details) continue;
     try {
-      details.open = localStorage.getItem(TAX_DETAILS_KEY) === "1";
+      details.open = localStorage.getItem(key) === "1";
     } catch {}
     details.addEventListener("toggle", () => {
       try {
-        localStorage.setItem(TAX_DETAILS_KEY, details.open ? "1" : "0");
+        localStorage.setItem(key, details.open ? "1" : "0");
       } catch {}
     });
   }
+  // Daňový rok: výsledky roku se přepočítají z načtených dat, ceny se nenačítají znovu
+  document.getElementById("tax-year")?.addEventListener("click", (e) => {
+    const chip = e.target.closest("[data-year]");
+    if (!chip || !state.taxOpt.data) return;
+    state.taxOpt.year = chip.dataset.year;
+    renderTaxOpt();
+  });
+  // Osoba: zaškrtnutí titulu k prodeji přepočte jen dlaždice (tabulka se nemění)
+  document.querySelector("#tbl-tax-lots tbody")?.addEventListener("change", (e) => {
+    const cb = e.target.closest("input[data-tax-select]");
+    if (!cb) return;
+    if (cb.checked) state.taxOpt.selected.add(cb.dataset.taxSelect);
+    else state.taxOpt.selected.delete(cb.dataset.taxSelect);
+    renderPersonCards();
+  });
   document.getElementById("tax-select-losses")?.addEventListener("click", () => {
     const d = state.taxOpt.data;
     if (!d) return;
@@ -4984,6 +5033,21 @@ function setupTaxOpt() {
   });
 }
 
+// Soubor patří jedné firmě (`owner`), u jiné firmy se neukazuje
+function loadTaxReturns(ownerId) {
+  return fetch(TAX_RETURNS_URL, { cache: "no-cache" })
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then((json) =>
+      json.owner && json.owner !== ownerId
+        ? { overview: null, error: null, otherCompany: true }
+        : { overview: lossCarryOverview(json.returns), error: null },
+    )
+    .catch((e) => ({ overview: null, error: e.message }));
+}
+
 async function buildTaxOpt() {
   if (state.taxOpt.loading) return;
   state.taxOpt.loading = true;
@@ -4993,24 +5057,16 @@ async function buildTaxOpt() {
     statusEl.classList.toggle("error", isError);
     statusEl.textContent = msg;
   };
-  const companyId = state.companyId;
-  showStatus("Načítám portfolia firmy a aktuální ceny…");
+  const ownerId = state.ownerId;
+  // Osoba se daní jinak než firma: časový test a limit 100 000 Kč (tax-person.js)
+  const person = isPerson(currentOwner());
+  showStatus("Načítám portfolia a aktuální ceny…");
   // Podaná přiznání jsou samostatná část tabu – když se nenačtou, zbytek běží dál.
-  // Soubor patří jedné firmě (`owner`), u jiné firmy se neukazuje.
-  const taxReturns = fetch(TAX_RETURNS_URL, { cache: "no-cache" })
-    .then((res) => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
-    })
-    .then((json) =>
-      json.owner && json.owner !== companyId
-        ? { overview: null, error: null, otherCompany: true }
-        : { overview: lossCarryOverview(json.returns), error: null },
-    )
-    .catch((e) => ({ overview: null, error: e.message }));
+  // Osoba je v aplikaci nemá.
+  const taxReturns = person ? null : loadTaxReturns(ownerId);
   try {
-    const accounts = withPositions(companyPortfolios(await loadAllPortfoliosForSnapshot()));
-    if (!accounts.length) throw new Error("zvolená firma nemá v Nastavení žádné portfolio");
+    const accounts = withPositions(ownerPortfolios(await loadAllPortfoliosForSnapshot()));
+    if (!accounts.length) throw new Error("zvolený vlastník nemá v Nastavení žádné portfolio");
     const today = pragueToday();
     const year = today.slice(0, 4);
 
@@ -5031,15 +5087,19 @@ async function buildTaxOpt() {
       Object.assign(quotes, (await res.json()).quotes || {});
     }
 
-    const rows = taxPositionRows(accounts, quotes, state.fxRates, today);
+    const positionRows = taxPositionRows(accounts, quotes, state.fxRates, today);
+    const rows = person ? withTimeTest(positionRows, today) : positionRows;
     state.taxOpt.data = {
-      companyId,
+      ownerId,
+      person,
       today,
       year,
+      // Výsledky roků se počítají z načtených účtů až při přepnutí roku (taxYearView)
+      years: taxYears(accounts, year),
+      accounts,
+      byYear: new Map(),
       rows,
       accountCount: accounts.length,
-      realized: realizedInYear(accounts, state.fxRates, year),
-      dividends: dividendsInYear(accounts, state.fxRates, year),
       fx: currentFxInfo(state.fxRates, today),
       fetchedAt: new Date(),
       taxReturns: await taxReturns,
@@ -5054,17 +5114,49 @@ async function buildTaxOpt() {
   } finally {
     state.taxOpt.loading = false;
   }
-  // Firma se změnila během načítání — výsledek patří té předchozí
+  // Vlastník se změnil během načítání — výsledek patří tomu předchozímu
   if (state.view === "tax" && taxOptStale()) buildTaxOpt();
 }
 
-const taxOptStale = () => !!state.taxOpt.data && state.taxOpt.data.companyId !== state.companyId;
-const positionsAtStale = () => !!state.positionsAt.rows && state.positionsAt.companyId !== state.companyId;
+const taxOptStale = () => !!state.taxOpt.data && state.taxOpt.data.ownerId !== state.ownerId;
+const positionsAtStale = () => !!state.positionsAt.rows && state.positionsAt.ownerId !== state.ownerId;
+
+/**
+ * Zvolený daňový rok (výchozí letošní) a jeho výsledky: prodeje a dividendy.
+ * Hodnoty dnes (držené pozice, časový test) na roku nezávisí; simulace prodeje
+ * dnes patří jen k letošnímu roku (`current`).
+ */
+function taxYearView() {
+  const d = state.taxOpt.data;
+  const year = d.years.includes(state.taxOpt.year) ? state.taxOpt.year : d.year;
+  if (!d.byYear.has(year)) {
+    d.byYear.set(year, {
+      realized: d.person ? null : realizedInYear(d.accounts, state.fxRates, year),
+      sales: d.person ? personSalesInYear(d.accounts, state.fxRates, year) : null,
+      dividends: dividendsInYear(d.accounts, state.fxRates, year),
+    });
+  }
+  return { year, current: year === d.year, ...d.byYear.get(year) };
+}
+
+function renderTaxYearChips() {
+  const y = taxYearView();
+  document.getElementById("tax-year").innerHTML = state.taxOpt.data.years
+    .map((yr) => `<button class="filter-chip${yr === y.year ? " active" : ""}" type="button" data-year="${yr}">${yr}</button>`)
+    .join("");
+}
 
 function renderTaxOpt() {
   const d = state.taxOpt.data;
   if (!d) return;
-  document.getElementById("tax-year").textContent = d.year;
+  renderTaxYearChips();
+  if (d.person) {
+    renderPersonCards();
+    renderPersonNotes();
+    renderPersonLots();
+    renderPersonSales();
+    return;
+  }
   renderTaxCards();
   renderTaxNotes();
   renderTaxTable();
@@ -5073,10 +5165,11 @@ function renderTaxOpt() {
 
 function renderTaxCards() {
   const d = state.taxOpt.data;
+  const y = taxYearView();
   const wrap = document.getElementById("tax-cards");
   wrap.innerHTML = "";
   wrap.hidden = false;
-  const r = d.realized;
+  const r = y.realized;
   const u = unrealizedTotals(d.rows);
   const sim = simulateSale(r.net, d.rows, state.taxOpt.selected);
   const rate = `${fmtNum(DPPO_RATE * 100, 0)} %`;
@@ -5094,11 +5187,11 @@ function renderTaxCards() {
 
   add(
     cardHtml(
-      `Realizováno ${d.year}`,
+      `Realizováno ${y.year}`,
       kcSigned(r.net),
       `${r.byAccount.map((a) => `${escapeHtml(a.account)} ${kcText(a.net)}`).join(" · ")}<br>zisky ${kcText(r.gains)} · ztráty ${kcText(r.losses)}`,
     ),
-    `Prodeje vypořádané v roce ${d.year} (${r.sales}), FIFO, kurz ČNB k datu vypořádání nákupu i prodeje – stejně jako Report pro účetní, sečteno za ${accounts}: zisky ${kcText(r.gains)} + ztráty ${kcText(r.losses)} = ${kcText(r.net)}.`,
+    `Prodeje vypořádané v roce ${y.year} (${r.sales}), FIFO, kurz ČNB k datu vypořádání nákupu i prodeje – stejně jako Report pro účetní, sečteno za ${accounts}: zisky ${kcText(r.gains)} + ztráty ${kcText(r.losses)} = ${kcText(r.net)}.`,
   );
   add(
     r.net > 0
@@ -5118,38 +5211,42 @@ function renderTaxCards() {
     ),
     `Součet záporných Z/Z v Kč (daňově) za pozice, které jdou prodat: ${u.lossCount} ${pozic(u.lossCount)}, celkem ${kcText(u.losses)}.${u.excluded.length ? ` Mimo součet: ${u.excluded.map((x) => `${x.sym} (${x.note})`).join("; ")}.` : ""}`,
   );
+  // Prodej dnes patří do letošního roku — u minulého roku simulace nedává smysl
+  if (y.current) {
+    add(
+      cardHtml(
+        "Simulace – po prodeji vybraných",
+        kcSigned(sim.net),
+        sim.count
+          ? `${sim.count} ${pozic(sim.count)}: ${kcText(sim.selectedPnl)} · odhad daně ${kcText(sim.tax)}`
+          : "zaškrtni pozice ve sloupci Prodat",
+      ),
+      `Realizováno ${kcText(r.net)} + Z/Z vybraných pozic ${kcText(sim.selectedPnl)} = ${kcText(sim.net)}; odhad daně ${sim.net > 0 ? `${rate} × ${kcText(sim.net)} = ` : ""}${kcText(sim.tax)}. Nic se neprodává ani neukládá.`,
+    );
+  }
+  const dv = y.dividends;
   add(
     cardHtml(
-      "Simulace – po prodeji vybraných",
-      kcSigned(sim.net),
-      sim.count
-        ? `${sim.count} ${pozic(sim.count)}: ${kcText(sim.selectedPnl)} · odhad daně ${kcText(sim.tax)}`
-        : "zaškrtni pozice ve sloupci Prodat",
-    ),
-    `Realizováno ${kcText(r.net)} + Z/Z vybraných pozic ${kcText(sim.selectedPnl)} = ${kcText(sim.net)}; odhad daně ${sim.net > 0 ? `${rate} × ${kcText(sim.net)} = ` : ""}${kcText(sim.tax)}. Nic se neprodává ani neukládá.`,
-  );
-  const dv = d.dividends;
-  add(
-    cardHtml(
-      `Dividendy ${d.year}`,
+      `Dividendy ${y.year}`,
       kcText(dv.grossCzk),
       `sražená daň ${kcText(dv.withheldCzk)} · samostatný základ daně`,
     ),
-    `Hrubé dividendy připsané v roce ${d.year} (${dv.count} výplat) kurzem ČNB k datu výplaty: ${kcText(dv.grossCzk)}, sražená daň v zahraničí ${kcText(dv.withheldCzk)}${dv.missing ? `; ${dv.missing} položek bez kurzu ČNB není v součtu` : ""}. Dividendy jsou samostatný základ daně – ztráta z prodejů je nekompenzuje.`,
+    `Hrubé dividendy připsané v roce ${y.year} (${dv.count} výplat) kurzem ČNB k datu výplaty: ${kcText(dv.grossCzk)}, sražená daň v zahraničí ${kcText(dv.withheldCzk)}${dv.missing ? `; ${dv.missing} položek bez kurzu ČNB není v součtu` : ""}. Dividendy jsou samostatný základ daně – ztráta z prodejů je nekompenzuje.`,
   );
 }
 
 function renderTaxNotes() {
   const d = state.taxOpt.data;
+  const y = taxYearView();
   const items = [
     `<strong>Orientační výpočet, ne daňové poradenství.</strong> Počítá se jako v Reportu pro účetní (FIFO po účtech, kurz ČNB k datu vypořádání), daň ${fmtNum(DPPO_RATE * 100, 0)} % jen z výsledku prodejů.`,
     `PLEGI invest je mikro účetní jednotka: akcie se k 31. 12. nepřeceňují (§ 27 odst. 7 zákona o účetnictví), daň ovlivní jen prodej. Ztráta z prodeje se od zisků odečte – omezení v § 24 odst. 2 písm. w) zákona o daních z příjmů se na mikro účetní jednotku nevztahuje. Prodej a okamžitý zpětný nákup jen kvůli daňové ztrátě může finanční úřad posoudit jako zneužití práva.`,
-    `Do roku ${d.year} patří prodej <strong>vypořádaný</strong> nejpozději 31. 12. ${d.year} – v USA den po obchodu, v Evropě dva pracovní dny po obchodu. Obchod z posledních dní roku se vypořádá až v lednu a patří do dalšího roku.`,
+    `Do roku ${y.year} patří prodej <strong>vypořádaný</strong> nejpozději 31. 12. ${y.year} – v USA den po obchodu, v Evropě dva pracovní dny po obchodu. Obchod z posledních dní roku se vypořádá až v lednu a patří do dalšího roku.`,
     `Hodnota v Kč: ceny z Yahoo (zpoždění ~15 min) načtené ${d.fetchedAt.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" })}, kurz ČNB vyhlášený k ${d.fx.validFor ? fmtCzDate(d.fx.validFor) : "–"}.`,
     "Tituly stažené z burzy (Canacol Energy) v tabulce nejsou – nejdou prodat a daňově s nimi pracovat nejde.",
   ];
-  if (d.realized.missing.length) {
-    items.push(`⚠️ Prodeje bez kurzu ČNB nejsou v Realizováno: ${escapeHtml(d.realized.missing.join(", "))}.`);
+  if (y.realized.missing.length) {
+    items.push(`⚠️ Prodeje bez kurzu ČNB nejsou v Realizováno: ${escapeHtml(y.realized.missing.join(", "))}.`);
   }
   document.getElementById("tax-notes").innerHTML = `<ul class="tax-notes">${items.map((t) => `<li>${t}</li>`).join("")}</ul>`;
 }
@@ -5263,7 +5360,7 @@ function renderTaxReturns() {
     status.hidden = false;
     status.classList.toggle("error", !otherCompany);
     status.textContent = otherCompany
-      ? `Podaná přiznání firmy ${currentCompany()?.name || ""} zatím v aplikaci nejsou (data/tax-returns.json má jen jednu firmu).`
+      ? `Podaná přiznání firmy ${currentOwner()?.name || ""} zatím v aplikaci nejsou (data/tax-returns.json má jen jednu firmu).`
       : `Daňová přiznání se nepodařilo načíst${error ? ` (${error})` : ""}.`;
     wrap.hidden = true;
     carry.textContent = "";
@@ -5324,6 +5421,353 @@ function renderTaxReturns() {
   `;
 }
 
+// ---------- Daňová optimalizace – fyzická osoba (časový test, tax-person.js) ----------
+const roku = (n) => (n === 1 ? "rok" : n >= 2 && n <= 4 ? "roky" : "let");
+const mesicu = (n) => (n === 1 ? "měsíc" : n >= 2 && n <= 4 ? "měsíce" : "měsíců");
+const dni = (n) => (n === 1 ? "den" : n >= 2 && n <= 4 ? "dny" : "dní");
+const titulu = (n) => (n === 1 ? "titul" : n >= 2 && n <= 4 ? "tituly" : "titulů");
+// Nákup, kterému časový test doběhne do 90 dní — za počkání může stát
+const TT_SOON_DAYS = 90;
+
+// „2 roky 5 měsíců", pod měsíc ve dnech
+function heldText(h) {
+  if (!h.years && !h.months) return `${h.days} ${dni(h.days)}`;
+  return [h.years && `${h.years} ${roku(h.years)}`, h.months && `${h.months} ${mesicu(h.months)}`].filter(Boolean).join(" ");
+}
+
+// Datum prodeje bez daně je s rezervou (safeFrom); konec samotné lhůty je v bublině
+function timeTestCell(l) {
+  const tip = `Časový test (od vypořádání nákupu) splněn od ${fmtCzDate(l.exemptFrom)}, prodávat s rezervou ${SAFETY_DAYS} dny od ${fmtCzDate(l.safeFrom)}`;
+  if (l.exempt) return `<span class="tt-ok" title="${tip}">✓ od ${fmtCzDate(l.safeFrom)}</span>`;
+  const cls = l.inBuffer || l.daysLeft <= TT_SOON_DAYS ? "tt-soon" : "";
+  const wait = l.inBuffer ? "rezerva, počkej" : `za ${fmtNum(l.daysLeft, 0)} ${dni(l.daysLeft)}`;
+  return `<span class="${cls}" title="${tip}">${fmtCzDate(l.safeFrom)}</span> <span class="muted">· ${wait}</span>`;
+}
+
+function renderPersonCards() {
+  const d = state.taxOpt.data;
+  const y = taxYearView();
+  const wrap = document.getElementById("tax-cards");
+  wrap.innerHTML = "";
+  wrap.hidden = false;
+  const s = y.sales;
+  const tt = timeTestSummary(d.rows);
+  const sim = simulatePersonSale(s, d.rows, state.taxOpt.selected);
+  const rate = `${fmtNum(PIT_RATE * 100, 0)} %`;
+  const limit = kcText(VALUE_LIMIT_CZK);
+  const add = (el, title) => {
+    el.title = title;
+    wrap.appendChild(el);
+  };
+
+  add(
+    cardHtml(
+      `Prodeje ${y.year}`,
+      kcText(s.grossCzk),
+      s.overLimit ? `nad limitem ${limit} o ${kcText(s.grossCzk - VALUE_LIMIT_CZK)}` : `pod limitem ${limit} – vše osvobozeno`,
+    ),
+    `Příjmy (prodejní cena) z prodejů vypořádaných v roce ${y.year}, kurz ČNB k datu vypořádání: ${kcText(s.grossCzk)}. Když úhrn za rok nepřesáhne ${limit}, je osvobozený celý. Do úhrnu patří všechny prodeje, i se splněným časovým testem – Pokyn GFŘ D-59: limit neposuzuje okamžik nabytí a obě osvobození nelze kombinovat.`,
+  );
+  add(
+    cardHtml(
+      `Zdanitelný výsledek ${y.year}`,
+      kcSigned(s.taxableNet),
+      `${s.overLimit ? `zisky ${kcText(s.gains)} · ztráty ${kcText(s.losses)}` : "pod limitem se nedaní nic"}<br>osvobozeno časovým testem ${kcText(s.exemptPnl)}`,
+    ),
+    `Prodeje bez splněného časového testu: zisky ${kcText(s.gains)} + ztráty ${kcText(s.losses)} = ${kcText(s.gains + s.losses)}${s.overLimit ? "" : `, ale příjmy jsou pod limitem ${limit} → 0`}. Prodeje se splněným časovým testem (${kcText(s.exemptPnl)}) se nedaní a jejich ztráta se neodečítá. Výsledná ztráta se do dalších let nepřenáší.`,
+  );
+  add(
+    cardHtml(`Odhad daně ${y.year}`, kcText(s.tax), s.taxableNet > 0 ? `${rate} × ${kcText(s.taxableNet)}` : "není co zdanit"),
+    `Daň ${rate}; z části základu nad 36násobek průměrné mzdy 23 % (odhad počítá ${rate}). ${s.taxableNet > 0 ? `${rate} × ${kcText(s.taxableNet)} = ${kcText(s.tax)}.` : "Výsledek ≤ 0 nebo příjmy pod limitem → 0 Kč."}`,
+  );
+  add(
+    cardHtml(
+      "Bez daně jde prodat dnes",
+      kcText(tt.exemptValueCzk),
+      tt.exemptLots ? `Z/Z ${kcText(tt.exemptPnlCzk)} · ${tt.exemptLots} ${nakupu(tt.exemptLots)} s časovým testem` : "žádný nákup zatím test nesplnil",
+    ),
+    `Hodnota držených nákupů se splněným časovým testem i rezervou ${SAFETY_DAYS} dny (dnešní cena, poslední kurz ČNB): ${kcText(tt.exemptValueCzk)}, z toho Z/Z ${kcText(tt.exemptPnlCzk)}.`,
+  );
+  const next = tt.upcoming[0];
+  add(
+    next
+      ? cardHtml("Další časový test", fmtCzDate(next.safeFrom), `${escapeHtml(next.sym)} ${fmtNum(next.qty, 0)} ks · za ${fmtNum(next.daysLeft, 0)} ${dni(next.daysLeft)} · s rezervou`)
+      : cardHtml("Další časový test", "–", "všechny držené nákupy test splnily"),
+    tt.upcoming
+      .slice(0, 5)
+      .map((u) => `${fmtCzDate(u.safeFrom)} ${u.sym} ${fmtNum(u.qty, 0)} ks (dnes ${kcText(u.valueCzk)})`)
+      .join("; "),
+  );
+  // Prodej dnes patří do letošního roku — u minulého roku simulace nedává smysl
+  if (y.current) {
+    add(
+      cardHtml(
+        "Simulace – po prodeji vybraných",
+        kcSigned(sim.net),
+        sim.count
+          ? `${sim.count} ${titulu(sim.count)}: příjmy roku ${kcText(sim.grossCzk)} · odhad daně ${kcText(sim.tax)}`
+          : "zaškrtni tituly ve sloupci Prodat",
+      ),
+      `Prodej vybraných celých pozic dnes: příjem ${kcText(sim.valueCzk)}, Z/Z bez splněného časového testu (s rezervou ${SAFETY_DAYS} dny) ${kcText(sim.taxablePnl)}, se splněným testem ${kcText(sim.exemptPnl)} (bez daně). Příjmy roku ${kcText(sim.grossCzk)} ${sim.overLimit ? `> ${limit}` : `≤ ${limit} → vše osvobozeno`}; zdanitelný výsledek ${kcText(sim.net)}, odhad daně ${kcText(sim.tax)}. Nic se neprodává ani neukládá.`,
+    );
+  }
+  const dv = y.dividends;
+  add(
+    cardHtml(`Dividendy ${y.year}`, kcText(dv.grossCzk), `sražená daň ${kcText(dv.withheldCzk)} · do přiznání zvlášť`),
+    `Hrubé dividendy připsané v roce ${y.year} (${dv.count} výplat) kurzem ČNB k datu výplaty: ${kcText(dv.grossCzk)}, sražená daň v zahraničí ${kcText(dv.withheldCzk)}${dv.missing ? `; ${dv.missing} položek bez kurzu ČNB není v součtu` : ""}. Zahraniční dividendy patří do přiznání (§ 8 ZDP, 15 %) a započte se daň sražená v zahraničí – s prodeji akcií se nesčítají.`,
+  );
+}
+
+function renderPersonNotes() {
+  const d = state.taxOpt.data;
+  const y = taxYearView();
+  const limit = kcText(VALUE_LIMIT_CZK);
+  const items = [
+    "<strong>Orientační výpočet, ne daňové poradenství.</strong> Před podáním přiznání ho ověř s daňovým poradcem.",
+    `<strong>Časový test 3 roky</strong> (§ 4 odst. 1 písm. u) ZDP): prodej je osvobozený, když od nabytí uplynuly víc než 3 roky – posuzuje se každý nákup zvlášť. Počítá se opatrně od <strong>vypořádání nákupu</strong> do <strong>dne obchodu prodeje</strong> (který den rozhoduje, se vykládá různě – takhle test vyjde spíš o den či dva později, nikdy dřív) a k tomu <strong>rezerva ${SAFETY_DAYS} dny</strong>. Datum ve sloupci Časový test je první den obchodu i s rezervou; konec samotné lhůty je v bublině. U proběhlých prodejů se rezerva nepočítá, jen se označí prodej v ní („těsně").`,
+    "<strong>Nejdřív se prodávají nejstarší nákupy</strong> (FIFO, stejně jako u brokera) – při prodeji části pozice odejdou nejdřív kusy se splněným testem. Kolik jich je, ukazuje sloupec Časový test u titulu.",
+    `<strong>Limit ${limit}</strong> (§ 4 odst. 1 písm. t) ZDP): když příjmy (prodejní cena, ne zisk) ze všech prodejů cenných papírů za rok nepřesáhnou ${limit}, je osvobozené všechno. Do úhrnu patří <strong>všechny prodeje roku, i se splněným časovým testem</strong> – podle Pokynu GFŘ D-59 se u limitu neposuzuje okamžik nabytí a osvobození podle výše příjmu a podle časového testu nelze kombinovat. Při překročení limitu se daní celý zisk z prodejů bez časového testu, ne jen část nad limitem.`,
+    `<strong>Zdanitelné prodeje</strong> (bez časového testu, nad limitem): zisky a ztráty roku se sečtou, výsledná ztráta se nepřenáší do dalších let ani nesnižuje jiné příjmy. Ztráta z prodeje se splněným časovým testem se neodečítá. Daň ${fmtNum(PIT_RATE * 100, 0)} %, z části základu nad 36násobek průměrné mzdy 23 %.`,
+    `Do roku ${y.year} patří prodej <strong>vypořádaný</strong> nejpozději 31. 12. ${y.year} – v USA den po obchodu, v Evropě dva pracovní dny po obchodu. Kurzy ČNB k datu vypořádání nákupu i prodeje jako u firmy; fyzická osoba může místo nich použít jednotný kurz za rok – čísla pak vyjdou trochu jinak.`,
+    "Osvobozené příjmy nad 5 mil. Kč za rok se oznamují finančnímu úřadu (§ 38v ZDP). V roce 2025 platil navíc strop osvobození 40 mil. Kč, od roku 2026 jen u kryptoaktiv.",
+    `Split datum nabytí nemění, akcie připsané jako bonus mají vlastní. Hodnota v Kč: ceny z Yahoo (zpoždění ~15 min) načtené ${d.fetchedAt.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" })}, kurz ČNB vyhlášený k ${d.fx.validFor ? fmtCzDate(d.fx.validFor) : "–"}.`,
+  ];
+  if (y.sales.missing.length) {
+    items.push(`⚠️ Prodeje bez kurzu ČNB nejsou v součtech: ${escapeHtml(y.sales.missing.join(", "))}.`);
+  }
+  document.getElementById("tax-person-notes").innerHTML = `<ul class="tax-notes">${items.map((t) => `<li>${t}</li>`).join("")}</ul>`;
+}
+
+// Tituly podle symbolu, pod každým jeho držené nákupy od nejstaršího
+function personLotRows() {
+  return [...state.taxOpt.data.rows].sort((a, b) => a.sym.localeCompare(b.sym, "cs") || a.account.localeCompare(b.account, "cs"));
+}
+
+function renderPersonLots() {
+  const d = state.taxOpt.data;
+  document.getElementById("tax-person-wrap").hidden = false;
+  const tbody = document.querySelector("#tbl-tax-lots tbody");
+  tbody.innerHTML = "";
+  const dash = '<span class="muted">–</span>';
+  const kc = (v) => (v != null ? fmtNum(v, 0) : dash);
+  const qty = (n) => fmtNum(n, Number.isInteger(n) ? 0 : 4);
+  const multi = d.accountCount > 1;
+  const rows = personLotRows();
+  let lotCount = 0;
+  for (const r of rows) {
+    const allExempt = r.lots.every((l) => l.exempt);
+    const summary = allExempt
+      ? `<span class="tt-ok">✓ všech ${qty(r.qty)} ks</span>`
+      : `${r.exemptQty > 0 ? `<span class="tt-ok">✓ ${qty(r.exemptQty)} ks</span> · ` : ""}další <span class="${r.nextTest.inBuffer || r.nextTest.daysLeft <= TT_SOON_DAYS ? "tt-soon" : ""}">${fmtCzDate(r.nextTest.safeFrom)}</span>`;
+    const tr = document.createElement("tr");
+    tr.className = "tt-title";
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(r.sym)}</strong> <span class="muted">${escapeHtml(r.name)}${multi ? ` · ${escapeHtml(r.account)}` : ""}</span></td>
+      <td class="tax-select"><label class="tax-select-hit"><input type="checkbox" data-tax-select="${escapeHtml(r.key)}" aria-label="Prodat ${escapeHtml(r.sym)} – simulace" ${state.taxOpt.selected.has(r.key) ? "checked" : ""} ${r.sellable ? "" : "disabled"}></label></td>
+      <td class="num">${qty(r.qty)}</td>
+      <td class="muted">${r.lots.length} ${nakupu(r.lots.length)}</td>
+      <td>${r.lots.length ? heldText(r.lots[0].held) : dash}</td>
+      <td>${summary}</td>
+      <td class="num">${kc(r.costCzk)}</td>
+      <td class="num">${kc(r.valueCzk)}</td>
+      <td class="num ${signClass(r.pnlCzk)}"><strong>${kc(r.pnlCzk)}</strong></td>
+      <td class="muted tax-note">${escapeHtml(r.note)}</td>
+    `;
+    tbody.appendChild(tr);
+    for (const l of r.lots) {
+      lotCount++;
+      const lr = document.createElement("tr");
+      lr.className = "tt-lot";
+      lr.innerHTML = `
+        <td></td>
+        <td></td>
+        <td class="num">${qty(l.qty)}</td>
+        <td title="vypořádání ${fmtCzDate(l.settleDate)}">${fmtCzDate(l.date)}</td>
+        <td>${heldText(l.held)}</td>
+        <td>${timeTestCell(l)}</td>
+        <td class="num">${kc(l.costCzk)}</td>
+        <td class="num">${kc(l.valueCzk)}</td>
+        <td class="num ${signClass(l.pnlCzk)}">${kc(l.pnlCzk)}</td>
+        <td class="muted tax-note">${l.estimated ? "kurz ČNB k vypořádání odhadem" : ""}</td>
+      `;
+      tbody.appendChild(lr);
+    }
+  }
+
+  // Součty jen za tituly, které jdou prodat — stejný základ jako dlaždice
+  const sellable = rows.filter((r) => r.sellable);
+  const sum = (f) => sellable.reduce((s, r) => s + r[f], 0);
+  const tt = timeTestSummary(d.rows);
+  document.getElementById("tfoot-tax-lots").innerHTML = `
+    <tr>
+      <td colspan="5">Celkem tituly, které jdou prodat (${sellable.length})${rows.length > sellable.length ? ` <span class="muted">· mimo součet ${rows.length - sellable.length}</span>` : ""}</td>
+      <td>bez daně dnes ${kcText(tt.exemptValueCzk)}</td>
+      <td class="num">${fmtNum(sum("costCzk"), 0)}</td>
+      <td class="num">${fmtNum(sum("valueCzk"), 0)}</td>
+      <td class="num ${signClass(sum("pnlCzk"))}"><strong>${fmtNum(sum("pnlCzk"), 0)}</strong></td>
+      <td></td>
+    </tr>
+  `;
+  document.getElementById("tax-count").textContent =
+    `${rows.length} ${titulu(rows.length)} · ${lotCount} ${nakupu(lotCount)} · stav k ${fmtCzDate(d.today)}`;
+}
+
+function renderPersonSales() {
+  const d = state.taxOpt.data;
+  const y = taxYearView();
+  const s = y.sales;
+  const title = document.getElementById("tax-sales-title");
+  title.hidden = false;
+  title.textContent = `Prodeje ${y.year} – časový test po nákupech`;
+  document.getElementById("tax-sales-wrap").hidden = false;
+  const tbody = document.querySelector("#tbl-tax-sales tbody");
+  const tfoot = document.getElementById("tfoot-tax-sales");
+  if (!s.lines.length) {
+    tbody.innerHTML = `<tr><td colspan="9" class="muted">V roce ${y.year} zatím žádný prodej.</td></tr>`;
+    tfoot.innerHTML = "";
+    return;
+  }
+  const dash = '<span class="muted">–</span>';
+  const kc = (v) => (v != null ? fmtNum(v, 0) : dash);
+  tbody.innerHTML = "";
+  for (const l of s.lines) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td title="vypořádání ${fmtCzDate(l.sellSettle)}">${fmtCzDate(l.sellDate)}</td>
+      <td><strong>${escapeHtml(l.symbol)}</strong> <span class="muted">${escapeHtml(l.name || "")}</span></td>
+      <td class="num">${fmtNum(l.qty, Number.isInteger(l.qty) ? 0 : 4)}</td>
+      <td title="vypořádání ${fmtCzDate(l.buySettle)}">${fmtCzDate(l.buyDate)}</td>
+      <td>${heldText(l.held)}</td>
+      <td>${l.exempt ? `<span class="tt-ok">✓ splněn</span>${l.tight ? ` <span class="tt-soon" title="Prodáno do ${SAFETY_DAYS} dnů po konci lhůty (${fmtCzDate(l.exemptFrom)}) – při jiném výkladu dne nabytí by test nemusel být splněný">· těsně</span>` : ""}` : `<span class="muted">nesplněn (od ${fmtCzDate(l.exemptFrom)})</span>`}</td>
+      <td class="num">${kc(l.grossCzk)}</td>
+      <td class="num">${kc(l.expensesCzk)}</td>
+      <td class="num ${signClass(l.pnlCzk)}">${kc(l.pnlCzk)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+  const total = (list, f) => list.reduce((sum, l) => sum + (l[f] ?? 0), 0);
+  const counted = s.lines.filter((l) => l.pnlCzk != null);
+  const footRow = (label, list) => `
+    <tr>
+      <td colspan="6">${label}</td>
+      <td class="num">${fmtNum(total(list, "grossCzk"), 0)}</td>
+      <td class="num">${fmtNum(total(list, "expensesCzk"), 0)}</td>
+      <td class="num ${signClass(total(list, "pnlCzk"))}"><strong>${fmtNum(total(list, "pnlCzk"), 0)}</strong></td>
+    </tr>`;
+  tfoot.innerHTML =
+    footRow(`Celkem prodeje ${y.year} <span class="muted">· limit ${kcText(VALUE_LIMIT_CZK)} ${s.overLimit ? "překročen" : "nepřekročen"}</span>`, counted) +
+    footRow("z toho bez časového testu (zdanitelné nad limitem)", counted.filter((l) => !l.exempt)) +
+    footRow("z toho se splněným časovým testem (osvobozené)", counted.filter((l) => l.exempt));
+}
+
+function exportPersonTaxXlsx(d) {
+  const y = taxYearView();
+  const s = y.sales;
+  const owner = currentOwner();
+  const sim = simulatePersonSale(s, d.rows, state.taxOpt.selected);
+  const tt = timeTestSummary(d.rows);
+  const dateOf = (iso) => (iso ? new Date(`${iso}T00:00:00`) : "");
+  const title = `Daňová optimalizace ${y.year} – ${owner?.name || ""} (fyzická osoba), stav k ${fmtCzDate(d.today)}`;
+  const subtitle =
+    `Orientační výpočet, ne daňové poradenství. Časový test 3 roky po nákupech, počítáno opatrně od vypořádání nákupu do dne obchodu prodeje, u držených nákupů s rezervou ${SAFETY_DAYS} dny; ` +
+    `limit ${kcText(VALUE_LIMIT_CZK)} = úhrn příjmů ze všech prodejů roku včetně těch s časovým testem (Pokyn GFŘ D-59). Pořizovací cena vč. komise kurzem ČNB k datu vypořádání nákupu; hodnota = kusy × cena z Yahoo × kurz ČNB vyhlášený k ${d.fx.validFor ? fmtCzDate(d.fx.validFor) : "–"}. ` +
+    `Daň ${fmtNum(PIT_RATE * 100, 0)} % (nad 36násobek průměrné mzdy 23 %).`;
+  const summary = [
+    [`Prodeje ${y.year} – příjmy`, s.grossCzk],
+    [`Zdanitelný výsledek ${y.year}`, s.taxableNet],
+    [`Odhad daně ${y.year}`, s.tax],
+    ["Osvobozeno časovým testem (Z/Z)", s.exemptPnl],
+    ["Bez daně jde prodat dnes (hodnota)", tt.exemptValueCzk],
+    // Simulace je prodej dnes — patří jen k letošnímu roku
+    ...(y.current
+      ? [[`Simulace – po prodeji vybraných (${sim.count}): zdanitelný výsledek`, sim.net], ["Odhad daně po simulaci", sim.tax]]
+      : []),
+  ];
+
+  // List 1: držené nákupy s časovým testem — tituly a nákupy jako na obrazovce
+  const header = [
+    "Symbol", "Název", "Účet", "Kusů", "Nákup", "Vypořádání", "Drženo dní", "Konec lhůty", `Prodávat od (rezerva ${SAFETY_DAYS} dny)`,
+    "Bez daně dnes", "Zbývá dní", "Pořizovací cena v Kč", "Hodnota v Kč", "Z/Z v Kč", "Prodat (simulace)",
+  ];
+  const aoa = [[title], [subtitle], [], ...summary, [], header];
+  const headerRow = aoa.length - 1;
+  for (const r of personLotRows()) {
+    for (const l of r.lots) {
+      aoa.push([
+        r.sym, r.name, r.account, l.qty, dateOf(l.date), dateOf(l.settleDate), l.held.days, dateOf(l.exemptFrom), dateOf(l.safeFrom),
+        l.exempt ? "ano" : "ne", l.exempt ? "" : l.daysLeft, l.costCzk ?? "", l.valueCzk ?? "", l.pnlCzk ?? "",
+        state.taxOpt.selected.has(r.key) ? "ano" : "",
+      ]);
+    }
+  }
+  const firstData = headerRow + 2;
+  const lastData = aoa.length;
+  aoa.push([]);
+  const lots = d.rows.filter((r) => r.sellable).flatMap((r) => r.lots);
+  const sumCol = (col, field) => ({
+    t: "n",
+    f: `SUM(${col}${firstData}:${col}${lastData})`,
+    v: lots.reduce((sum, l) => sum + (l[field] ?? 0), 0),
+  });
+  aoa.push(["Celkem", "", "", "", "", "", "", "", "", "", "", sumCol("L", "costCzk"), sumCol("M", "valueCzk"), sumCol("N", "pnlCzk"), ""]);
+  const ws = personSheet(aoa, header.length, headerRow, { 3: "#,##0.####", 11: "#,##0", 12: "#,##0", 13: "#,##0" }, [
+    { wch: 9 }, { wch: 30 }, { wch: 6 }, { wch: 9 }, { wch: 11 }, { wch: 11 }, { wch: 9 }, { wch: 12 }, { wch: 14 },
+    { wch: 8 }, { wch: 9 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 10 },
+  ]);
+
+  // List 2: prodeje roku po nákupech
+  const salesHeader = ["Prodej", "Vypořádání prodeje", "Symbol", "Název", "Účet", "Kusů", "Nákup", "Vypořádání nákupu", "Drženo dní", "Časový test", "Příjem v Kč", "Výdaje v Kč", "Z/Z v Kč"];
+  const salesAoa = [[`Prodeje ${y.year} – ${owner?.name || ""}`], [], salesHeader];
+  for (const l of s.lines) {
+    salesAoa.push([
+      dateOf(l.sellDate), dateOf(l.sellSettle), l.symbol, l.name || "", l.account, l.qty, dateOf(l.buyDate), dateOf(l.buySettle),
+      l.held.days, l.exempt ? (l.tight ? "splněn těsně" : "splněn") : "nesplněn", l.grossCzk ?? "", l.expensesCzk ?? "", l.pnlCzk ?? "",
+    ]);
+  }
+  const sFirst = 4;
+  const sLast = salesAoa.length;
+  salesAoa.push([]);
+  const salesSum = (col, field) => ({ t: "n", f: `SUM(${col}${sFirst}:${col}${sLast})`, v: s.lines.reduce((sum, l) => sum + (l[field] ?? 0), 0) });
+  salesAoa.push(["Celkem", "", "", "", "", "", "", "", "", "", salesSum("K", "grossCzk"), salesSum("L", "expensesCzk"), salesSum("M", "pnlCzk")]);
+  const salesWs = personSheet(salesAoa, salesHeader.length, 2, { 5: "#,##0.####", 10: "#,##0", 11: "#,##0", 12: "#,##0" }, [
+    { wch: 11 }, { wch: 11 }, { wch: 9 }, { wch: 30 }, { wch: 6 }, { wch: 9 }, { wch: 11 }, { wch: 11 }, { wch: 9 },
+    { wch: 11 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+  ]);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Časový test");
+  XLSX.utils.book_append_sheet(wb, salesWs, `Prodeje ${y.year}`);
+  XLSX.writeFile(wb, `${d.ownerId}-danova-optimalizace-${y.year}-k-${d.today}.xlsx`);
+}
+
+// List exportu osoby: nadpis přes celou šířku, tučná hlavička a Celkem, filtr, formáty čísel
+function personSheet(aoa, width, headerRow, numFmt, cols) {
+  // Tečky ve formátu data musí být escapované, jinak SSF hodí „bad second format"
+  const ws = XLSX.utils.aoa_to_sheet(aoa, { dateNF: "d\\. m\\. yyyy" });
+  const lastCol = width - 1;
+  const totalRow = aoa.length - 1;
+  ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: totalRow, c: lastCol } });
+  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: lastCol } }];
+  ws["A1"].s = { font: { bold: true, sz: 12 } };
+  if (headerRow > 2 && ws["A2"]) {
+    ws["!merges"].push({ s: { r: 1, c: 0 }, e: { r: 1, c: lastCol } });
+    ws["!rows"] = [{ hpt: 20 }, { hpt: 46 }];
+    ws["A2"].s = { font: { sz: 10, color: { rgb: "6B6B66" } }, alignment: { wrapText: true, vertical: "top" } };
+  }
+  for (let rr = 2; rr < aoa.length; rr++) {
+    for (let c = 0; c <= lastCol; c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r: rr, c })];
+      if (!cell) continue;
+      if (rr === headerRow || rr === totalRow || (rr < headerRow && c === 0)) cell.s = { font: { bold: true } };
+      if (rr < headerRow && c === 1 && cell.t === "n") cell.z = "#,##0";
+      if (rr > headerRow && cell.t === "n" && numFmt[c]) cell.z = numFmt[c];
+    }
+  }
+  ws["!autofilter"] = { ref: `A${headerRow + 1}:${XLSX.utils.encode_col(lastCol)}${totalRow - 1}` };
+  ws["!cols"] = cols;
+  return ws;
+}
+
 function toggleTaxDetail(tr) {
   const next = tr.nextElementSibling;
   const tbody = tr.parentElement;
@@ -5381,24 +5825,26 @@ function exportTaxOptXlsx() {
     alert("Daňová optimalizace se ještě načítá – zkus to za chvíli znovu.");
     return;
   }
-  const r = d.realized;
+  if (d.person) return exportPersonTaxXlsx(d);
+  const y = taxYearView();
+  const r = y.realized;
   const u = unrealizedTotals(d.rows);
   const sim = simulateSale(r.net, d.rows, state.taxOpt.selected);
-  const title = `Daňová optimalizace ${d.year} – PLEGI invest s.r.o. (všechna portfolia), stav k ${fmtCzDate(d.today)}`;
+  const title = `Daňová optimalizace ${y.year} – ${currentOwner()?.name || ""} (všechna portfolia), stav k ${fmtCzDate(d.today)}`;
   const subtitle =
     `Orientační výpočet, ne daňové poradenství. Pořizovací cena = FIFO cost basis držených nákupů vč. komise, kurz ČNB k datu vypořádání každého nákupu; ` +
-    `hodnota = kusy × cena z Yahoo × kurz ČNB vyhlášený k ${d.fx.validFor ? fmtCzDate(d.fx.validFor) : "–"}. Realizováno = prodeje vypořádané v roce ${d.year} jako v Reportu pro účetní. ` +
+    `hodnota = kusy × cena z Yahoo × kurz ČNB vyhlášený k ${d.fx.validFor ? fmtCzDate(d.fx.validFor) : "–"}. Realizováno = prodeje vypořádané v roce ${y.year} jako v Reportu pro účetní. ` +
     `Daň ${fmtNum(DPPO_RATE * 100, 0)} % jen z výsledku prodejů. Mikro účetní jednotka: akcie se k 31. 12. nepřeceňují (§ 27 odst. 7 ZoÚ), ztráta z prodeje se od zisků odečte (omezení § 24 odst. 2 písm. w) ZDP se na mikro účetní jednotku nevztahuje). ` +
     `Daňová ztráta firmy se odečte v 5 letech po roce vzniku nebo zpětně ve 2 letech před ním, zpětně nejvýš 30 mil. Kč (§ 34 odst. 1 ZDP); odhad daně je před odečtem ztrát z minulých let.`;
   const summary = [
-    [`Realizováno ${d.year}`, r.net],
+    [`Realizováno ${y.year}`, r.net],
     ["Odhad daně z prodejů", taxEstimate(r.net)],
     ["Nerealizovaný zisk (lze prodat)", u.gains],
     ["Nerealizovaná ztráta (lze prodat)", u.losses],
-    [`Simulace – po prodeji vybraných (${sim.count})`, sim.net],
-    ["Odhad daně po simulaci", sim.tax],
-    [`Dividendy ${d.year} hrubě`, d.dividends.grossCzk],
-    [`Dividendy ${d.year} sražená daň`, d.dividends.withheldCzk],
+    // Simulace je prodej dnes — patří jen k letošnímu roku
+    ...(y.current ? [[`Simulace – po prodeji vybraných (${sim.count})`, sim.net], ["Odhad daně po simulaci", sim.tax]] : []),
+    [`Dividendy ${y.year} hrubě`, y.dividends.grossCzk],
+    [`Dividendy ${y.year} sražená daň`, y.dividends.withheldCzk],
   ];
   const header = [
     "Symbol", "Název", "Účet", "Kusů", "Poslední nákup", "Počet nákupů", "Pořizovací cena v Kč", "Hodnota v Kč",
@@ -5461,7 +5907,7 @@ function exportTaxOptXlsx() {
   ];
   XLSX.utils.book_append_sheet(wb, ws, "Daňová optimalizace");
   if (d.taxReturns?.overview) XLSX.utils.book_append_sheet(wb, taxReturnsSheet(d.taxReturns.overview), "Daňová přiznání");
-  XLSX.writeFile(wb, `${d.companyId}-danova-optimalizace-${d.year}-k-${d.today}.xlsx`);
+  XLSX.writeFile(wb, `${d.ownerId}-danova-optimalizace-${y.year}-k-${d.today}.xlsx`);
 }
 
 // Druhý list exportu: podaná přiznání a kolik ztráty otevřeného roku jde odečíst zpětně

@@ -19,11 +19,11 @@
             <label for="portfolio-select" class="muted small">Portfolio:</label>
             <select id="portfolio-select" class="filter-input"></select>
           </div>
-          <div id="company-switcher" class="switcher" hidden>
-            <label for="company-select" class="muted small">Firma:</label>
-            <select id="company-select" class="filter-input"></select>
+          <div id="owner-switcher" class="switcher" hidden>
+            <label for="owner-select" class="muted small">Vlastník:</label>
+            <select id="owner-select" class="filter-input"></select>
           </div>
-          <nav class="header-views" aria-label="Přehledy za firmu a nastavení">
+          <nav class="header-views" aria-label="Přehledy za vlastníka a nastavení">
             <button class="tab" type="button" data-view="tax">Daňová optimalizace</button>
             <button class="tab" type="button" data-view="positions-at">Pozice k datu</button>
             <button class="tab" type="button" data-view="settings">Nastavení</button>
@@ -371,23 +371,36 @@
       <section id="view-tax" class="view">
         <div class="filter-bar">
           <span class="filter-label">Daňový rok:</span>
-          <strong id="tax-year"></strong>
+          <div class="filter-chips" id="tax-year"></div>
           <span class="filter-divider">·</span>
           <span class="filter-label">Simulace prodeje:</span>
-          <button id="tax-select-losses" class="btn-link" type="button">Vybrat ztrátové pozice</button>
+          <button id="tax-select-losses" class="btn-link" type="button" data-owner-only="firma">Vybrat ztrátové pozice</button>
           <button id="tax-select-clear" class="btn-link" type="button">Zrušit výběr</button>
         </div>
-        <div class="report-intro muted">
-          Za celou firmu – <strong>všechna její portfolia</strong> (<span data-company-portfolios></span>),
+        <div class="report-intro muted" data-owner-only="firma">
+          Za celou firmu – <strong>všechna její portfolia</strong> (<span data-owner-portfolios></span>),
           osobní portfolia se nepočítají. U každé držené pozice je vidět,
           co by daňově znamenal prodej dnes: nákup kurzem ČNB k datu vypořádání každého
           otevřeného nákupu (FIFO, stejně jako Report pro účetní), prodej dnešní cenou
           a posledním vyhlášeným kurzem ČNB. Zaškrtnutím pozic ve sloupci Prodat se spočítá,
           jak by prodej změnil výsledek roku. Kliknutím na řádek se ukážou jednotlivé nákupy.
         </div>
+        <div class="report-intro muted" data-owner-only="osoba" hidden>
+          Za osobu – <strong>všechna její portfolia</strong> (<span data-owner-portfolios></span>).
+          Prodej akcií je u fyzické osoby osvobozený od daně, když od nákupu uplynuly
+          <strong>víc než 3 roky</strong> (časový test – každý nákup zvlášť), nebo když příjmy
+          ze všech prodejů za celý rok nepřesáhnou <strong>100 000 Kč</strong>. U každého drženého
+          nákupu je vidět, jak dlouho ho držíš a od kdy ho jde prodat bez daně (s rezervou 3 dny).
+          Zaškrtnutím titulu ve sloupci Prodat se spočítá, co by prodej celé pozice dnes znamenal
+          pro daň za letošní rok. Daňový rok nahoře přepíná prodeje a dividendy minulých let.
+        </div>
         <div id="tax-status" class="status" hidden></div>
         <div id="tax-cards" class="summary" hidden></div>
-        <details id="tax-details" class="tax-details">
+        <details id="tax-person-details" class="tax-details" data-owner-only="osoba" hidden>
+          <summary>Pravidla a poznámky k výpočtu</summary>
+          <div class="tax-details-body"><div id="tax-person-notes"></div></div>
+        </details>
+        <details id="tax-details" class="tax-details" data-owner-only="firma">
           <summary>Poznámky k výpočtu a daňová přiznání po letech<span id="tax-details-hint" class="tax-details-hint"></span></summary>
           <div class="tax-details-body">
             <h4 class="tax-details-title">Jak dopadl každý rok účetně a daňově</h4>
@@ -454,6 +467,49 @@
             <tfoot id="tfoot-tax"></tfoot>
           </table>
         </div>
+        <!-- Fyzická osoba: časový test po nákupech a prodeje roku (Lukáš 31. 10. 2026) -->
+        <div data-owner-only="osoba" hidden>
+          <div class="table-wrap" id="tax-person-wrap" hidden>
+            <table id="tbl-tax-lots" class="tt-table">
+              <thead>
+                <tr>
+                  <th>Titul</th>
+                  <th>Prodat<span class="hint" title="Simulace: titul zaškrtnutý k prodeji celý dnes. Dlaždice Simulace nahoře ukáže příjmy roku proti limitu 100 000 Kč a odhad daně. Nic se neprodává ani neukládá.">i</span></th>
+                  <th class="num">Kusů</th>
+                  <th>Nákup<span class="hint" title="Den obchodu nákupu (vypořádání v bublině). U titulu počet držených nákupů – při prodeji části pozice se prodávají nejdřív nejstarší (FIFO).">i</span></th>
+                  <th>Drženo<span class="hint" title="Od vypořádání nákupu do dneška, kalendářně. U titulu nejstarší držený nákup.">i</span></th>
+                  <th>Časový test<span class="hint" title="Od kdy prodávat bez daně: den po třetím výročí vypořádání nákupu a k tomu rezerva 3 dny (konec samotné lhůty v bublině u data). ✓ = splněno i s rezervou, prodej dnes je bez daně. U titulu kolik kusů jde prodat bez daně a kdy doběhne test dalšímu nákupu.">i</span></th>
+                  <th class="num">Pořizovací<br>cena v Kč<span class="hint" title="Cena nákupu vč. komise kurzem ČNB k datu vypořádání (stejně jako u firmy).">i</span></th>
+                  <th class="num">Hodnota<br>v Kč<span class="hint" title="Kusy × aktuální cena z Yahoo × poslední vyhlášený kurz ČNB.">i</span></th>
+                  <th class="num">Z/Z v Kč<span class="hint" title="Hodnota v Kč − Pořizovací cena v Kč. U nákupu se splněným časovým testem by prodej dnes byl bez daně.">i</span></th>
+                  <th>Pozn.</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+              <tfoot id="tfoot-tax-lots"></tfoot>
+            </table>
+          </div>
+          <h3 id="tax-sales-title" class="tax-sales-title" hidden></h3>
+          <div class="table-wrap" id="tax-sales-wrap" hidden>
+            <table id="tbl-tax-sales">
+              <thead>
+                <tr>
+                  <th>Prodej<span class="hint" title="Den obchodu prodeje. Do roku patří prodej vypořádaný do 31. 12. (datum vypořádání v bublině).">i</span></th>
+                  <th>Titul</th>
+                  <th class="num">Kusů</th>
+                  <th>Nákup</th>
+                  <th>Drženo</th>
+                  <th>Časový test</th>
+                  <th class="num">Příjem<br>v Kč<span class="hint" title="Prodejní cena × kusy × kurz ČNB k datu vypořádání prodeje. Příjmy všech prodejů se sčítají do limitu 100 000 Kč.">i</span></th>
+                  <th class="num">Výdaje<br>v Kč<span class="hint" title="Nákupní cena vč. komise kurzem ČNB k datu vypořádání nákupu + komise z prodeje.">i</span></th>
+                  <th class="num">Z/Z<br>v Kč</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+              <tfoot id="tfoot-tax-sales"></tfoot>
+            </table>
+          </div>
+        </div>
       </section>
 
       <section id="view-positions-at" class="view">
@@ -464,8 +520,8 @@
           <span class="filter-count" id="pa-count"></span>
         </div>
         <div class="report-intro muted">
-          Inventurní výpis pozic k rozvahovému dni <strong>přes všechna portfolia firmy</strong>
-          (<span data-company-portfolios></span>):
+          Inventurní výpis pozic k rozvahovému dni <strong>přes všechna portfolia zvoleného vlastníka</strong>
+          (<span data-owner-portfolios></span>):
           název, ISIN / ticker, počet kusů a ocenění. Kusy odpovídají obchodům
           <strong>vypořádaným</strong> do daného dne včetně (stejná konvence jako Report pro
           účetní). Ocenění = závěrečný kurz burzy k datu × kusy, přepočet kurzem ČNB k datu.

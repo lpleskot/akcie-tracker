@@ -77,6 +77,11 @@ export function companiesOf(resolved) {
   return (resolved?.owners || []).filter((o) => o.type === "firma" && o.portfolios.length > 0);
 }
 
+// Za koho jdou přehledy Daňová optimalizace a Pozice k datu: firmy i osoby s portfoliem
+export function ownersWithPortfolios(resolved) {
+  return (resolved?.owners || []).filter((o) => o.portfolios.length > 0);
+}
+
 /**
  * Validace POST /api/settings. Vrací { settings } s očištěnými hodnotami,
  * nebo { error } s hláškou pro uživatele.
