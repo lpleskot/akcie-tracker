@@ -1,14 +1,22 @@
 /**
- * /api/alerts — CRUD pro alert pravidla na držené pozice.
+ * /api/alerts — CRUD pro alert pravidla na držené pozice ve všech portfoliích.
  *
- * GET    → { rules: [...], fired: { "ruleId:symbol": "2026-05-17T..." } }
+ * GET    → { rules: [...], fired: { "ruleId:portfolioId:symbol": "2026-05-17T..." } }
  * POST   body { action: "add",    rule } → přidá nové pravidlo
  *        body { action: "delete", id }   → smaže pravidlo
  *        body { action: "update", id, patch } → mění armed nebo threshold_pct
- *        body { action: "rearm",  id, symbol? } → smaže fired stav (pro celé pravidlo nebo per symbol)
+ *        body { action: "rearm",  id, symbol?, portfolio? } → smaže fired stav
+ *          (pro celé pravidlo, nebo jednu pozici; bez portfolia firemní IBKR)
  */
 
 import { jsonResponse as json } from "./lib.js";
+import {
+  LEGACY_FIRED_PORTFOLIO,
+  firedAlertId,
+  firedAlertKey,
+  legacyFiredAlertKey,
+  parseFiredAlertKey,
+} from "../../assets/js/alerts-shared.js";
 
 const KV_KEY = "alerts";
 
@@ -30,17 +38,23 @@ export async function get(request, env) {
   const data = (await env.AKCIE_TRACKER_KV.get(KV_KEY, "json")) || {
     rules: DEFAULT_RULES,
   };
-  // Načíst fired stavy
-  const list = await env.AKCIE_TRACKER_KV.list({ prefix: "fired:alert:" });
+  return json({ ...data, fired: await readFiredAlerts(env) });
+}
+
+// Pozice, které ranní kontrola už poznačila jako splněné:
+// "ruleId:portfolioId:symbol" → kdy (ISO). Čte ji i ranní kontrola.
+export async function readFiredAlerts(env) {
   const fired = {};
-  for (const k of list.keys) {
-    // klíč: fired:alert:<rule_id>:<symbol>
-    const parts = k.name.split(":");
-    const ruleId = parts[2];
-    const symbol = parts[3] || "_global";
-    fired[`${ruleId}:${symbol}`] = k.metadata?.fired_at || null;
-  }
-  return json({ ...data, fired });
+  let cursor;
+  do {
+    const page = await env.AKCIE_TRACKER_KV.list({ prefix: "fired:alert:", cursor });
+    for (const k of page.keys) {
+      const f = parseFiredAlertKey(k.name);
+      if (f) fired[firedAlertId(f.ruleId, f.portfolioId, f.symbol)] = k.metadata?.fired_at || null;
+    }
+    cursor = page.list_complete ? null : page.cursor;
+  } while (cursor);
+  return fired;
 }
 
 export async function post(request, env) {
@@ -91,7 +105,10 @@ export async function post(request, env) {
     const id = body.id;
     if (!id) return json({ error: "Missing id" }, 400);
     if (body.symbol) {
-      await env.AKCIE_TRACKER_KV.delete(`fired:alert:${id}:${body.symbol}`);
+      const portfolioId = body.portfolio || LEGACY_FIRED_PORTFOLIO;
+      const keys = [firedAlertKey(id, portfolioId, body.symbol)];
+      if (portfolioId === LEGACY_FIRED_PORTFOLIO) keys.push(legacyFiredAlertKey(id, body.symbol));
+      await Promise.all(keys.map((k) => env.AKCIE_TRACKER_KV.delete(k)));
     } else {
       await cleanupFired(env, id);
     }

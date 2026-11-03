@@ -40,15 +40,18 @@ Privátní portfolio tracker pro PLEGI invest přes Interactive Brokers a Komer�
 - Δ percentage points ukazuje, jak se relativní pozice posunula růstem/poklesem
 
 ### Watchlist
+- V hlavičce jako první položka – je společný pro všechna portfolia
 - Sledování tickerů, které ještě nedržíte
 - Cenová pravidla: pod X, nad X, pokles % od referenční ceny
 - Benchmark cena (snapshot) pro sledování změny od označení
 
 ### Alerty
+- V hlavičce za Watchlistem – hlídají držené pozice ve všech portfoliích
 - Pravidla na otevřené pozice (drop_from_buy, drop_from_52w_high, drop_from_buy_all)
-- Cron 1× denně označí splněná pravidla jako „fired" — vidět v tabu Alerty
+- Náhled u pravidla: pozice, které ho splňují teď, s portfoliem
+- Cron 1× denně zapíše splněné pozice jako „fired" — sloupec Splněno v tabu Alerty
   (bez e-mailových notifikací)
-- Deduplikace přes "fired" stav v KV (re-arm tlačítkem)
+- Deduplikace přes "fired" stav v KV pro každou pozici (re-arm tlačítkem)
 
 ### Transakce
 - Filtr roku (chips) + custom date range Od–Do + search, řazení od nejnovější
@@ -94,6 +97,7 @@ Privátní portfolio tracker pro PLEGI invest přes Interactive Brokers a Komer�
   Aktuální hodnota / Rozdíl
 
 ### Deník investora
+- V hlavičce hned za Watchlistem – je společný pro všechna portfolia
 - KV-backed textový deník, inline editace, search
 
 ### XLSX export
@@ -123,7 +127,7 @@ KV (Cloudflare):
   journal                    ← deník investora
   settings                   ← vlastníci portfolií z Nastavení (přednost před manifestem)
   portfolio-overlay:{id}     ← denní IB Flex auto-import IBKR a Lynx (merge nad statický JSON)
-  fired:alert:{id}:{symbol}  ← fired stav pro deduplikaci
+  fired:alert:{id}:{portfolio}:{symbol}  ← fired stav pro deduplikaci (starý tvar bez portfolia = IBKR)
   fired:watch:{id}:{ruleId}
 ```
 
@@ -173,6 +177,7 @@ web/                           ← repo root = asset složka Workeru
 │   ├── css/styles.css
 │   └── js/
 │       ├── app.js             ← UI, fetch, render
+│       ├── alerts-shared.js   ← vyhodnocení pravidel alertů (sdílené s cron jobem alerts)
 │       ├── fifo.js            ← FIFO engine (sdílený s cron jobem alerts)
 │       ├── flex-shared.js     ← Flex transformace (sdílené s cron jobem alerts)
 │       ├── owners.js          ← vlastníci portfolií (sdílené s /api/settings)

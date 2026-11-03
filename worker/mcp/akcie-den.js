@@ -107,7 +107,8 @@ export async function runAkcieDen(env, args, { origin, now = new Date() } = {}) 
   return buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, origin });
 }
 
-async function loadPortfolio(env, meta, fxRates) {
+// Statické portfolio + overlay z KV + NAV backfill — sdílí i /api/accounting-evidence
+export async function loadPortfolio(env, meta, fxRates) {
   const [portfolio, overlay, history] = await Promise.all([
     fetchAssetJson(env, `/data/portfolios/${meta.file}`),
     env.AKCIE_TRACKER_KV.get(`portfolio-overlay:${meta.id}`, "json"),

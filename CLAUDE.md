@@ -83,7 +83,7 @@ jinak se nedostanou do repa.
   nad manifestem + KV `settings`): souhrn `vse` sčítá jen firemní portfolia, osobní jsou
   v seznamu s `vlastnik.typ = "osoba"`; čerstvost importu (`overlay`) je jen z firemních.
   **Ranní report** z osobních ukazuje jen denní pohyb (viz „Ranní report do PLEGINu").
-  Alerty hlídají dál jen IBKR (`PORTFOLIO_ID`).
+  Alerty hlídají od 2026-11-03 všechna portfolia z manifestu (dřív jen IBKR).
 - **Hybridní data model:**
   - **Statický JSON** v gitu = historický snapshot, manuálně commitnutý
   - **KV overlay** = denní auto-import přes IB Flex (Worker `flex-import` → KV `portfolio-overlay:{id}`;
@@ -119,7 +119,9 @@ jinak se nedostanou do repa.
   kurzy `fxToCzk`/`amountToUsd`, hotovost `cashToCzk`, toky kapitálu `capitalFlowsUsd`,
   Celkový výnos `portfolioTotalReturn` + `xirrPct` — kurzy parametrem, žádný globální
   stav) importuje frontend,
-  cron job alerts i MCP konektor (wrangler/esbuild je při deployi zabalí).
+  cron job alerts i MCP konektor (wrangler/esbuild je při deployi zabalí). Pravidla alertů
+  vyhodnocuje `assets/js/alerts-shared.js` (`alertRuleMatches`, klíče `fired:alert:*`)
+  pro ranní kontrolu, `/api/alerts` i náhled v tabu Alerty.
   **Kdo potřebuje číslo, které appka ukazuje, volá tyhle funkce — žádné kopie vzorců**
   (export XLSX přehledu měl vlastní kopii Total Return bez dividend, opraveno 2026-09).
   `worker/api/lib.js` = Yahoo fetch (minor units!), `fetchAssetJson` (ASSETS binding)
@@ -199,16 +201,21 @@ flowchart TD
   Last 7 Calendar Days, yyyyMMdd / HHmmss / středník, Breakout by Day No.
   **Údržba overlay (~1× ročně):** overlay v KV roste donekonečna — promítnout obsah do
   statického portfolio JSON (commit) a overlay klíč smazat; další import začne načisto.
-- **alerts**: čte watchlist + alerts + **portfolio-overlay přímo z KV**, statický
-  portfolio JSON přes **ASSETS binding** a ceny přímo sdílenou `fetchYahooQuote` —
-  žádné HTTP přes vlastní doménu, Cloudflare Access se jobu netýká. Overlay merguje
-  sdíleným `mergeOverlayIntoPortfolio` (stejný jako frontend) a FIFO počítá sdíleným
-  enginem (`fifo.js`) — vidí tedy i pozice z auto-importu (R6). **Bez notifikací** — e-maily (Resend) odstraněny
-  2026-07-23; splněná pravidla zapíše jako `fired:*` flagy a UI je zobrazí v tabu
-  Alerty (deduplikace: fired pravidlo se znovu nevyhodnotí do manuálního Re-arm).
+- **alerts**: hlídá **všechna portfolia z manifestu** (od 2026-11-03, dřív jen IBKR
+  `PORTFOLIO_ID`). Čte watchlist + alerts + **portfolio-overlay každého portfolia přímo
+  z KV**, manifest a statické portfolio JSON přes **ASSETS binding** a ceny přímo sdílenou
+  `fetchYahooQuote` — žádné HTTP přes vlastní doménu, Cloudflare Access se jobu netýká.
+  Overlay merguje sdíleným `mergeOverlayIntoPortfolio` (stejný jako frontend), FIFO počítá
+  sdíleným enginem (`fifo.js`) — vidí tedy i pozice z auto-importu (R6) — a pravidla
+  vyhodnocuje sdíleným `alertRuleMatches` (`alerts-shared.js`, stejný jako náhled v tabu).
+  Portfolio, které se nenačte, přeskočí (`skipped` ve výsledku) a ostatní hlídá dál.
+  **Bez notifikací** — e-maily (Resend) odstraněny 2026-07-23; splněnou pozici zapíše
+  jako `fired:alert:{ruleId}:{portfolioId}:{symbol}` (každá pozice zvlášť – stejný ticker
+  bývá ve víc portfoliích s jinou nákupní cenou) a UI ukáže datum ve sloupci Splněno
+  (deduplikace: zapsaná pozice se znovu nehlásí do manuálního Re-arm). Starý klíč
+  `fired:alert:{ruleId}:{symbol}` z doby jen IBKR platí dál pro `plegi-invest-ibkr`.
   Selhání jobu je vidět jen v CF lozích. Manuální `/run/alerts` s `x-admin-key`;
-  `/run/alerts?dry=1` = vyhodnotí bez zápisu fired. Hlídá jen IBKR portfolio
-  (`PORTFOLIO_ID`), KB pozice ne.
+  `/run/alerts?dry=1` = vyhodnotí bez zápisu fired; výsledek uvádí `portfolios`.
 - **fx-update-cron**: `scripts/fx-update.mjs` fetchne ČNB pro chybějící dny,
   commit + push `data/fx_rates.json` (potřebuje `contents: write`). Push spustí
   deploy přes Workers Builds webhook — ten funguje i pro commity z `GITHUB_TOKEN`
@@ -330,13 +337,21 @@ flowchart TD
 ## Frontend taby (v pořadí)
 
 Lišta tabů zvoleného portfolia: `overview` Přehled pozic · `transactions` Transakce ·
-`dividends` Dividendy · `allocation` Alokace · `alerts` Alerty · `watchlist` Watchlist ·
-`journal` Deník investora · `report` Report pro účetní · `portfolio-history` Hodnota portfolia.
+`dividends` Dividendy · `allocation` Alokace · `report` Report pro účetní ·
+`portfolio-history` Hodnota portfolia.
 
-V hlavičce vedle výběru portfolia (od 2026-10-31, přání Lukáše): přehledy za vlastníka `tax`
-Daňová optimalizace · `positions-at` Pozice k datu a `settings` Nastavení. U nich se místo
-výběru portfolia ukáže výběr vlastníka – firmy i osoby (Nastavení žádný), dlaždice
-portfolia se schovají (`body.header-view`) a nadpis je jméno vlastníka. Zpět = klik na tab portfolia.
+V hlavičce vedle výběru portfolia (od 2026-10-31, přání Lukáše): na začátku společné
+`watchlist` Watchlist, `alerts` Alerty a `journal` Deník investora (od 2026-11-03 –
+jsou společné pro všechna portfolia, `SHARED_VIEWS`), pak přehledy za vlastníka `tax`
+Daňová optimalizace · `positions-at` Pozice k datu a `settings` Nastavení (všechny
+v `HEADER_VIEWS`). Výběr portfolia i dlaždice portfolia se u nich schovají
+(`body.header-view`). U přehledů za vlastníka se ukáže výběr vlastníka – firmy i osoby
+– a nadpis je jméno vlastníka; Watchlist, Alerty, Deník a Nastavení mají vlastní nadpis
+(`FIXED_HEADINGS`) a výběr žádný. Náhled Alert („které pozice pravidlo splňují teď")
+načte všechna portfolia a ceny při prvním otevření tabu (`buildAlertCheck`, Načíst znovu
+ho sestaví znovu), sloupec Portfolio u každé pozice. Export Watchlistu, Alert a Deníku
+nemá v názvu souboru id portfolia; export Alert = řádky náhledu. Zpět = klik na tab
+portfolia.
 
 **Načíst znovu / Tisk / PDF / Export pro účetní / Export XLSX** jsou jedna skupina tlačítek
 (`#view-actions`), kterou `placeViewActions` přesune do lišty `[data-view-actions]` nad
@@ -494,7 +509,7 @@ za firmu Načíst znovu načte znovu portfolia i ceny.
 |---|---|
 | `GET /api/quote?symbols=…` | Yahoo Finance proxy, 60s cache, minor units fix |
 | `GET/POST /api/watchlist` | KV `watchlist` CRUD (validace proti Yahoo při add) |
-| `GET/POST /api/alerts` | KV `alerts` CRUD (add/delete/update/rearm) |
+| `GET/POST /api/alerts` | KV `alerts` CRUD (add/delete/update/rearm) + `fired` = zapsaná splnění per pozice |
 | `GET/POST /api/notes` | KV `notes` — globální mapa symbol → text |
 | `GET/POST /api/journal` | KV `journal` CRUD |
 | `GET/POST /api/settings` | KV `settings` — vlastníci portfolií (`owners`, `assignments`, `updated_at`); POST přepíše celé, validace `validateOwnerSettings` sdílená s frontendem, chyba = 400 s českou hláškou |
@@ -587,7 +602,8 @@ Nahrazuje Claude úlohu „PLEGIN — report Akcie" (PLEGIN_ZADANI_01, předán�
   jsou jen za firmu (`vse` z `akcie_den`), osobní účet je v textu souhrnu až na konci.
 
 **KV klíče (sdílené):** `watchlist`, `alerts`, `notes`, `journal`, `settings`,
-`portfolio-overlay:{id}`, `fired:alert:{ruleId}:{symbol}`, `fired:watch:{itemId}:{ruleId}`,
+`portfolio-overlay:{id}`, `fired:alert:{ruleId}:{portfolioId}:{symbol}` (starý tvar bez portfolia
+= IBKR), `fired:watch:{itemId}:{ruleId}`,
 `plegin-report:{datum}`.
 
 **Secrets:** Worker `akcie-tracker` (CF Dashboard → Settings → Variables and Secrets):

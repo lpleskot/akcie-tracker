@@ -7,12 +7,14 @@
  * testovací režim bez zápisu fired stavů.
  *
  * Pipeline:
- *   1. Načte portfolio (ASSETS binding) + KV overlay (Flex auto-import) → merge
+ *   1. Načte všechna portfolia z manifestu (ASSETS binding) + jejich KV overlay
+ *      (Flex auto-import) → merge. Do 2026-11-03 hlídal job jen firemní IBKR.
  *   2. Načte watchlist + alerts pravidla z KV
  *   3. Vyhledá relevantní Yahoo tickery a stáhne aktuální ceny
- *   4. Vyhodnotí pravidla — která splňují podmínku a ještě nejsou fired
- *   5. Zapíše fired stav do KV — UI ho zobrazí v tabu Alerty; pravidlo se
- *      znovu nevyhodnotí, dokud není manuálně re-armed
+ *   4. Vyhodnotí pravidla — která pozice splňují podmínku a ještě nejsou fired
+ *   5. Zapíše fired stav do KV pro každou pozici zvlášť (pravidlo + portfolio
+ *      + ticker) — UI ho ukáže v tabu Alerty; pozice se znovu nehlásí, dokud
+ *      není pravidlo manuálně re-armed
  *
  * Žádné notifikace — e-maily (Resend) odstraněny 2026-07-23, fired stav
  * je vidět při otevření aplikace; selhání jobu jen v CF lozích.
@@ -21,32 +23,61 @@
  * a ceny přímo sdílenou funkcí fetchYahooQuote, žádné HTTP na vlastní URL.
  * Cloudflare Access na doméně se jobu netýká (nepotřebuje service token).
  *
- * FIFO počítá sdílený engine ../../assets/js/fifo.js a overlay merguje
- * ../../assets/js/portfolio-shared.js — stejný kód jako frontend, žádná
- * divergentní kopie. (Wrangler/esbuild je zabalí při deployi.)
+ * FIFO počítá sdílený engine ../../assets/js/fifo.js, overlay merguje
+ * ../../assets/js/portfolio-shared.js a pravidla vyhodnocuje
+ * ../../assets/js/alerts-shared.js — stejný kód jako náhled v tabu Alerty,
+ * žádná divergentní kopie. (Wrangler/esbuild je zabalí při deployi.)
  */
 
 import { computePositions } from "../../assets/js/fifo.js";
 import { mergeOverlayIntoPortfolio } from "../../assets/js/portfolio-shared.js";
+import {
+  alertRuleMatches,
+  firedAlertId,
+  firedAlertKey,
+  heldYahooSymbols,
+} from "../../assets/js/alerts-shared.js";
 import { fetchYahooQuote } from "../api/lib.js";
-import { DEFAULT_RULES } from "../api/alerts.js";
+import { DEFAULT_RULES, readFiredAlerts } from "../api/alerts.js";
 
 export async function runAlertEvaluation(env, source, dryRun = false) {
   const startedAt = new Date().toISOString();
   console.log(`[${startedAt}] cron evaluation start (source=${source}, dry=${dryRun})`);
 
   try {
-    // 1) Statický portfolio JSON (vlastní asset) + KV overlay (Flex auto-import).
-    //    Bez overlay by job neviděl pozice z denního auto-importu —
-    //    nehlídal by nové a hlídal dál prodané (REVIZE_REPORT.md R6).
-    const portfolio = await fetchPortfolioJson(env);
-    const overlay = await env.AKCIE_TRACKER_KV.get(
-      `portfolio-overlay:${env.PORTFOLIO_ID}`,
-      "json",
-    );
-    // Kurzy se nepředávají: ovlivní jen total_deposits_usd, se kterým alerty
-    // nepracují.
-    mergeOverlayIntoPortfolio(portfolio, overlay, null);
+    // 1) Všechna portfolia z manifestu: statický JSON (vlastní asset) + KV
+    //    overlay (Flex auto-import). Bez overlay by job neviděl pozice
+    //    z denního auto-importu — nehlídal by nové a hlídal dál prodané
+    //    (REVIZE_REPORT.md R6).
+    const manifest = await fetchAssetJson(env, "/data/portfolios/manifest.json");
+    const holdings = [];
+    // Portfolio, které se nenačte, se přeskočí (a je ve výsledku), ať kvůli
+    // jednomu nepřestanou fungovat alerty ostatních
+    const skipped = [];
+    for (const meta of manifest.portfolios || []) {
+      let portfolio;
+      try {
+        portfolio = await fetchAssetJson(env, `/data/portfolios/${meta.file}`);
+      } catch (e) {
+        console.error(`Portfolio ${meta.id} se nenačetlo: ${e.message}`);
+        skipped.push(meta.id);
+        continue;
+      }
+      const overlay = await env.AKCIE_TRACKER_KV.get(`portfolio-overlay:${meta.id}`, "json");
+      // Kurzy se nepředávají: ovlivní jen total_deposits_usd, se kterým alerty
+      // nepracují.
+      mergeOverlayIntoPortfolio(portfolio, overlay, null);
+      holdings.push({
+        id: meta.id,
+        name: meta.name,
+        instruments: portfolio.instruments || {},
+        // FIFO pozice (sdílený engine — splity, bonusy, cancellations)
+        positions: computePositions(
+          portfolio.transactions || [],
+          portfolio.corporate_actions || [],
+        ),
+      });
+    }
 
     // 2) Watchlist + alert pravidla z KV
     const watchlistData =
@@ -56,52 +87,45 @@ export async function runAlertEvaluation(env, source, dryRun = false) {
     const watchlist = watchlistData.items || [];
     const alertRules = alertsData.rules || [];
 
-    // 3) Sesbírat všechny relevantní symboly (delisted tituly na Yahoo
-    //    neexistují a s nulovou cenou by falešně plnily drop pravidla)
-    const symbols = new Set();
-    for (const [, inst] of Object.entries(portfolio.instruments)) {
-      if (inst.delisted) continue;
-      symbols.add(inst.yahoo_symbol);
-    }
+    // 3) Sesbírat relevantní symboly: držené pozice všech portfolií (delisted
+    //    tituly na Yahoo neexistují a s nulovou cenou by falešně plnily drop
+    //    pravidla) a watchlist
+    const symbols = new Set(heldYahooSymbols(holdings));
     for (const w of watchlist) {
       if (w.yahoo_symbol) symbols.add(w.yahoo_symbol);
     }
+    // Která portfolia běh prošel — ve výsledku pro ruční /run/alerts
+    const checked = { portfolios: holdings.map((h) => h.id), skipped };
     if (symbols.size === 0) {
       console.log("Žádné symboly k vyhodnocení");
-      return { ok: true, message: "no symbols", evaluated: 0 };
+      return { ok: true, message: "no symbols", evaluated: 0, ...checked };
     }
 
     // 4) Stáhnout ceny — přímo sdílenou funkcí, stejný tvar jako /api/quote
     const quotes = await fetchQuotes([...symbols]);
 
-    // 5) Vypočítat FIFO pozice (sdílený engine — splity, bonusy, cancellations)
-    const positions = computePositions(
-      portfolio.transactions,
-      portfolio.corporate_actions || [],
-    );
-
-    // 6) Vyhodnotit pravidla
+    // 5) Vyhodnotit pravidla
     const triggers = [];
 
-    // Pravidla na držené pozice
+    // Pravidla na držené pozice — každá pozice (portfolio + ticker) zvlášť;
+    // splněné dřív se přeskočí (i se starým klíčem z doby, kdy job hlídal jen IBKR)
+    const fired = await readFiredAlerts(env);
     for (const rule of alertRules) {
       if (!rule.armed) continue;
-      const matches = evaluatePortfolioRule(rule, positions, quotes, portfolio);
-      for (const m of matches) {
-        const firedKey = `fired:alert:${rule.id}:${m.symbol}`;
-        const existing = await env.AKCIE_TRACKER_KV.get(firedKey);
-        if (existing) continue; // už fired, nezapisovat znovu
+      for (const m of alertRuleMatches(rule, holdings, quotes)) {
+        if (firedAlertId(rule.id, m.portfolioId, m.symbol) in fired) continue;
         triggers.push({
           kind: "alert",
           ruleId: rule.id,
           ruleDesc: rule.description || rule.id,
+          portfolioId: m.portfolioId,
           symbol: m.symbol,
           name: m.name,
           currency: m.currency,
           current: m.current,
           reference: m.reference,
           changePct: m.changePct,
-          firedKey,
+          firedKey: firedAlertKey(rule.id, m.portfolioId, m.symbol),
         });
       }
     }
@@ -137,16 +161,17 @@ export async function runAlertEvaluation(env, source, dryRun = false) {
         ok: true,
         evaluated: alertRules.length + watchlist.length,
         triggers: 0,
+        ...checked,
       };
     }
 
     // Dry run — vrátit co BY se zapsalo, nic nezapisovat
     if (dryRun) {
       console.log(`🧪 DRY RUN — ${triggers.length} triggerů, fired se nezapisuje.`);
-      return { ok: true, dry_run: true, triggers };
+      return { ok: true, dry_run: true, triggers, ...checked };
     }
 
-    // 7) Označit jako fired (s timestamp v metadata) — UI je zobrazí v tabu Alerty
+    // 6) Označit jako fired (s timestamp v metadata) — UI je zobrazí v tabu Alerty
     const now = new Date().toISOString();
     await Promise.all(
       triggers.map((t) =>
@@ -157,20 +182,19 @@ export async function runAlertEvaluation(env, source, dryRun = false) {
     );
 
     console.log(`Zapsáno ${triggers.length} fired alertů`);
-    return { ok: true, triggers: triggers.length };
+    return { ok: true, triggers: triggers.length, ...checked };
   } catch (err) {
     console.error("Cron selhal:", err);
     return { ok: false, error: String(err.message || err) };
   }
 }
 
-// Statický portfolio JSON přes ASSETS binding — čte vlastní deploynutý asset,
-// takže data jsou vždy konzistentní s tím, co vidí frontend. Hostname je
-// pro binding irelevantní, směruje se podle path.
-async function fetchPortfolioJson(env) {
-  const path = `/data/portfolios/${env.PORTFOLIO_ID}.json`;
+// Manifest a statické portfolio JSON přes ASSETS binding — čte vlastní
+// deploynutý asset, takže data jsou vždy konzistentní s tím, co vidí frontend.
+// Hostname je pro binding irelevantní, směruje se podle path.
+async function fetchAssetJson(env, path) {
   const res = await env.ASSETS.fetch(`https://assets.internal${path}`);
-  if (!res.ok) throw new Error(`Portfolio asset ${path} → ${res.status}`);
+  if (!res.ok) throw new Error(`Asset ${path} → ${res.status}`);
   return res.json();
 }
 
@@ -189,82 +213,7 @@ async function fetchQuotes(symbols) {
   return quotes;
 }
 
-// ---------- Evaluace pravidel ----------
-function evaluatePortfolioRule(rule, positions, quotes, portfolio) {
-  const matches = [];
-  if (rule.scope !== "owned") return matches;
-
-  if (rule.type === "drop_from_buy_all") {
-    for (const sym in positions) {
-      const pos = positions[sym];
-      if (!pos || pos.net_qty === 0) continue;
-      const inst = portfolio.instruments[sym];
-      if (!inst) continue;
-      const q = quotes[inst.yahoo_symbol];
-      if (!q || q.price == null) continue;
-      const change = ((q.price - pos.avg_open_price) / pos.avg_open_price) * 100;
-      if (change <= -Math.abs(rule.threshold_pct)) {
-        matches.push({
-          symbol: sym,
-          name: inst.name,
-          currency: inst.currency,
-          current: q.price,
-          reference: pos.avg_open_price,
-          changePct: change,
-        });
-      }
-    }
-  }
-
-  if (rule.type === "drop_from_buy" && rule.symbol) {
-    const sym = rule.symbol;
-    const pos = positions[sym];
-    const inst = portfolio.instruments[sym];
-    if (pos && pos.net_qty > 0 && inst) {
-      const q = quotes[inst.yahoo_symbol];
-      if (q && q.price != null) {
-        const change =
-          ((q.price - pos.avg_open_price) / pos.avg_open_price) * 100;
-        if (change <= -Math.abs(rule.threshold_pct)) {
-          matches.push({
-            symbol: sym,
-            name: inst.name,
-            currency: inst.currency,
-            current: q.price,
-            reference: pos.avg_open_price,
-            changePct: change,
-          });
-        }
-      }
-    }
-  }
-
-  if (rule.type === "drop_from_52w_high") {
-    for (const sym in positions) {
-      const pos = positions[sym];
-      if (!pos || pos.net_qty === 0) continue;
-      const inst = portfolio.instruments[sym];
-      if (!inst) continue;
-      const q = quotes[inst.yahoo_symbol];
-      if (!q || q.price == null || q.fifty_two_week_high == null) continue;
-      const change =
-        ((q.price - q.fifty_two_week_high) / q.fifty_two_week_high) * 100;
-      if (change <= -Math.abs(rule.threshold_pct)) {
-        matches.push({
-          symbol: sym,
-          name: inst.name,
-          currency: inst.currency,
-          current: q.price,
-          reference: q.fifty_two_week_high,
-          changePct: change,
-        });
-      }
-    }
-  }
-
-  return matches;
-}
-
+// ---------- Evaluace pravidel watchlistu ----------
 function evaluateWatchRule(rule, currentPrice) {
   if (rule.type === "price_below") return currentPrice < rule.value;
   if (rule.type === "price_above") return currentPrice > rule.value;

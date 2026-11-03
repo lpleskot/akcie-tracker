@@ -23,7 +23,10 @@
             <label for="owner-select" class="muted small">Vlastník:</label>
             <select id="owner-select" class="filter-input"></select>
           </div>
-          <nav class="header-views" aria-label="Přehledy za vlastníka a nastavení">
+          <nav class="header-views" aria-label="Přehledy nezávislé na zvoleném portfoliu">
+            <button class="tab" type="button" data-view="watchlist">Watchlist</button>
+            <button class="tab" type="button" data-view="alerts">Alerty</button>
+            <button class="tab" type="button" data-view="journal">Deník investora</button>
             <button class="tab" type="button" data-view="tax">Daňová optimalizace</button>
             <button class="tab" type="button" data-view="positions-at">Pozice k datu</button>
             <button class="tab" type="button" data-view="settings">Nastavení</button>
@@ -42,9 +45,6 @@
           <button class="tab" data-view="transactions">Transakce</button>
           <button class="tab" data-view="dividends">Dividendy</button>
           <button class="tab" data-view="allocation">Alokace</button>
-          <button class="tab" data-view="alerts">Alerty</button>
-          <button class="tab" data-view="watchlist">Watchlist</button>
-          <button class="tab" data-view="journal">Deník investora</button>
           <button class="tab" data-view="report">Report pro účetní</button>
           <button class="tab" data-view="portfolio-history">Hodnota portfolia</button>
         </div>
@@ -72,10 +72,11 @@
           <span class="filter-count" id="overview-count"></span>
         </div>
         <div class="report-intro muted" id="closed-intro" hidden>
-          Tituly, které už jsou celé prodané. Ceny a výsledek podle FIFO včetně komisí v měně titulu,
-          <strong>Celkem v Kč</strong> = výsledek prodejů kurzem ČNB k datu vypořádání (jako Report pro
-          účetní) + čisté dividendy kurzem ČNB k datu výplaty. Klikni na Celkem Z/Z – ukáže nákupy,
-          prodeje a dividendy. Částečně prodané tituly zůstávají v Držených, jejich prodeje jsou v detailu.
+          Tituly, které jsou celé prodané a znovu nenakoupené. Ceny a výsledek podle FIFO včetně komisí
+          v měně titulu, <strong>Celkem v Kč</strong> = výsledek prodejů kurzem ČNB k datu vypořádání (jako
+          Report pro účetní) + čisté dividendy kurzem ČNB k datu výplaty. Klikni na Celkem Z/Z – ukáže
+          nákupy, prodeje a dividendy. Tituly prodané jen zčásti nebo prodané a znovu nakoupené zůstávají
+          v Držených – jejich prodeje ukáže detail po kliknutí na Celkem Z/Z.
         </div>
         <!-- Lišta nad tabulkou aktivního tabu: skupina tlačítek se přesouvá do
              [data-view-actions] tabu, který je zrovna vidět (showView v app.js) -->
@@ -307,12 +308,12 @@
           <button id="btn-add-alert" class="btn primary">+ Přidat pravidlo</button>
         </div>
         <div class="report-intro muted">
-          Pravidla pro automatické alerty na <strong>vámi držené pozice</strong>.
-          Náhled „Aktuálně splňuje" ukazuje, které tickery by právě teď spustily alert.
-          Cron běží <strong>denně ráno</strong> hned po auto-importu
-          (7:00 v létě / 6:00 v zimě).
-          Splněná pravidla se označí jako „fired" (vidíte je zde) — znovu se nevyhodnotí,
-          dokud kliknete na tlačítko <strong>Re-arm</strong> u daného pravidla.
+          Pravidla pro alerty na držené pozice <strong>ve všech portfoliích</strong>.
+          Tabulka u pravidla ukazuje pozice, které ho právě teď splňují.
+          Ranní kontrola běží <strong>denně</strong> hned po auto-importu
+          (7:00 v létě / 6:00 v zimě) a splněnou pozici si zapíše – kdy, ukazuje
+          sloupec <strong>Splněno</strong>. Zapsaná pozice se znovu nehlásí, dokud
+          u pravidla nekliknete na <strong>Re-arm</strong>.
         </div>
         <div class="table-toolbar" data-view-actions></div>
         <div id="alerts-content"></div>
@@ -335,7 +336,7 @@
         </div>
 
         <div class="journal-new">
-          <textarea id="journal-new-text" rows="3" maxlength="10000" placeholder="Nový zápis — myšlenky, plány, postřehy k portfoliu…"></textarea>
+          <textarea id="journal-new-text" rows="3" maxlength="10000" placeholder="Nový zápis – myšlenky, plány, postřehy k portfoliím…"></textarea>
           <div class="journal-new-actions">
             <span class="muted small" id="journal-new-error"></span>
             <button id="btn-journal-add" class="btn primary" type="button">Přidat zápis</button>

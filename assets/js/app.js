@@ -10,6 +10,7 @@ import {
   fmtMoney,
 } from "./fifo.js";
 import { flexDate } from "./flex-shared.js";
+import { alertRuleMatches, firedAlertId, heldYahooSymbols } from "./alerts-shared.js";
 import {
   amountToUsd,
   capitalFlowsUsd,
@@ -70,10 +71,19 @@ const LS_PORTFOLIO = "akcie-tracker.portfolio";
 // Klíč z doby, kdy přehledy šly jen za firmu — zůstává, ať volba vydrží
 const LS_OWNER = "akcie-tracker.company";
 
-// Taby z hlavičky: přehledy za vlastníka (firmu nebo osobu) a Nastavení. Nezávisí
-// na zvoleném portfoliu, dlaždice a výběr portfolia se u nich schovají.
+// Taby z hlavičky: společný Watchlist, Alerty (hlídají všechna portfolia)
+// a Deník investora, přehledy za vlastníka (firmu nebo osobu) a Nastavení.
+// Nezávisí na zvoleném portfoliu, dlaždice a výběr portfolia se u nich schovají.
+const SHARED_VIEWS = new Set(["watchlist", "alerts", "journal"]);
 const OWNER_VIEWS = new Set(["tax", "positions-at"]);
-const HEADER_VIEWS = new Set([...OWNER_VIEWS, "settings"]);
+const HEADER_VIEWS = new Set([...SHARED_VIEWS, ...OWNER_VIEWS, "settings"]);
+// Taby z hlavičky, které nepatří portfoliu ani vlastníkovi: [nadpis, popisek]
+const FIXED_HEADINGS = {
+  watchlist: ["Watchlist", "Sledované tickery – společné pro všechna portfolia"],
+  alerts: ["Alerty", "Pravidla na držené pozice – hlídají všechna portfolia"],
+  journal: ["Deník investora", "Myšlenky, plány a postřehy – společné pro všechna portfolia"],
+  settings: ["Nastavení", "Vlastníci portfolií – kdo které portfolio vlastní"],
+};
 
 const state = {
   manifest: null,
@@ -95,6 +105,8 @@ const state = {
     date: null, rows: null, cashRows: null, cashMissing: null,
     portfolios: null, fxValidFor: null, loading: false,
   },
+  // Náhled Alert přes všechna portfolia — sestaví se při prvním otevření tabu
+  alertCheck: { holdings: null, quotes: null, loading: false, error: null },
   // Daňová optimalizace (za zvoleného vlastníka) — sestaví se při prvním otevření tabu
   taxOpt: { data: null, loading: false, selected: new Set(), year: null, sort: { key: "pnlCzk", dir: "asc" } },
   sort: { key: "sym", dir: "asc" },
@@ -678,10 +690,10 @@ function renderHeader() {
   document.getElementById("portfolio-switcher").hidden =
     HEADER_VIEWS.has(view) || (state.manifest.portfolios || []).length < 2;
   document.getElementById("owner-switcher").hidden = !OWNER_VIEWS.has(view);
-  if (view === "settings") {
-    h1.textContent = "Nastavení";
-    metaEl.textContent = "Vlastníci portfolií – kdo které portfolio vlastní";
-    document.title = "Nastavení — Akcie tracker";
+  const fixed = FIXED_HEADINGS[view];
+  if (fixed) {
+    [h1.textContent, metaEl.textContent] = fixed;
+    document.title = `${fixed[0]} — Akcie tracker`;
     return;
   }
   if (OWNER_VIEWS.has(view)) {
@@ -748,7 +760,7 @@ function showView(view) {
   document.querySelectorAll(".view").forEach((v) =>
     v.classList.toggle("active", v.id === `view-${view}`),
   );
-  // Dlaždice patří zvolenému portfoliu — u přehledů za firmu a Nastavení nedávají smysl
+  // Dlaždice patří zvolenému portfoliu — u Watchlistu, Alert, Deníku, přehledů za vlastníka a Nastavení nedávají smysl
   document.body.classList.toggle("header-view", HEADER_VIEWS.has(view));
   placeViewActions(view);
   renderHeader();
@@ -759,6 +771,9 @@ function showView(view) {
   }
   if (view === "tax" && !state.taxOpt.loading && (!state.taxOpt.data || taxOptStale())) {
     buildTaxOpt();
+  }
+  if (view === "alerts" && !state.alertCheck.loading && !state.alertCheck.holdings) {
+    buildAlertCheck();
   }
   if (view === "settings" && !state.settingsDirty) renderSettings();
 }
@@ -778,7 +793,13 @@ function placeViewActions(view) {
 
 function setupRefresh() {
   document.getElementById("btn-refresh").addEventListener("click", () => {
-    // Přehledy za firmu si načítají portfolia i ceny samy — znovu od začátku
+    // Alerty a přehledy za vlastníka si načítají portfolia i ceny samy — znovu od začátku
+    if (state.view === "alerts") {
+      state.positionsAt.portfolios = null;
+      reloadAlerts();
+      buildAlertCheck();
+      return;
+    }
     if (OWNER_VIEWS.has(state.view)) {
       state.positionsAt.portfolios = null;
       if (state.view === "tax") buildTaxOpt();
@@ -1617,7 +1638,7 @@ function renderWatchlist() {
   }
 }
 
-// ---------- Alerts (na držené pozice) ----------
+// ---------- Alerts (na držené pozice ve všech portfoliích) ----------
 function renderAlerts() {
   const rules = state.alerts?.rules || [];
   const container = document.getElementById("alerts-content");
@@ -1632,7 +1653,7 @@ function renderAlerts() {
   }
 
   if (rules.length === 0) {
-    container.innerHTML = `<div class="status">Žádná pravidla. Až bude backend, přidáte je přes formulář.</div>`;
+    container.innerHTML = `<div class="status">Žádná pravidla – přidejte první tlačítkem + Přidat pravidlo.</div>`;
     return;
   }
 
@@ -1643,91 +1664,94 @@ function renderAlerts() {
     const armedBadge = rule.armed
       ? `<span class="badge buy">armed</span>`
       : `<span class="badge sell">disabled</span>`;
-    let html = `
+    card.innerHTML = `
       <div class="report-event-header">
         <span>${header}</span>
         <span>
           ${armedBadge}
-          <button class="btn-action" data-alert-rearm="${rule.id}" title="Smaže fired stav — pravidlo bude znovu odpalovat při příští kontrole">Re-arm</button>
+          <button class="btn-action" data-alert-rearm="${rule.id}" title="Smaže zapsaná splnění – ranní kontrola je při dalším běhu zapíše znovu">Re-arm</button>
           <button class="btn-action danger" data-alert-delete="${rule.id}">Smazat</button>
         </span>
       </div>
+      ${alertMatchesHtml(rule)}
     `;
-
-    // Vyhodnotit kdo by aktuálně splnil
-    const matches = evaluateRule(rule);
-
-    if (matches.length === 0) {
-      html += `<div class="muted alert-preview-empty">Aktuálně žádný titul nesplňuje toto pravidlo. ✓</div>`;
-    } else {
-      html += `<table><thead><tr><th>Symbol</th><th>Název</th><th class="num">Současná cena</th><th class="num">Ø nákup</th><th class="num">Změna</th></tr></thead><tbody>`;
-      for (const m of matches) {
-        html += `
-          <tr>
-            <td class="symbol">${m.symbol}</td>
-            <td>${escapeHtml(m.name)}</td>
-            <td class="num">${fmtNum(m.current, 2)} ${m.currency}</td>
-            <td class="num">${fmtNum(m.reference, 2)} ${m.currency}</td>
-            <td class="num neg"><strong>${fmtPct(m.changePct)}</strong></td>
-          </tr>`;
-      }
-      html += `</tbody></table>`;
-      html += `<div class="muted alert-preview-note">Pokud by cron běžel teď: <strong>${matches.length} ${matches.length === 1 ? "alert" : matches.length < 5 ? "alerty" : "alertů"}</strong> by se odeslalo.</div>`;
-    }
-    card.innerHTML = html;
     container.appendChild(card);
   }
 }
 
-function evaluateRule(rule) {
-  const matches = [];
-  if (rule.type === "drop_from_buy_all" && rule.scope === "owned") {
-    for (const sym in state.positions) {
-      const pos = state.positions[sym];
-      if (!pos || pos.net_qty === 0) continue;
-      const inst = state.portfolio.instruments[sym];
-      const quote = state.quotes[inst.yahoo_symbol] || {};
-      // Delisted (syntetická cena 0) by vždy „splnil" pokles — nehlídáme ho
-      if (quote.price == null || quote.delisted) continue;
-      const change =
-        ((quote.price - pos.avg_open_price) / pos.avg_open_price) * 100;
-      if (change <= -Math.abs(rule.threshold_pct)) {
-        matches.push({
-          symbol: sym,
-          name: inst.name,
-          currency: inst.currency,
-          current: quote.price,
-          reference: pos.avg_open_price,
-          changePct: change,
-        });
-      }
-    }
+// Pozice, které pravidlo splňují teď, a kdy je zapsala ranní kontrola
+function alertMatchesHtml(rule) {
+  const check = state.alertCheck;
+  if (check.error) {
+    return `<div class="muted alert-preview-empty">Náhled se nepodařilo spočítat: ${escapeHtml(check.error)}</div>`;
   }
-  if (rule.type === "drop_from_buy" && rule.symbol) {
-    const sym = rule.symbol;
-    const pos = state.positions[sym];
-    const inst = state.portfolio.instruments[sym];
-    if (pos && pos.net_qty > 0 && inst) {
-      const quote = state.quotes[inst.yahoo_symbol] || {};
-      if (quote.price != null && !quote.delisted) {
-        const change =
-          ((quote.price - pos.avg_open_price) / pos.avg_open_price) * 100;
-        if (change <= -Math.abs(rule.threshold_pct)) {
-          matches.push({
-            symbol: sym,
-            name: inst.name,
-            currency: inst.currency,
-            current: quote.price,
-            reference: pos.avg_open_price,
-            changePct: change,
-          });
-        }
-      }
-    }
+  if (!check.holdings) {
+    return check.loading
+      ? `<div class="muted alert-preview-empty">Načítám portfolia a ceny…</div>`
+      : "";
   }
-  // Setřídit dle největšího propadu
-  matches.sort((a, b) => a.changePct - b.changePct);
-  return matches;
+  const matches = alertRuleMatches(rule, check.holdings, check.quotes);
+  if (matches.length === 0) {
+    return `<div class="muted alert-preview-empty">Aktuálně žádná pozice nesplňuje toto pravidlo. ✓</div>`;
+  }
+  const refLabel = rule.type === "drop_from_52w_high" ? "52w high" : "Ø nákup";
+  let html = `<div class="alert-preview-scroll"><table><thead><tr>
+    <th>Symbol</th><th>Portfolio</th><th>Název</th><th class="num">Současná cena</th>
+    <th class="num">${refLabel}</th><th class="num">Změna</th>
+    <th title="Kdy pozici poprvé zapsala ranní kontrola">Splněno</th>
+  </tr></thead><tbody>`;
+  for (const m of matches) {
+    const firedOn = alertFiredOn(rule, m);
+    html += `
+      <tr>
+        <td class="symbol">${escapeHtml(m.symbol)}</td>
+        <td>${escapeHtml(m.portfolioName)}</td>
+        <td>${escapeHtml(m.name)}</td>
+        <td class="num">${fmtNum(m.current, 2)} ${m.currency}</td>
+        <td class="num">${fmtNum(m.reference, 2)} ${m.currency}</td>
+        <td class="num neg" title="(${fmtNum(m.current, 2)} − ${fmtNum(m.reference, 2)}) / ${fmtNum(m.reference, 2)} = ${fmtPct(m.changePct)}"><strong>${fmtPct(m.changePct)}</strong></td>
+        <td${firedOn ? "" : ` title="Ranní kontrola ji zapíše při dalším běhu"`}>${firedOn || "–"}</td>
+      </tr>`;
+  }
+  html += `</tbody></table></div>`;
+  if (!rule.armed) {
+    html += `<div class="muted alert-preview-note">Pravidlo je vypnuté – ranní kontrola ho přeskakuje.</div>`;
+  }
+  return html;
+}
+
+// Den zapsání v pražském čase, prázdné = ranní kontrola pozici ještě nezapsala
+function alertFiredOn(rule, match) {
+  const fired = state.alerts?.fired || {};
+  const id = firedAlertId(rule.id, match.portfolioId, match.symbol);
+  if (!(id in fired)) return "";
+  return fired[id] ? fmtCzDate(pragueToday(new Date(fired[id]))) : "ano";
+}
+
+// Náhled prochází všechna portfolia z manifestu – stejně jako ranní kontrola
+// (worker/jobs/alerts.js), nezávisle na zvoleném portfoliu
+async function buildAlertCheck() {
+  if (state.alertCheck.loading) return;
+  state.alertCheck.loading = true;
+  state.alertCheck.error = null;
+  renderAlerts();
+  try {
+    const holdings = withPositions(await loadAllPortfoliosForSnapshot()).map(
+      ({ meta, portfolio, positions }) => ({
+        id: meta.id,
+        name: meta.name,
+        instruments: portfolio.instruments || {},
+        positions,
+      }),
+    );
+    state.alertCheck.quotes = await fetchCurrentQuotes(heldYahooSymbols(holdings));
+    state.alertCheck.holdings = holdings;
+  } catch (e) {
+    state.alertCheck.error = e.message;
+  } finally {
+    state.alertCheck.loading = false;
+    renderAlerts();
+  }
 }
 
 // ---------- Deník investora ----------
@@ -3958,7 +3982,9 @@ function exportCurrentViewXlsx() {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
-  const filename = `${state.portfolio.id}-${filenamePart}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  // Watchlist a deník jsou společné – v názvu souboru nemá co dělat zvolené portfolio
+  const prefix = SHARED_VIEWS.has(view) ? "" : `${state.portfolio.id}-`;
+  const filename = `${prefix}${filenamePart}-${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, filename);
 }
 
@@ -4358,18 +4384,29 @@ function buildWatchlistAoa() {
   return [header, ...data];
 }
 
+// Stejné řádky jako na obrazovce: za každé pravidlo pozice, které ho splňují
 function buildAlertsAoa() {
   const rules = state.alerts?.rules || [];
+  const check = state.alertCheck;
   const header = [
-    "Pravidlo", "Typ", "Threshold %", "Symbol (pokud specific)", "Armed",
+    "Pravidlo", "Stav", "Symbol", "Portfolio", "Název", "Měna",
+    "Současná cena", "Reference (Ø nákup / 52w high)", "Změna %", "Splněno",
   ];
-  const data = rules.map((r) => [
-    r.description || r.id,
-    r.type,
-    r.threshold_pct ?? null,
-    r.symbol || "",
-    r.armed ? "yes" : "no",
-  ]);
+  const data = [];
+  for (const rule of rules) {
+    const head = [rule.description || rule.id, rule.armed ? "armed" : "disabled"];
+    const matches = check.holdings ? alertRuleMatches(rule, check.holdings, check.quotes) : [];
+    if (matches.length === 0) {
+      data.push([...head, "", "", check.holdings ? "Žádná pozice pravidlo nesplňuje" : "", "", null, null, null, ""]);
+      continue;
+    }
+    for (const m of matches) {
+      data.push([
+        ...head, m.symbol, m.portfolioName, m.name, m.currency,
+        m.current, m.reference, Math.round(m.changePct * 100) / 100, alertFiredOn(rule, m),
+      ]);
+    }
+  }
   return [header, ...data];
 }
 
@@ -4956,6 +4993,18 @@ function exportPositionsAtXlsx() {
 // vykreslení a simulace prodeje (výběr pozic žije jen v paměti stránky).
 const QUOTE_BATCH = 50; // limit /api/quote
 
+// Aktuální ceny po dávkách → mapa yahoo_symbol → quote (tvar /api/quote)
+async function fetchCurrentQuotes(symbols) {
+  const quotes = {};
+  for (let i = 0; i < symbols.length; i += QUOTE_BATCH) {
+    const batch = symbols.slice(i, i + QUOTE_BATCH);
+    const res = await fetch(`${QUOTE_URL}?symbols=${encodeURIComponent(batch.join(","))}`);
+    if (!res.ok) throw new Error(`Quote API ${res.status}`);
+    Object.assign(quotes, (await res.json()).quotes || {});
+  }
+  return quotes;
+}
+
 const kcText = (n) => `${fmtNum(n, 0)} Kč`;
 const kcSigned = (n) => `<span class="${signClass(n)}">${kcText(n)}</span>`;
 const nakupu = (n) => (n === 1 ? "nákup" : n >= 2 && n <= 4 ? "nákupy" : "nákupů");
@@ -5078,14 +5127,7 @@ async function buildTaxOpt() {
         if (positions[sym].net_qty > 1e-9 && !inst.delisted) symbols.add(inst.yahoo_symbol || sym);
       }
     }
-    const list = [...symbols];
-    const quotes = {};
-    for (let i = 0; i < list.length; i += QUOTE_BATCH) {
-      const batch = list.slice(i, i + QUOTE_BATCH);
-      const res = await fetch(`${QUOTE_URL}?symbols=${encodeURIComponent(batch.join(","))}`);
-      if (!res.ok) throw new Error(`Quote API ${res.status}`);
-      Object.assign(quotes, (await res.json()).quotes || {});
-    }
+    const quotes = await fetchCurrentQuotes([...symbols]);
 
     const positionRows = taxPositionRows(accounts, quotes, state.fxRates, today);
     const rows = person ? withTimeTest(positionRows, today) : positionRows;

@@ -25,6 +25,7 @@ import * as notes from "./api/notes.js";
 import * as journal from "./api/journal.js";
 import * as settings from "./api/settings.js";
 import * as portfolioOverlay from "./api/portfolio-overlay.js";
+import * as accountingEvidence from "./api/accounting-evidence.js";
 import { handleMcp } from "./mcp/server.js";
 import { addDays, pragueToday } from "./mcp/akcie-den.js";
 import { runAllImports, runImport } from "./jobs/flex-import.js";
@@ -44,6 +45,7 @@ const API_ROUTES = {
   "/api/notes": notes,
   "/api/journal": journal,
   "/api/settings": settings,
+  "/api/accounting-evidence": accountingEvidence,
   "/api/plegin-report/run": { post: pleginReport.run },
   "/api/plegin-report/status": { get: pleginReport.status },
 };

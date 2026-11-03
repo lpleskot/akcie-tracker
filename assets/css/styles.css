@@ -120,7 +120,7 @@ header.app-header {
   flex-wrap: wrap;
   gap: 4px;
 }
-/* Dlaždice patří zvolenému portfoliu — u přehledů za firmu a Nastavení se schovají */
+/* Dlaždice patří zvolenému portfoliu — u Watchlistu, Alert, Deníku, přehledů za vlastníka a Nastavení se schovají */
 body.header-view #summary-cards {
   display: none;
 }
@@ -335,6 +335,10 @@ button.primary {
 }
 .alert-preview-note {
   padding: 8px 18px;
+}
+/* Karta pravidla má overflow: hidden — širokou tabulku na telefonu posunout uvnitř */
+.alert-preview-scroll {
+  overflow-x: auto;
 }
 .tr-total-line {
   margin-top: 6px;
