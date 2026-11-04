@@ -88,9 +88,10 @@ export function buildAccountingEvidence({ owner, from, to, loaded, fxRates, now 
     to,
     generated_at: now.toISOString(),
     fx_last_date: Object.keys(fxRates?.dates || {}).sort().pop() || null,
+    // Věta pro čtenáře (BI ji ukazuje pod čísly) — bez názvů polí
     methodology:
-      "FIFO zvlášť pro každé portfolio, pořizovací cena včetně poplatků, rozhoduje datum vypořádání, " +
-      "Kč kurzem ČNB k datu vypořádání (czk_trade kurzem ke dni obchodu).",
+      "FIFO zvlášť pro každé portfolio, pořizovací cena včetně poplatků, rozhoduje datum vypořádání " +
+      "a Kč kurzem ČNB k němu.",
     portfolios,
     warnings,
   };

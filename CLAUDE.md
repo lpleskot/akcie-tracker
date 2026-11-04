@@ -516,6 +516,7 @@ za firmu Načíst znovu načte znovu portfolia i ceny.
 | `GET /api/portfolio-overlay/[id]` | KV `portfolio-overlay:{id}` read pro frontend merge |
 | `GET /api/quote-at?symbols=…&date=YYYY-MM-DD` | Yahoo závěrečná cena k datu (poslední bar ≤ datum, minor units fix, **split-adjusted!**), cache 7 dní pro data starší 2 dnů |
 | `GET /api/fx-at?date=YYYY-MM-DD` | Kurzy ČNB k datu živě (stejný tvar jako `fx_rates.json` entry, `valid_for`), cache 30 dní |
+| `GET /api/accounting-evidence?owner=…&from=…&to=…` | Evidence vlastníka pro odsouhlasení s účetnictvím — čte ji účetní BI `plegi-invest-bi` přes service binding; viz „Evidence pro účetní BI" |
 | `POST /api/plegin-report/run` | Ruční běh ranního reportu pro hlídač PLEGINu, token `REPORT_RUN_TOKEN` — viz „Ranní report do PLEGINu" |
 | `GET /api/plegin-report/status` | Stav reportu po dnech z KV (`sent` / `holiday` / `stale` / `error`) |
 | `POST /mcp` | **MCP server pro PLEGIN** (mimo `/api`, vlastní Access výjimka) — viz níže |
@@ -551,6 +552,19 @@ za firmu Načíst znovu načte znovu portfolia i ceny.
   `overlay.last_import` z dnešního rána, `overlay.nav_do` = včerejšek. Ranní report
   do PLEGINu od 2026-10-28 neskládá Claude úloha přes `/mcp`, ale Worker sám (níže);
   `/mcp` zůstává pro dotazy PLEGINa.
+
+### Evidence pro účetní BI (`worker/api/accounting-evidence.js`, od 2026-11-03)
+
+Účetní BI (`~/Projects/plegi-invest-bi`, Worker `plegi-invest-bi` na stejném účtu) čte přes service
+binding `GET /api/accounting-evidence?owner=plegi-invest&from=2025-01-01&to=2025-12-31` a odsouhlasuje
+s ní deník z POHODY (063 po analytikách, prodeje 661/561, dividendy 665, hotovost). Jen čtení, bez tokenu
+(`/api/*` je za Accessem, binding jde jen z Workerů stejného účtu). Portfolia vlastníka podle Nastavení
+(`resolveOwners`), metodika appky: FIFO po portfoliích, cena včetně poplatků, datum a kurz ČNB k vypořádání
+(strict, chybějící kurz = null + `warnings`). Po portfoliích: `purchases` (nákup = BUY se stejným dnem
+obchodu a vypořádání + bonusové loty; Kč i kurzem ke dni obchodu `czk_trade` – tak účetní přepočetla IBKR
+12/2025; drženo den před `from` a k `to`), `sales` (hrubě = tržba, poplatek, FIFO cena v Kč), `dividends`,
+`withholding` (daň kladně), `cash` (`cashAtDate` den před `from` a k `to`), `cash_flows`. Načítání portfolia
+sdílí s `akcie_den` (`loadPortfolio`). Změna tvaru odpovědi = změna i v BI (`src/odsouhlaseni.js`).
 
 ### Ranní report do PLEGINu (`worker/jobs/plegin-report.js`, od 2026-10-28)
 
@@ -619,7 +633,7 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared,flex-import,portfolio-shared,akcie-den,plegin-report,tax-optimization,tax-person,closed-positions,owners}.test.mjs` — 122 unit testů
+`tests/{fifo,flex-shared,flex-import,portfolio-shared,akcie-den,plegin-report,tax-optimization,tax-person,closed-positions,owners,alerts-shared,alerts-job,accounting-evidence}.test.mjs` — 138 unit testů
 (`node --test tests/*.test.mjs`), ručně spočítané fixtures: FIFO matching + prorace komise,
 proceeds-authoritative ceny, splity (vč. same-day pořadí a 1:25), KB received/removed
 párování + bonus/cancellation, práva odepsaná po víc než 30 dnech (GRPN), orphan sells,
@@ -639,7 +653,10 @@ s odhadem čerstvého nákupu, kurzový rozdíl, delisted a chybějící cena mi
 podle vypořádání, dividendy, simulace, zpětné odečtení ztráty a dopočty v
 `data/tax-returns.json`), daň fyzické osoby (časový test, 29. 2., limit 100 000 Kč, simulace), Prodané pozice (souhrn v měně i v Kč, odhad kurzu čerstvého
 prodeje, dividendy v jiné měně), vlastníci portfolií (manifest vs. uložené nastavení, nové
-portfolio, validace /api/settings). CI: `.github/workflows/tests.yml` při každém pushi (neblokuje
+portfolio, validace /api/settings), evidence pro účetní BI (nákup ze dvou obchodů téhož dne, Kč
+k vypořádání i ke dni obchodu, zbytek na začátku a konci období se splitem, bonusové kusy, prodej
+hrubě/poplatek/FIFO, kurz dividendy odhadem, hotovost ze staršího výpisu, prodej bez nákupu).
+CI: `.github/workflows/tests.yml` při každém pushi (neblokuje
 deploy — červený běh = signál). Uzavírá REVIZE R9 (2026-07-25).
 
 **Lokální `wrangler dev`:** stav persistovat MIMO repo
