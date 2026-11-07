@@ -20,8 +20,14 @@
  * DRY_RUN="true" → parsuje a loguje, ale neukládá. Pro bezpečné testování.
  */
 
+import { flexDate } from "../../assets/js/flex-shared.js";
+
 const FLEX_BASE = "https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService";
 const KV_OVERLAY_PREFIX = "portfolio-overlay:";
+// Výsledek posledního běhu každého zdroje (heartbeat). Overlay se ukládá jen
+// s novými daty, takže chyba importu byla vidět jen v logu – Lynx od 3. 11.
+// 2026 tiše nestahoval a appka hlásila jen „starý import“ bez důvodu.
+const KV_STATUS_PREFIX = "flex-import:";
 // IBKR má WAF pravidla, která odmítají "bot-like" User-Agent z CF edge IP
 // (vrací HTTP 530). Browser-style UA prochází — osvědčeno i v /api/quote pro Yahoo.
 const USER_AGENT =
@@ -103,22 +109,48 @@ export async function runImport(env, key = "ibkr") {
     // POZOR: newNavDays MUSÍ být v podmínce — v den bez obchodů/dividend by se
     // jinak denní NAV snapshot zahodil, a protože Flex vrací jen ~7denní okno,
     // vznikla by v grafu hodnoty portfolia trvalá díra (REVIZE_REPORT.md R3).
-    if (stats.newTrades + stats.newCashTx + stats.newCorpActions + stats.newTransfers + stats.newNavDays > 0) {
+    const newItems = stats.newTrades + stats.newCashTx + stats.newCorpActions + stats.newTransfers + stats.newNavDays;
+    if (newItems > 0) {
       merged.last_import = new Date().toISOString();
       await env.AKCIE_TRACKER_KV.put(overlayKey, JSON.stringify(merged));
       console.log(`✅ Overlay uložen do KV (${overlayKey})`);
     } else {
       console.log(`ℹ️  Žádné nové položky, KV neaktualizováno.`);
     }
+    await saveImportStatus(env, src.portfolioId, { ok: true, new_items: newItems, nav_do: latestNavDate(parsed.nav) });
 
     return { ok: true, source: key, dry_run: false, stats };
   } catch (err) {
     console.error(`❌ Flex import ${key} selhal: ${err.message}`);
     console.error(err.stack);
-    // Selhání je vidět v CF lozích; nepřímý signál v UI = žlutý banner
-    // "poslední import před X dny", když overlay zestárne (R7).
-    return { ok: false, source: key, error: err.message };
+    // Důvod jde do stavu importu, který ukazuje appka i ranní report.
+    // Token z textu chyby pryč – stav se zobrazuje v UI.
+    const error = (src.token ? err.message.replaceAll(src.token, "***") : err.message).slice(0, 300);
+    if (!dryRun) await saveImportStatus(env, src.portfolioId, { ok: false, error });
+    return { ok: false, source: key, error };
   }
+}
+
+export async function readImportStatus(env, portfolioId) {
+  return env.AKCIE_TRACKER_KV.get(`${KV_STATUS_PREFIX}${portfolioId}`, "json");
+}
+
+// Zápis stavu nesmí shodit import ani ranní sekvenci za ním
+async function saveImportStatus(env, portfolioId, status) {
+  try {
+    await env.AKCIE_TRACKER_KV.put(
+      `${KV_STATUS_PREFIX}${portfolioId}`,
+      JSON.stringify({ at: new Date().toISOString(), ...status }),
+    );
+  } catch (e) {
+    console.error(`Stav importu ${portfolioId} se nezapsal: ${e.message}`);
+  }
+}
+
+// Poslední den NAV ve výpisu – když IB posílá pořád stejné okno, je to vidět
+function latestNavDate(nav) {
+  const days = nav.map((n) => flexDate(n.reportDate)).filter(Boolean).sort();
+  return days.at(-1) || null;
 }
 
 // ---------- Flex API (2-call flow) ----------

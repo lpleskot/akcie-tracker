@@ -83,7 +83,8 @@ jinak se nedostanou do repa.
   KB), Lukáš Pleskot (osoba: Lynx). **MCP `akcie_den`** zná vlastníky stejně (`resolveOwners`
   nad manifestem + KV `settings`): souhrn `vse` sčítá jen firemní portfolia, osobní jsou
   v seznamu s `vlastnik.typ = "osoba"`; čerstvost importu (`overlay`) je jen z firemních.
-  **Ranní report** z osobních ukazuje jen denní pohyb (viz „Ranní report do PLEGINu").
+  **Ranní report** má u osobních dlaždici dne a tabulku pozic s Total Return, bez hotovosti
+  a Kontextu (viz „Ranní report do PLEGINu").
   Alerty hlídají od 2026-11-03 všechna portfolia z manifestu (dřív jen IBKR).
 - **Hybridní data model:**
   - **Statický JSON** v gitu = historický snapshot, manuálně commitnutý
@@ -189,8 +190,13 @@ flowchart TD
   by reportDate — nepřepisovat!** KV se ukládá i když přibyly JEN nové NAV dny (R3 —
   jinak by klidné dny mizely z grafu; Flex okno je ~7 dní). Manuální `/run/flex-import`
   vyžaduje header `x-admin-key` = secret `ADMIN_KEY`; `?source=ibkr|lynx` = jeden zdroj,
-  bez parametru všechny. Při selhání loguje (bez e-mailu);
-  nepřímý signál = žlutý banner v UI, když overlay zestárne >4 dny (R7). Secrets:
+  bez parametru všechny. **Stav běhu (od 2026-11-07):** každý běh zdroje zapíše KV
+  `flex-import:{portfolioId}` = `{at, ok, error | new_items, nav_do}` (token z textu chyby
+  vymazaný), i když nic nepřibylo; dry run nic. `/api/portfolio-overlay/{id}` ho vrací jako
+  `import_status`, appka ukáže žlutý banner hned při chybě i s důvodem a jinak, když nová
+  data nepřišla >4 dny (`importWarning` v `portfolio-shared.js`); ranní report dá do Kontextu
+  větu o neprošlém importu (`failedImports`). Důvod: Lynx od 3. 11. 2026 tiše nestahoval,
+  overlay se bez nových dat neukládá a chyba byla jen v logu. E-maily se neposílají. Secrets:
   `FLEX_TOKEN`, `ADMIN_KEY`; var `FLEX_QUERY_ID` (1514926), `DRY_RUN` pro test bez zápisu.
   **Zdroje (`FLEX_SOURCES`, od 2026-10-31):** `ibkr` (portfolio z `PORTFOLIO_ID`, token
   `FLEX_TOKEN`, var `FLEX_QUERY_ID`) a `lynx` (portfolio `lukas-pleskot-lynx`, secret
@@ -327,8 +333,8 @@ flowchart TD
   v celé historii KB (58 prodejů, 98 nákupních řádků) sedí datum i kurz k vypořádání; YAL.AX čeká na
   kurz ČNB k 9. 11. (Report „chybí kurz“, Prodané odhad „≈“). **PRX.AS:** 113 ks připsaných 18. 9. 2023
   bez platby = Prosus Capitalisation Issue (implementace téhož dne), lot za 0 je správně: celá pořizovací
-  cena 6 906,24 EUR je na 209 ks a prodala se celá pozice. Ranní report od 7. 11. ukazuje KB jen
-  s hotovostí (viz „Ranní report do PLEGINu“, účet jen s hotovostí).
+  cena 6 906,24 EUR je na 209 ks a prodala se celá pozice. Ranní report od 7. 11. KB vůbec
+  neukazuje (viz „Ranní report do PLEGINu“, firemní účet bez pozic).
 - **14/14 otevřených pozic** match KB statementu (30.9.2026); hotovost 7 měn zrekonciliována na cent.
   KB ve STAV PTF oceňuje Canacol 0,75 CAD/ks (app ho jako delisted oceňuje 0). Validace vs Sharesight
   Sold Securities: 32/34 prodejů match (2 nesoulady = CNE 1890 ks Sharesight chyba, IPO 1 ks zaokrouhlení).
@@ -650,19 +656,23 @@ Nahrazuje Claude úlohu „PLEGIN — report Akcie" (PLEGIN_ZADANI_01, předán�
   `error`; HTTP 401 token, 400 datum, 503 vypnuto, 502 chyba dat nebo PLEGINu.
 - **Vypínač:** var `PLEGIN_REPORT = "off"` (s deployem); bez secretu `PLEGIN_REPORT_TOKEN`
   se nic neposílá (`disabled`). Import a alerty běží nezávisle.
-- **Osobní účty (od 2026-10-31, Lynx):** jen denní pohyb pozic (Lukáš: „bude mi tam stačit
-  jen denní pohyb na pozicích") — dlaždice `Lynx (osobní) za den` na konci a tabulka
-  `Lynx (osobní) – denní pohyb (N)` (Titul, Den %, Den Kč) za firemními tabulkami; bez
-  hotovosti, Total Return a Kontextu. Souhrn `Portfolio za den`, Nejlepší/Nejhorší i Kontext
-  jsou jen za firmu (`vse` z `akcie_den`), osobní účet je v textu souhrnu až na konci.
-- **Účet jen s hotovostí (od 2026-11-07, KB po likvidaci):** firemní účet, ve kterém zbyly
-  jen tituly stažené z burzy (`stazeno_z_burzy` v řádku `akcie_den`) nebo nic. Lukáš: „nech
-  jen hotovost a oprav tu větu“ – zůstává jen dlaždice `Volná hotovost KB`; bez dlaždice
-  `KB za den`, tabulky pozic a KB v textu souhrnu. V Kontextu místo „V účtu KB ten den burzy
-  neobchodovaly.“ věta „Účet KB drží jen hotovost a titul CNE.TO · Canacol Energy stažený
-  z burzy (oceněno 0).“ spolu s původem hotovosti. První věta o dni bez „hlavně“, když se
-  hýbal jen jeden účet. Když v účtu nezůstanou ani peníze (všechny měny pod 1 Kč), z reportu
-  zmizí úplně.
+- **Osobní účty (od 2026-10-31, Lynx):** dlaždice `Lynx (osobní) za den` na konci a tabulka
+  `Lynx (osobní) – pozice (N)` za firemními tabulkami se stejnými sloupci jako firma (Titul,
+  Den %, Total Return %, Total Return Kč – od 2026-11-07, Lukáš: „U Lynxu nemáš total return,
+  jako u IBKR“; do té doby jen Den % a Den Kč); bez hotovosti a Kontextu. Hvězdička
+  u dividend v jiné měně platí i pro osobní tabulku. Souhrn `Portfolio za den`,
+  Nejlepší/Nejhorší i Kontext jsou jen za firmu (`vse` z `akcie_den`), osobní účet je v textu
+  souhrnu až na konci.
+- **Firemní účet bez pozic (od 2026-11-07, KB po likvidaci):** účet, ve kterém zbyly jen
+  tituly stažené z burzy (`stazeno_z_burzy` v řádku `akcie_den`) nebo nic, v reportu není
+  vůbec – ani dlaždice hotovosti, ani věta v Kontextu (Lukáš: „Odstraň KB, už nebudeme
+  potřebovat, ani hotovost, převedu ji na IBKR“; ráno téhož dne ještě „nech jen hotovost“).
+  KB zůstává v appce, MCP i přehledech za firmu. **Jediný firemní účet:** denní změna
+  účtu = `Portfolio za den`, proto bez dlaždice `IBKR za den` a bez IBKR v textu souhrnu;
+  první věta Kontextu bez „hlavně“.
+- **Neprošlý import:** když poslední běh importu po dni reportu selhal (KV
+  `flex-import:{id}`), Kontext má větu „Import z Lynx 8. 11. neprošel (…), pozice Lynx můžou
+  být neaktuální.“ U firemního účtu nahradí větu o nečerstvých datech.
 - **Velké pohyby (od 2026-11-07, `worker/jobs/move-reasons.js`):** Lukáš: „pokud akcie
   klesne nebo roste o 10 % a více, tak krátce napsat, co za tím stojí“. Tituly, které ten den
   obchodovaly a pohnuly se o ±10 % a víc (`bigMoves`: všechny účty včetně Lynxu, každý titul
@@ -683,7 +693,7 @@ Nahrazuje Claude úlohu „PLEGIN — report Akcie" (PLEGIN_ZADANI_01, předán�
   0,05–0,25 USD na titul.
 
 **KV klíče (sdílené):** `watchlist`, `alerts`, `notes`, `journal`, `settings`,
-`portfolio-overlay:{id}`, `fired:alert:{ruleId}:{portfolioId}:{symbol}` (starý tvar bez portfolia
+`portfolio-overlay:{id}`, `flex-import:{id}` (stav posledního běhu importu), `fired:alert:{ruleId}:{portfolioId}:{symbol}` (starý tvar bez portfolia
 = IBKR), `fired:watch:{itemId}:{ruleId}`,
 `plegin-report:{datum}`, `plegin-duvod:{datum}:{symbol}` (důvody velkých pohybů, 60 dní).
 
@@ -700,7 +710,7 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared,flex-import,portfolio-shared,akcie-den,plegin-report,move-reasons,tax-optimization,tax-person,closed-positions,owners,alerts-shared,alerts-job,accounting-evidence}.test.mjs` — 156 unit testů
+`tests/{fifo,flex-shared,flex-import,portfolio-shared,akcie-den,plegin-report,move-reasons,tax-optimization,tax-person,closed-positions,owners,alerts-shared,alerts-job,accounting-evidence}.test.mjs` — 163 unit testů
 (`npm install` jednou, pak `node --test tests/*.test.mjs`; report importuje SDK pro Claude), ručně spočítané fixtures: FIFO matching + prorace komise,
 proceeds-authoritative ceny, splity (vč. same-day pořadí a 1:25), KB received/removed
 párování + bonus/cancellation, práva odepsaná po víc než 30 dnech (GRPN), orphan sells,
@@ -710,8 +720,8 @@ s netCash 0 a poplatku v měně účtu, vklady, amount_usd dividend, párování
 ISIN), kolkovné v komisi, Yahoo symbol HK, Flex zdroje IBKR + Lynx a parser XML,
 kurzy, toky kapitálu + XIRR (proti sazbě spočtené předem),
 Celkový výnos s výběry, MCP report (split po datu, neobchodovaný den, chybějící cena,
-delisted, součty `vse` bez osobních portfolií), ranní report do PLEGINu (osobní účet jen
-denní pohyb; vzorky ze skutečných dnů 23., 26.
+delisted, součty `vse` bez osobních portfolií), ranní report do PLEGINu (osobní účet s Total Return, firemní účet bez
+pozic skrytý, neprošlý import; vzorky ze skutečných dnů 23., 26.
 a 27. 10. 2026: `tests/fixtures/akcie-den-*.json` = výstup `akcie_den`,
 `plegin-akcie-skutecne.json` = reporty Claude úlohy z týchž dat; svátek, nečerstvý import,
 neznámý ticker, víkend a pojistka v létě/zimě, běh s falešným KV a PLEGINem, token

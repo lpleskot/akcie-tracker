@@ -18,6 +18,7 @@ import {
   cashToCzk,
   closedPositions,
   fxToCzk,
+  importWarning,
   mergeOverlayIntoPortfolio,
   openLotsCostCzk,
   portfolioTotalReturn,
@@ -261,9 +262,11 @@ async function loadActivePortfolio() {
 
   // Mergnout overlay (pokud existuje a má nějaká data)
   state.overlayStats = null;
+  let importRun = null;
   if (overlayRes && overlayRes.ok) {
     try {
       const overlay = await overlayRes.json();
+      importRun = overlay.import_status || null;
       state.overlayStats = mergeOverlayIntoPortfolio(state.portfolio, overlay, state.fxRates);
     } catch (e) {
       console.warn(`Overlay merge selhal: ${e.message}`);
@@ -296,17 +299,9 @@ async function loadActivePortfolio() {
     }
   }
 
-  // Zastaralý auto-import = pravděpodobně spadlý flex-import worker.
-  // Víkendová pauza dělá mezeru max ~3 dny, 4+ dní je podezřelých.
-  if (state.overlayStats?.last_import) {
-    const ageDays =
-      (Date.now() - new Date(state.overlayStats.last_import).getTime()) / 86400000;
-    if (ageDays > 4) {
-      state.loadWarnings.push(
-        `Poslední auto-import (${meta.short || meta.broker}) proběhl před ${Math.floor(ageDays)} dny — zkontroluj worker flex-import.`,
-      );
-    }
-  }
+  // Selhaný nebo dlouho prázdný ranní auto-import i s důvodem z posledního běhu
+  const importWarn = importWarning(meta.short || meta.broker, state.overlayStats?.last_import, importRun);
+  if (importWarn) state.loadWarnings.push(importWarn);
 
   state.positions = computePositions(
     state.portfolio.transactions || [],

@@ -260,6 +260,31 @@ export function mergeOverlayIntoPortfolio(portfolio, overlay, fxRates) {
   return stats;
 }
 
+const importTime = (iso) =>
+  new Date(iso).toLocaleString("cs-CZ", {
+    timeZone: "Europe/Prague", day: "numeric", month: "numeric", hour: "numeric", minute: "2-digit",
+  });
+
+/**
+ * Varování k rannímu auto-importu portfolia, nebo null. run = výsledek
+ * posledního běhu (KV flex-import:{id}, ukládá se od 7. 11. 2026),
+ * lastImport = kdy naposledy přibyla nová data. Selhání se hlásí hned
+ * i s důvodem; samotné stáří dat až od 4 dnů (víkend dělá mezeru max ~3 dny).
+ */
+export function importWarning(name, lastImport, run, now = Date.now()) {
+  const data = lastImport ? ` Data ${name} jsou z importu ${importTime(lastImport)}.` : "";
+  if (run && !run.ok) {
+    return `Auto-import ${name} ${importTime(run.at)} neprošel – ${String(run.error).replace(/\.$/, "")}.${data}`;
+  }
+  if (!lastImport) return null;
+  const ageDays = (now - new Date(lastImport).getTime()) / 86400000;
+  if (!(ageDays > 4)) return null;
+  const stale = `nová data naposledy přinesl před ${Math.floor(ageDays)} dny (${importTime(lastImport)})`;
+  return run
+    ? `Auto-import ${name} naposledy proběhl ${importTime(run.at)} bez chyby, ale ${stale}.`
+    : `Auto-import ${name} ${stale}.`;
+}
+
 /**
  * Hotovost ve více měnách → CZK kurzem k datu. Měna bez kurzu se nesčítá
  * a vrátí se v `missing` — volající ji musí přiznat, ne tiše vynechat.

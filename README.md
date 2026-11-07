@@ -127,6 +127,7 @@ KV (Cloudflare):
   journal                    ← deník investora
   settings                   ← vlastníci portfolií z Nastavení (přednost před manifestem)
   portfolio-overlay:{id}     ← denní IB Flex auto-import IBKR a Lynx (merge nad statický JSON)
+  flex-import:{id}           ← výsledek posledního běhu importu (čas, OK / chyba) pro banner v appce a ranní report
   fired:alert:{id}:{portfolio}:{symbol}  ← fired stav pro deduplikaci (starý tvar bez portfolia = IBKR)
   fired:watch:{id}:{ruleId}
 ```
@@ -149,7 +150,7 @@ npm install   # jednou – SDK pro Claude, které importuje ranní report
 node --test tests/*.test.mjs
 ```
 
-156 unit testů (FIFO engine, inventura k datu, Flex transformace, import a merge overlay, MCP a ranní report včetně důvodů velkých pohybů, Daňová optimalizace firmy i osoby, Prodané pozice, vlastníci portfolií, alerty) – ručně spočítané fixtures, Claude API v testech nahrazuje falešný klient.
+163 unit testů (FIFO engine, inventura k datu, Flex transformace, import, stav běhu a merge overlay, MCP a ranní report včetně důvodů velkých pohybů, Daňová optimalizace firmy i osoby, Prodané pozice, vlastníci portfolií, alerty) – ručně spočítané fixtures, Claude API v testech nahrazuje falešný klient.
 Běží i v CI při každém pushi (`.github/workflows/tests.yml`).
 
 ## Lokální vývoj

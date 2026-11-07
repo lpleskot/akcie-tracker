@@ -15,6 +15,7 @@ import {
   SHORT_NAMES,
   bigMoves,
   buildPleginReport,
+  failedImports,
   isBackupHour,
   isImportFresh,
   isWeekend,
@@ -116,7 +117,7 @@ test("Kontext 27. 10.: účty a tituly dne, hvězdička, hotovost KB, nečerstv�
   ]);
 });
 
-test("osobní účet (Lynx): dlaždice a tabulka jen s denním pohybem, firemní souhrn beze změny", () => {
+test("osobní účet (Lynx): dlaždice a tabulka pozic s Total Return jako u firmy, Kontext za firmu", () => {
   const firma = buildPleginReport(den("2026-10-27"));
   const d = den("2026-10-27");
   const ibkr = d.portfolia.find((p) => p.id === "plegi-invest-ibkr");
@@ -135,11 +136,27 @@ test("osobní účet (Lynx): dlaždice a tabulka jen s denním pohybem, firemní
   assert.equal(tile.label, "Lynx (osobní) za den");
   assert.ok(!r.sections[0].items.some((t) => t.label.includes("hotovost Lynx")));
   const lynx = r.sections[3];
-  assert.equal(plain(lynx.title), "Lynx (osobní) – denní pohyb (2)");
-  assert.deepEqual(lynx.columns, ["Titul", "Den %", "Den Kč"]);
+  assert.equal(plain(lynx.title), "Lynx (osobní) – pozice (2)");
+  assert.deepEqual(lynx.columns, ["Titul", "Den %", "Total Return %", "Total Return Kč"]);
+  // Řádky stejné jako tytéž tituly v tabulce IBKR
+  const ibkrRows = new Map(r.sections[1].rows.map((row) => [row[0], row]));
+  assert.deepEqual(lynx.rows, lynx.rows.map((row) => ibkrRows.get(row[0])));
   assert.deepEqual(lynx.rows.map((row) => row[0]), ibkr.pozice.slice(0, 2).map((p) => `${p.symbol} · ${SHORT_NAMES[p.symbol] || p.nazev}`));
   assert.equal(r.sections[4].body, firma.sections[3].body); // Kontext jen za firmu
   assert.ok(plain(r.summary).startsWith(plain(firma.summary).slice(0, 40)));
+});
+
+test("hvězdička v Kontextu i za titul, který je jen v osobním účtu", () => {
+  const d = sampleDen();
+  d.portfolia[0].pozice = d.portfolia[0].pozice.filter((p) => p.symbol !== "DSY");
+  d.portfolia.push({
+    id: "lukas-pleskot-lynx", nazev: "Lukáš Pleskot Lynx", vlastnik: { id: "lukas-pleskot", nazev: "Lukáš Pleskot", typ: "osoba" },
+    den: { zmena_czk: 600, zmena_pct: 1.2 }, cash_meny: [],
+    pozice: [sampleDen().portfolia[0].pozice.find((p) => p.symbol === "DSY")],
+  });
+  const r = buildPleginReport(d);
+  assert.deepEqual(r.sections[2].rows.map((row) => row.map(plain)), [["DSY · Dassault Systèmes", "+1,20 % (23. 10.)", "+40,00 % *", "+45 000 Kč"]]);
+  assert.match(plain(r.sections.find((s) => s.title === "Kontext").body), /\\\* DSY · Dassault Systèmes vyplácí dividendy v jiné měně/);
 });
 
 test("Kontext: odhad hotovosti KB mezi výpisy se nevydává za výpis", () => {
@@ -157,7 +174,7 @@ test("Kontext: odhad hotovosti KB mezi výpisy se nevydává za výpis", () => {
 });
 
 // KB po prodejích 4.–5. 11. 2026: zbyla jen Canacol stažená z burzy a hotovost
-function liquidatedKb(d, { pozice, cash_meny } = {}) {
+function liquidatedKb(d, { pozice } = {}) {
   const kb = d.portfolia.find((p) => p.id === "plegi-invest-kb");
   const cne = { ...kb.pozice.find((p) => p.symbol === "CNE.TO"), stazeno_z_burzy: "2025-11-17" };
   Object.assign(kb, {
@@ -167,52 +184,55 @@ function liquidatedKb(d, { pozice, cash_meny } = {}) {
     cash_k: "2026-11-05",
     cash_odhad: true,
     cash_zdroj: "výpis k 30. 9. 2026 + prodeje z 29. 10., 4. 11. a 5. 11. 2026 podle potvrzení o obchodu",
-    cash_meny: cash_meny ?? [
+    cash_meny: [
       { mena: "EUR", castka: 35355.84, czk: 860736 },
       { mena: "USD", castka: 47240.16, czk: 1030497 },
     ],
     den: { zmena_czk: 0, zmena_pct: 0, obchodovalo: 0, neobchodovalo: 0, cena_chybi: 1 },
   });
-  return { d, cne };
+  // Celek = IBKR, KB nemá oceněnou pozici
+  d.vse.den = { ...d.portfolia.find((p) => p.id === "plegi-invest-ibkr").den };
+  return d;
 }
 
-test("účet jen s hotovostí (KB po likvidaci): dlaždice hotovosti a věta v Kontextu, nic víc", () => {
-  const { d } = liquidatedKb(den("2026-10-27"));
-  const r = buildPleginReport(d);
-  const labels = r.sections[0].items.map((t) => t.label);
-  assert.deepEqual(labels, [
-    "Portfolio za den", "IBKR za den", "Volná hotovost IBKR", "Volná hotovost KB", "Nejlepší", "Nejhorší",
-  ]);
-  const kbCash = r.sections[0].items.find((t) => t.label === "Volná hotovost KB");
-  assert.deepEqual([plain(kbCash.value), plain(kbCash.sub)], ["2 401 562 Kč", "+ USD 47 240"]);
-  assert.ok(!plain(r.summary).includes("KB"));
-  assert.deepEqual(r.sections.filter((s) => s.type === "table").map((s) => plain(s.title)), ["IBKR – pozice (35)"]);
-
-  const body = plain(r.sections.find((s) => s.title === "Kontext").body);
-  assert.ok(!body.includes("V účtu KB"));
-  assert.match(body, /^Den táhl nahoru účet IBKR \(\+16 333 Kč\) díky SOFI/);
-  assert.ok(body.includes(
-    "\n\nÚčet KB drží jen hotovost a titul CNE.TO · Canacol Energy stažený z burzy (oceněno 0). " +
-      "Hotovost KB je odhad k 5. 11. 2026: výpis k 30. 9. 2026 + prodeje z 29. 10., 4. 11. a 5. 11. 2026 " +
-      "podle potvrzení o obchodu.",
-  ));
+test("firemní účet bez pozic (KB po likvidaci) v reportu není, ani s hotovostí", () => {
+  for (const d of [liquidatedKb(den("2026-10-27")), liquidatedKb(den("2026-10-27"), { pozice: [] })]) {
+    const r = buildPleginReport(d);
+    const text = plain(JSON.stringify(r));
+    assert.ok(!text.includes("KB"), text.match(/.{40}KB.{40}/)?.[0]);
+    assert.ok(!text.includes("Canacol"));
+    assert.deepEqual(r.sections.filter((s) => s.type === "table").map((s) => plain(s.title)), ["IBKR – pozice (35)"]);
+    const body = plain(r.sections.find((s) => s.title === "Kontext").body);
+    assert.match(body, /^Den táhl nahoru účet IBKR \(\+16 333 Kč\) díky SOFI/);
+  }
 });
 
-test("účet jen s hotovostí: víc stažených titulů, žádný titul, bez hotovosti zmizí", () => {
-  const kontext = (r) => plain(r.sections.find((s) => s.title === "Kontext").body);
+test("jediný firemní účet: celek bez dvojí dlaždice a bez opakování v souhrnu", () => {
+  const r = buildPleginReport(liquidatedKb(den("2026-10-27")));
+  assert.deepEqual(r.sections[0].items.map((t) => t.label), [
+    "Portfolio za den", "Volná hotovost IBKR", "Nejlepší", "Nejhorší",
+  ]);
+  const [total] = r.sections[0].items;
+  assert.deepEqual([plain(total.value), plain(total.sub)], ["+16 333 Kč", "+0,25 %"]);
+  assert.ok(!plain(r.summary).includes("IBKR"));
+  assert.ok(plain(r.summary).startsWith("+16 333 Kč (+0,25 %) · nejlepší "));
+});
 
-  const { d: two, cne } = liquidatedKb(den("2026-10-27"));
-  two.portfolia.find((p) => p.id === "plegi-invest-kb").pozice.push({ ...cne, symbol: "OLD", nazev: "OLD CORP" });
-  assert.match(kontext(buildPleginReport(two)), /drží jen hotovost a tituly CNE\.TO · Canacol Energy a OLD · OLD CORP stažené z burzy/);
+test("neprošlý ranní import: věta v Kontextu; u firemního účtu místo věty o nečerstvých datech", () => {
+  const lynx = { id: "lukas-pleskot-lynx", ok: false, at: "2026-10-28T05:00:20.000Z", error: "SendRequest selhal: code=1012, error=Token has expired." };
+  const body = (d, importy) => plain(buildPleginReport(d, { importy }).sections.find((s) => s.title === "Kontext").body);
 
-  const { d: none } = liquidatedKb(den("2026-10-27"), { pozice: [] });
-  assert.match(kontext(buildPleginReport(none)), /Účet KB drží jen hotovost\. Hotovost KB je odhad/);
+  const withLynx = body(sampleDen(), [lynx]);
+  assert.ok(withLynx.endsWith(
+    "Import z Lynx 28. 10. neprošel (SendRequest selhal: code=1012, error=Token has expired), pozice Lynx můžou být neaktuální.",
+  ));
 
-  // Peníze převedené pryč (zbylo 0,03 Kč) → KB v reportu vůbec není
-  const { d: empty } = liquidatedKb(den("2026-10-27"), { cash_meny: [{ mena: "CZK", castka: 0.03, czk: 0 }] });
-  const r = buildPleginReport(empty);
-  assert.ok(!r.sections[0].items.some((t) => t.label.includes("KB")));
-  assert.ok(!kontext(r).includes("KB"));
+  const stale = sampleDen({ overlay: { last_import: "2026-10-27T05:00:00Z", nav_do: "2026-10-26" } });
+  assert.match(body(stale, [lynx]), /o den pozadu/);
+  const ibkr = { ...lynx, id: "plegi-invest-ibkr", error: "GetStatement HTTP 503" };
+  const both = body(stale, [ibkr, lynx]);
+  assert.ok(!both.includes("o den pozadu"));
+  assert.match(both, /Import z IBKR 28\. 10\. neprošel \(GetStatement HTTP 503\), pozice IBKR můžou být neaktuální\./);
 });
 
 test("Kontext při poklesu: vede účet, který den nejvíc stáhl dolů", () => {
@@ -429,6 +449,20 @@ test("běh: důvody se hledají pro velké pohyby dne a ruční běh má kratš�
   };
   const res = await runPleginReport(env, { datum: "2026-11-06", source: "manual", loadDen: loadDen(moveDen()), explain: broken });
   assert.equal(res.status, "sent");
+});
+
+test("běh: neprošlý import z KV jde do Kontextu, hlásí se jen běh po dni reportu", async () => {
+  const { env, kv, calls } = fakeEnv();
+  const runEnv = { ...env, PORTFOLIO_ID: "plegi-invest-ibkr" };
+  const put = (id, v) => kv.set(`flex-import:${id}`, { value: JSON.stringify(v) });
+  put("lukas-pleskot-lynx", { at: "2026-10-28T05:00:20.000Z", ok: false, error: "SendRequest selhal: code=1012, error=Token has expired." });
+  put("plegi-invest-ibkr", { at: "2026-10-28T05:00:14.000Z", ok: true, new_items: 3, nav_do: "2026-10-27" });
+  assert.deepEqual((await failedImports(runEnv, "2026-10-27")).map((f) => f.id), ["lukas-pleskot-lynx"]);
+  assert.deepEqual(await failedImports(runEnv, "2026-10-28"), []);
+
+  await runPleginReport(runEnv, { datum: "2026-10-27", source: "manual", loadDen: loadDen(sampleDen()) });
+  const body = plain(JSON.parse(calls[0].init.body).sections.find((s) => s.title === "Kontext").body);
+  assert.match(body, /Import z Lynx 28\. 10\. neprošel \(SendRequest selhal: code=1012, error=Token has expired\)/);
 });
 
 test("běh: odeslání přes binding PLEGIN s report tokenem, stav sent", async () => {

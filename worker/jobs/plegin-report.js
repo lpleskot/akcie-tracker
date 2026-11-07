@@ -23,6 +23,7 @@
 
 import { fmtNum } from "../../assets/js/fifo.js";
 import { addDays, pragueToday, runAkcieDen } from "../mcp/akcie-den.js";
+import { FLEX_SOURCES, flexSource, readImportStatus } from "./flex-import.js";
 import { explainMoves } from "./move-reasons.js";
 
 const APP_ORIGIN = "https://akcie-tracker.lukas-pleskot.workers.dev";
@@ -284,20 +285,17 @@ function moverClauses(acc, dir, nMain, nOpp) {
   return s;
 }
 
-// Účet po likvidaci (KB od 5. 11. 2026): zbyly v něm jen tituly stažené
-// z burzy, oceněné nulou, nebo nic. Report z něj ukazuje jen hotovost
-// (Lukáš 7. 11. 2026); bez hotovosti z reportu zmizí úplně.
-const holdsOnlyCash = (p) => p.pozice.every((x) => x.stazeno_z_burzy);
-const hasCash = (p) => (p.cash_meny || []).some((m) => m.czk == null || Math.abs(m.czk) >= 1);
+// Účet po likvidaci (KB od 6. 11. 2026) drží jen hotovost, nanejvýš tituly
+// stažené z burzy oceněné nulou. V reportu není vůbec, ani s hotovostí –
+// peníze jdou na IBKR (Lukáš 7. 11. 2026).
+const holdsPositions = (p) => p.pozice.some((x) => !x.stazeno_z_burzy);
 
-function cashOnlySentence(acc) {
-  const stazene = acc.p.pozice.map(titul);
-  if (!stazene.length) return `Účet ${acc.label} drží jen hotovost.`;
-  const one = stazene.length === 1;
-  return (
-    `Účet ${acc.label} drží jen hotovost a ${one ? "titul" : "tituly"} ${joinCs(stazene)} ` +
-    `${one ? "stažený" : "stažené"} z burzy (oceněno 0).`
-  );
+// Chyba ranního importu (KV flex-import:{id}) – bez ní by report tiše stál
+// na starých pozicích účtu (Lynx 3.–7. 11. 2026)
+function importSentence(f) {
+  const label = ACCOUNT_LABELS[f.id] || f.id;
+  const error = String(f.error || "neznámá chyba").replace(/\.$/, "");
+  return `Import z ${label} ${dm(pragueToday(new Date(f.at)))} neprošel (${error}), pozice ${label} můžou být neaktuální.`;
 }
 
 function cashSourceSentence(acc) {
@@ -309,13 +307,12 @@ function cashSourceSentence(acc) {
 
 // Kontext: 1. věta = účet, který den nejvíc táhl směrem celkové změny, a jeho
 // hlavní tituly; 2. věta = druhý účet. Pak jen potřebná vysvětlení.
-// Účet jen s hotovostí do vět o dni nepatří, má vlastní větu u hotovosti.
-function contextBody(den, accounts, fresh) {
+// Věty o dni jsou za firemní účty, hvězdička za všechny tabulky.
+function contextBody(den, { accounts, personal, fresh, importy }) {
   const paragraphs = [];
   const total = den.vse.den.zmena_czk || 0;
   const dir = total >= 0 ? 1 : -1;
-  const withPositions = accounts.filter((a) => !a.cashOnly);
-  const ordered = [...withPositions].sort((a, b) => dir * ((b.p.den.zmena_czk || 0) - (a.p.den.zmena_czk || 0)));
+  const ordered = [...accounts].sort((a, b) => dir * ((b.p.den.zmena_czk || 0) - (a.p.den.zmena_czk || 0)));
   const sentences = ordered.map((acc, i) => {
     const change = acc.p.den.zmena_czk || 0;
     if (i === 0) {
@@ -337,9 +334,9 @@ function contextBody(den, accounts, fresh) {
   const all = den.portfolia.flatMap((p) => p.pozice);
   if (all.some((p) => !p.cena_chybi && !p.obchodovano)) paragraphs.push(NOT_TRADED_SENTENCE);
 
-  // Hvězdička patří ke sloupci Total Return — ten mají jen tabulky firemních účtů
+  // Hvězdička patří ke sloupci Total Return — ten mají tabulky všech účtů
   const starred = [...new Map(
-    withPositions
+    [...accounts, ...personal]
       .flatMap((a) => a.p.pozice)
       .filter((p) => p.total_return?.div_stejna_mena === false)
       .map((p) => [p.symbol, titul(p)]),
@@ -351,11 +348,13 @@ function contextBody(den, accounts, fresh) {
   }
 
   for (const acc of accounts) {
-    const sentence = [acc.cashOnly && cashOnlySentence(acc), cashSourceSentence(acc)].filter(Boolean).join(" ");
+    const sentence = cashSourceSentence(acc);
     if (sentence) paragraphs.push(sentence);
   }
   paragraphs.push(...(den.varovani || []));
-  if (!fresh) paragraphs.push(STALE_SENTENCE);
+  paragraphs.push(...importy.map(importSentence));
+  // Neprošlý import firemního účtu už nečerstvá data vysvětlil i s důvodem
+  if (!fresh && !importy.some((f) => accounts.some((a) => a.p.id === f.id))) paragraphs.push(STALE_SENTENCE);
   return paragraphs.join("\n\n");
 }
 
@@ -403,31 +402,33 @@ function movesSection(den, duvody) {
 
 /**
  * Report pro POST /api/reports PLEGINu z výstupu akcie_den (portfolio vse).
- * Struktura podle přílohy zadání 01: 7 dlaždic bez hodnot portfolia, tabulka
- * pozic za každý účet, Kontext, odkaz do appky.
- * Osobní účty (vlastník typu osoba): jen denní pohyb — dlaždice a tabulka
- * pozic s Den % a Den Kč, bez hotovosti, Total Return a Kontextu
- * (Lukáš 31. 10. 2026). Souhrn, Nejlepší/Nejhorší a Kontext jsou za firmu.
- * Firemní účet jen s hotovostí: jen dlaždice hotovosti a věta v Kontextu.
+ * Struktura podle přílohy zadání 01: nejvýš 7 dlaždic bez hodnot portfolia,
+ * tabulka pozic za každý účet, Kontext, odkaz do appky.
+ * Osobní účty (vlastník typu osoba): dlaždice denního pohybu a tabulka pozic
+ * jako u firmy (Den %, Total Return – od 7. 11. 2026), bez hotovosti
+ * a Kontextu (Lukáš 31. 10. 2026). Souhrn, Nejlepší/Nejhorší a Kontext jsou
+ * za firmu. Firemní účet bez pozic (po likvidaci) v reportu není.
  * duvody = výsledek explainMoves; sekce Velké pohyby je za Kontextem, takže
- * Kontext zůstává čistě šablonový.
+ * Kontext zůstává čistě šablonový. importy = neprošlé ranní importy
+ * (failedImports), každý má větu v Kontextu.
  */
-export function buildPleginReport(den, { duvody } = {}) {
+export function buildPleginReport(den, { duvody, importy = [] } = {}) {
   const datum = den.datum;
   const fresh = isImportFresh(den.overlay, datum);
   const label = (p) => ACCOUNT_LABELS[p.id] || p.nazev || p.id;
   const isPersonal = (p) => p.vlastnik?.typ === "osoba";
   const accounts = den.portfolia
-    .filter((p) => !isPersonal(p))
-    .map((p) => ({ p, label: label(p), cashOnly: holdsOnlyCash(p) }))
-    .filter((a) => !a.cashOnly || hasCash(a.p));
-  const withPositions = accounts.filter((a) => !a.cashOnly);
+    .filter((p) => !isPersonal(p) && holdsPositions(p))
+    .map((p) => ({ p, label: label(p) }));
+  // Jediný firemní účet má denní změnu stejnou jako celé portfolio – vlastní
+  // dlaždice a položka souhrnu by ji jen opakovaly
+  const perAccount = accounts.length > 1 ? accounts : [];
   const personal = den.portfolia.filter(isPersonal).map((p) => ({ p, label: label(p) }));
   const { nejlepsi, nejhorsi } = den.vse;
 
   const summary = [
     `${kc(den.vse.den.zmena_czk)} (${pct(den.vse.den.zmena_pct)})`,
-    ...withPositions.map((a) => `${a.label} ${kc(a.p.den.zmena_czk)}`),
+    ...perAccount.map((a) => `${a.label} ${kc(a.p.den.zmena_czk)}`),
     [
       nejlepsi && `nejlepší ${nejlepsi.symbol} ${pct(nejlepsi.zmena_pct)}`,
       nejhorsi && `nejhorší ${nejhorsi.symbol} ${pct(nejhorsi.zmena_pct)}`,
@@ -440,26 +441,20 @@ export function buildPleginReport(den, { duvody } = {}) {
       type: "stats",
       items: [
         dayTile("Portfolio za den", den.vse.den),
-        ...withPositions.map((a) => dayTile(`${a.label} za den`, a.p.den)),
+        ...perAccount.map((a) => dayTile(`${a.label} za den`, a.p.den)),
         ...accounts.map(cashTile),
         extremeTile("Nejlepší", nejlepsi, den, true),
         extremeTile("Nejhorší", nejhorsi, den, false),
         ...personal.map((a) => dayTile(`${a.label} (osobní) za den`, a.p.den)),
       ].filter(Boolean),
     },
-    ...withPositions.map((a) => ({
+    ...[...accounts, ...personal].map((a) => ({
       type: "table",
-      title: `${a.label} ${NDASH} pozice (${a.p.pozice.length})`,
+      title: `${a.label}${isPersonal(a.p) ? " (osobní)" : ""} ${NDASH} pozice (${a.p.pozice.length})`,
       columns: ["Titul", "Den %", "Total Return %", "Total Return Kč"],
       rows: a.p.pozice.map(positionRow),
     })),
-    ...personal.map((a) => ({
-      type: "table",
-      title: `${a.label} (osobní) ${NDASH} denní pohyb (${a.p.pozice.length})`,
-      columns: ["Titul", "Den %", "Den Kč"],
-      rows: a.p.pozice.map((x) => [titul(x), denCell(x), x.den ? kc(x.den.zmena_czk) : NDASH]),
-    })),
-    { type: "text", title: "Kontext", body: contextBody(den, accounts, fresh) },
+    { type: "text", title: "Kontext", body: contextBody(den, { accounts, personal, fresh, importy }) },
     movesSection(den, duvody),
     // Pevná adresa appky, ne den.odkaz — ten nese hostitele, přes kterého běh
     // přišel (service binding hlídače, lokální wrangler dev)
@@ -484,6 +479,18 @@ function disabledReason(env) {
 }
 
 export const reportEnabled = (env) => !disabledReason(env);
+
+/**
+ * Importy z Flexu, jejichž poslední běh po dni reportu neprošel (ranní běh
+ * den po něm, případně opakovaný pojistkou). Chyba čtení stavu report nezastaví.
+ */
+export async function failedImports(env, datum) {
+  const ids = FLEX_SOURCES.map((s) => flexSource(env, s.key).portfolioId).filter(Boolean);
+  const runs = await Promise.all(ids.map((id) => readImportStatus(env, id).catch(() => null)));
+  return runs
+    .map((run, i) => run && { id: ids[i], ...run })
+    .filter((run) => run && !run.ok && run.at && pragueToday(new Date(run.at)) > datum);
+}
 
 export async function readReportStatus(env, datum) {
   return env.AKCIE_TRACKER_KV.get(`${STATUS_PREFIX}${datum}`, "json");
@@ -598,7 +605,8 @@ export async function runPleginReport(
       console.error(`📰 Důvody pohybů ${day}: ${e?.message || e}`);
       return new Map();
     });
-    const report = buildPleginReport(den, { duvody });
+    const importy = await failedImports(env, day);
+    const report = buildPleginReport(den, { duvody, importy });
     if (dry) return done({ ok: true, status: "dry", fresh, report });
 
     const res = await postReport(env, report, retryDelaysMs);

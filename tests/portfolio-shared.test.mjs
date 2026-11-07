@@ -16,6 +16,7 @@ import {
   cashToCzk,
   fxDateFor,
   fxToCzk,
+  importWarning,
   mergeOverlayIntoPortfolio,
   portfolioTotalReturn,
   portfolioTotalReturnCzk,
@@ -391,4 +392,27 @@ test("mergeOverlayIntoPortfolio: titul pod jiným symbolem IBKR se spáruje pře
   // prodej se spároval s nákupem – žádný „prodej bez odpovídajícího nákupu“
   assert.equal(pos.closed_lots.filter((l) => l.orphan).length, 0);
   close(p.cash_balance.SEK, 42451 + 4500 - 675);
+});
+
+test("importWarning: chyba posledního běhu hned i s důvodem, stáří dat až od 4 dnů", () => {
+  const now = Date.parse("2026-11-07T18:00:00Z");
+  const lastImport = "2026-11-01T05:03:01.514Z";
+  const failed = { at: "2026-11-07T05:00:20.000Z", ok: false, error: "SendRequest selhal: code=1012, error=Token has expired." };
+  assert.equal(
+    importWarning("Lynx", lastImport, failed, now),
+    "Auto-import Lynx 7. 11. 6:00 neprošel – SendRequest selhal: code=1012, error=Token has expired. " +
+      "Data Lynx jsou z importu 1. 11. 6:03.",
+  );
+  // Chyba se hlásí, i když jsou data ze včerejška čerstvá
+  assert.match(importWarning("IBKR", "2026-11-06T05:00:14Z", { ...failed, error: "GetStatement HTTP 503" }, now), /neprošel – GetStatement HTTP 503\. Data IBKR jsou z importu 6\. 11\. 6:00\.$/);
+
+  const ok = { at: "2026-11-07T05:00:20.000Z", ok: true, new_items: 0, nav_do: "2026-10-30" };
+  assert.equal(
+    importWarning("Lynx", lastImport, ok, now),
+    "Auto-import Lynx naposledy proběhl 7. 11. 6:00 bez chyby, ale nová data naposledy přinesl před 6 dny (1. 11. 6:03).",
+  );
+  assert.equal(importWarning("Lynx", lastImport, null, now), "Auto-import Lynx nová data naposledy přinesl před 6 dny (1. 11. 6:03).");
+  // Víkend (data z pátečního rána, je pondělí večer) ani portfolio bez importu nehlásí nic
+  assert.equal(importWarning("IBKR", "2026-11-06T05:00:14Z", ok, Date.parse("2026-11-09T18:00:00Z")), null);
+  assert.equal(importWarning("KB", null, null, now), null);
 });

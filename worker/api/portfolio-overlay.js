@@ -8,26 +8,24 @@
  *
  * KV klíč: "portfolio-overlay:{id}"  → JSON (viz worker/jobs/flex-import.js)
  *
+ * import_status = výsledek posledního ranního běhu importu (KV
+ * "flex-import:{id}", null u portfolia bez auto-importu) — appka podle něj
+ * ukáže, proč import selhal.
+ *
  * Pokud overlay neexistuje, vrátí prázdnou strukturu (200 OK).
  */
 
 import { jsonResponse as json } from "./lib.js";
+import { emptyOverlay, readImportStatus } from "../jobs/flex-import.js";
 
 const KV_PREFIX = "portfolio-overlay:";
 
 export async function get(env, id) {
   if (!id) return json({ error: "Missing portfolio id" }, 400);
 
-  const overlay = (await env.AKCIE_TRACKER_KV.get(`${KV_PREFIX}${id}`, "json")) || {
-    schema_version: 1,
-    last_import: null,
-    trades: [],
-    cash_transactions: [],
-    corporate_actions: [],
-    transfers: [],
-    open_positions_snapshot: [],
-    nav_snapshot: [],
-    m2m_ytd: [],
-  };
-  return json(overlay);
+  const [overlay, importStatus] = await Promise.all([
+    env.AKCIE_TRACKER_KV.get(`${KV_PREFIX}${id}`, "json"),
+    readImportStatus(env, id),
+  ]);
+  return json({ ...(overlay || emptyOverlay()), import_status: importStatus });
 }

@@ -11,7 +11,9 @@ import {
   flexSource,
   mergeOverlay,
   parseFlexXml,
+  readImportStatus,
   runAllImports,
+  runImport,
 } from "../worker/jobs/flex-import.js";
 
 test("flexSource: IBKR z vars, Lynx s pevným portfoliem a vlastním tokenem", () => {
@@ -59,4 +61,70 @@ test("parseFlexXml + mergeOverlay: kolkovné se načte, opakovaný výpis nic ne
   assert.deepEqual([first.stats.newTrades, first.stats.newNavDays], [1, 1]);
   const again = mergeOverlay(first.merged, parseFlexXml(XML));
   assert.deepEqual([again.stats.newTrades, again.stats.newNavDays], [0, 0]);
+});
+
+function fakeKv() {
+  const store = new Map();
+  return {
+    store,
+    async get(key, type) {
+      const v = store.get(key);
+      return v == null ? null : type === "json" ? JSON.parse(v) : v;
+    },
+    async put(key, value) {
+      store.set(key, value);
+    },
+  };
+}
+
+// Flex Web Service bez sítě: SendRequest vrátí referenci, GetStatement výpis
+async function withFlex(responses, fn) {
+  const { fetch: realFetch } = globalThis;
+  const { log, error } = console;
+  globalThis.fetch = async (url) => {
+    const handler = String(url).includes(".SendRequest") ? responses.send : responses.get;
+    if (handler instanceof Error) throw handler;
+    return new Response(handler);
+  };
+  console.log = console.error = () => {};
+  try {
+    return await fn();
+  } finally {
+    globalThis.fetch = realFetch;
+    console.log = log;
+    console.error = error;
+  }
+}
+
+const SEND_OK = "<FlexStatementResponse><Status>Success</Status><ReferenceCode>991</ReferenceCode></FlexStatementResponse>";
+const lynxEnv = (kv) => ({ LYNX_FLEX_TOKEN: "tajny-token", LYNX_FLEX_QUERY_ID: "42", AKCIE_TRACKER_KV: kv });
+
+test("runImport: stav běhu se zapíše i bez nových dat, overlay jen s novými daty", async () => {
+  const kv = fakeKv();
+  const first = await withFlex({ send: SEND_OK, get: XML }, () => runImport(lynxEnv(kv), "lynx"));
+  assert.equal(first.ok, true);
+  const status = await readImportStatus(lynxEnv(kv), "lukas-pleskot-lynx");
+  assert.deepEqual([status.ok, status.new_items, status.nav_do], [true, 2, "2022-12-30"]);
+  assert.match(status.at, /^\d{4}-\d{2}-\d{2}T/);
+  const overlay = kv.store.get("portfolio-overlay:lukas-pleskot-lynx");
+
+  await withFlex({ send: SEND_OK, get: XML }, () => runImport(lynxEnv(kv), "lynx"));
+  assert.equal(kv.store.get("portfolio-overlay:lukas-pleskot-lynx"), overlay); // bez nových dat nepřepsán
+  assert.equal((await readImportStatus(lynxEnv(kv), "lukas-pleskot-lynx")).new_items, 0);
+});
+
+test("runImport: chyba Flexu jde do stavu bez tokenu, overlay zůstane", async () => {
+  const kv = fakeKv();
+  kv.store.set("portfolio-overlay:lukas-pleskot-lynx", "{}");
+  const expired =
+    "<FlexStatementResponse><Status>Fail</Status><ErrorCode>1012</ErrorCode><ErrorMessage>Token has expired.</ErrorMessage></FlexStatementResponse>";
+  const r = await withFlex({ send: expired, get: XML }, () => runImport(lynxEnv(kv), "lynx"));
+  assert.equal(r.ok, false);
+  const status = await readImportStatus(lynxEnv(kv), "lukas-pleskot-lynx");
+  assert.deepEqual([status.ok, status.error], [false, "SendRequest selhal: code=1012, error=Token has expired."]);
+  assert.equal(kv.store.get("portfolio-overlay:lukas-pleskot-lynx"), "{}");
+
+  const leak = new Error("Spojení přerušeno: GetStatement?t=tajny-token&q=991");
+  await withFlex({ send: SEND_OK, get: leak }, () => runImport(lynxEnv(kv), "lynx"));
+  assert.equal((await readImportStatus(lynxEnv(kv), "lukas-pleskot-lynx")).error, "Spojení přerušeno: GetStatement?t=***&q=991");
 });
