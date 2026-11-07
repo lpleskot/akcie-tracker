@@ -6,3 +6,5 @@ ADMIN_KEY=
 MCP_TOKEN=
 PLEGIN_REPORT_TOKEN=
 REPORT_RUN_TOKEN=
+# Claude API pro důvody velkých pohybů v reportu – prázdné = lokálně vypnuto
+ANTHROPIC_API_KEY=

@@ -18,3 +18,8 @@ wrangler.toml
 # lokální secrets a jejich vzor — nikdy ne jako asset (repo root = asset složka)
 .dev.vars*
 .env*
+
+# npm (SDK pro Claude) – závislosti a jejich popis se neservírují
+node_modules/
+package.json
+package-lock.json

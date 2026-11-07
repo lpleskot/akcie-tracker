@@ -145,10 +145,11 @@ Corporate actions:
 
 ```sh
 cd web/
+npm install   # jednou – SDK pro Claude, které importuje ranní report
 node --test tests/*.test.mjs
 ```
 
-122 unit testů (FIFO engine, inventura k datu, Flex transformace, import a merge overlay, MCP a ranní report, Daňová optimalizace firmy i osoby, Prodané pozice, vlastníci portfolií) – ručně spočítané fixtures.
+153 unit testů (FIFO engine, inventura k datu, Flex transformace, import a merge overlay, MCP a ranní report včetně důvodů velkých pohybů, Daňová optimalizace firmy i osoby, Prodané pozice, vlastníci portfolií, alerty) – ručně spočítané fixtures, Claude API v testech nahrazuje falešný klient.
 Běží i v CI při každém pushi (`.github/workflows/tests.yml`).
 
 ## Lokální vývoj

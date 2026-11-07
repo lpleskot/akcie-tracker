@@ -23,6 +23,7 @@
 
 import { fmtNum } from "../../assets/js/fifo.js";
 import { addDays, pragueToday, runAkcieDen } from "../mcp/akcie-den.js";
+import { explainMoves } from "./move-reasons.js";
 
 const APP_ORIGIN = "https://akcie-tracker.lukas-pleskot.workers.dev";
 const PLEGIN_REPORTS_URL = "https://todo.lukas-pleskot.workers.dev/mcp/api/reports";
@@ -116,6 +117,15 @@ export const SHORT_NAMES = {
   WBD: "Warner Bros. Discovery",
   "YAL.AX": "Yancoal",
 };
+
+// Velké pohyby: titul, který ten den obchodoval a pohnul se aspoň o tolik %,
+// dostane větu o důvodu (worker/jobs/move-reasons.js). Strop drží cenu
+// i při propadu celého trhu – vysvětlí se jen největší pohyby.
+export const BIG_MOVE_PCT = 10;
+const MAX_BIG_MOVES = 6;
+// Hlídač PLEGINu čeká na ruční běh 60 s, automatické běhy nic nehoní
+const REASONS_BUDGET_MS = 150000;
+const REASONS_BUDGET_MANUAL_MS = 40000;
 
 const STALE_SENTENCE = "Data IBKR můžou být o den pozadu (ranní import z IBKR neproběhl).";
 const NOT_TRADED_SENTENCE =
@@ -350,6 +360,48 @@ function contextBody(den, accounts, fresh) {
 }
 
 /**
+ * Tituly s denní změnou ±BIG_MOVE_PCT % a víc ze všech účtů včetně osobních,
+ * každý jednou, od největšího pohybu. Jen obchodované – u neobchodovaného
+ * titulu je změna z dřívějšího dne a vysvětlila se tehdy.
+ */
+export function bigMoves(den) {
+  const moves = new Map();
+  for (const p of den.portfolia.flatMap((x) => x.pozice)) {
+    const zmena = p.den?.zmena_pct;
+    if (!p.obchodovano || p.cena_chybi || zmena == null || Math.abs(zmena) < BIG_MOVE_PCT) continue;
+    if (moves.has(p.symbol)) continue;
+    moves.set(p.symbol, {
+      symbol: p.symbol,
+      name: shortName(p.symbol, p.nazev),
+      nazev: p.nazev,
+      mena: p.mena,
+      pct: zmena,
+      pctText: pct(zmena),
+    });
+  }
+  return [...moves.values()]
+    .sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct) || a.symbol.localeCompare(b.symbol))
+    .slice(0, MAX_BIG_MOVES);
+}
+
+// Odkaz pro markdown PLEGINu – závorka v adrese by odkaz ukončila
+const mdUrl = (url) => url.replace(/\(/g, "%28").replace(/\)/g, "%29");
+
+function movesSection(den, duvody) {
+  if (!duvody?.size) return null;
+  const lines = bigMoves(den)
+    .filter((m) => duvody.has(m.symbol))
+    .map((m) => {
+      const d = duvody.get(m.symbol);
+      const head = `- **${m.symbol} · ${m.name} ${m.pctText}** ${NDASH}`;
+      if (d.status === "ok") return `${head} ${d.text} ([${d.host}](${mdUrl(d.url)})).`;
+      if (d.status === "unknown") return `${head} konkrétní zprávu k pohybu se nepodařilo dohledat.`;
+      return `${head} vysvětlení se nepodařilo načíst.`;
+    });
+  return lines.length ? { type: "text", title: `Velké pohyby (±${BIG_MOVE_PCT}${NBSP}%)`, body: lines.join("\n") } : null;
+}
+
+/**
  * Report pro POST /api/reports PLEGINu z výstupu akcie_den (portfolio vse).
  * Struktura podle přílohy zadání 01: 7 dlaždic bez hodnot portfolia, tabulka
  * pozic za každý účet, Kontext, odkaz do appky.
@@ -357,8 +409,10 @@ function contextBody(den, accounts, fresh) {
  * pozic s Den % a Den Kč, bez hotovosti, Total Return a Kontextu
  * (Lukáš 31. 10. 2026). Souhrn, Nejlepší/Nejhorší a Kontext jsou za firmu.
  * Firemní účet jen s hotovostí: jen dlaždice hotovosti a věta v Kontextu.
+ * duvody = výsledek explainMoves; sekce Velké pohyby je za Kontextem, takže
+ * Kontext zůstává čistě šablonový.
  */
-export function buildPleginReport(den) {
+export function buildPleginReport(den, { duvody } = {}) {
   const datum = den.datum;
   const fresh = isImportFresh(den.overlay, datum);
   const label = (p) => ACCOUNT_LABELS[p.id] || p.nazev || p.id;
@@ -406,10 +460,11 @@ export function buildPleginReport(den) {
       rows: a.p.pozice.map((x) => [titul(x), denCell(x), x.den ? kc(x.den.zmena_czk) : NDASH]),
     })),
     { type: "text", title: "Kontext", body: contextBody(den, accounts, fresh) },
+    movesSection(den, duvody),
     // Pevná adresa appky, ne den.odkaz — ten nese hostitele, přes kterého běh
     // přišel (service binding hlídače, lokální wrangler dev)
     { type: "list", title: "Detail", items: [{ title: "Otevřít akcie-tracker", link: `${APP_ORIGIN}/` }] },
-  ];
+  ].filter(Boolean);
 
   return {
     ...REPORT,
@@ -485,11 +540,20 @@ async function postReport(env, report, retryDelaysMs) {
  * stale a nechá report pojistce), "backup", "manual". dry = jen sestavit
  * a vrátit, nic neposlat ani nezapsat. Nikdy nehází — výsledek nese
  * ok/status/error a neúspěch je zapsaný v KV pro pojistku a /status.
- * loadDen a retryDelaysMs mění jen testy (data bez sítě, opakování bez čekání).
+ * loadDen, explain a retryDelaysMs mění jen testy (data bez sítě a bez
+ * Claude API, opakování bez čekání).
  */
 export async function runPleginReport(
   env,
-  { datum, source, dry = false, now = new Date(), loadDen = runAkcieDen, retryDelaysMs = RETRY_DELAYS_MS } = {},
+  {
+    datum,
+    source,
+    dry = false,
+    now = new Date(),
+    loadDen = runAkcieDen,
+    explain = explainMoves,
+    retryDelaysMs = RETRY_DELAYS_MS,
+  } = {},
 ) {
   const day = datum || addDays(pragueToday(now), -1);
   const base = { datum: day, source, dry };
@@ -525,7 +589,16 @@ export async function runPleginReport(
       await saveStatus(env, day, { status: "stale", source, overlay: den.overlay });
       return done({ ok: true, status: "stale", fresh });
     }
-    const report = buildPleginReport(den);
+    // Důvody velkých pohybů report nikdy nezastaví – bez nich odejde i tak
+    const duvody = await explain(env, bigMoves(den), {
+      datum: day,
+      denPopis: `${DNY[weekday(day)]} ${dmy(day)}`,
+      budgetMs: source === "manual" ? REASONS_BUDGET_MANUAL_MS : REASONS_BUDGET_MS,
+    }).catch((e) => {
+      console.error(`📰 Důvody pohybů ${day}: ${e?.message || e}`);
+      return new Map();
+    });
+    const report = buildPleginReport(den, { duvody });
     if (dry) return done({ ok: true, status: "dry", fresh, report });
 
     const res = await postReport(env, report, retryDelaysMs);

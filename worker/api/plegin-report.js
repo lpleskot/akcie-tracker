@@ -2,7 +2,9 @@
  * Ranní report do PLEGINu — ruční běh a stav (PLEGIN_ZADANI_01 B).
  *
  * POST /api/plegin-report/run  {"date":"YYYY-MM-DD"} (bez data = včerejšek)
- *   ?dry=1 → report jen sestaví a vrátí, nic neposílá ani nezapisuje.
+ *   ?dry=1 → report jen sestaví a vrátí, nic neposílá ani nezapisuje stav dne.
+ *   Důvody velkých pohybů ale hledá doopravdy (Claude API) a ukládá do KV,
+ *   ostrý běh za stejný den je pak vezme z mezipaměti.
  *   Jen s `Authorization: Bearer <REPORT_RUN_TOKEN>`; bez secretu zavřeno.
  *   Volá ho hlídač PLEGINu (Worker todo, secret AKCIE_RUN_TOKEN) přes service
  *   binding — HTTPS mezi Workery jednoho CF účtu nejde a /api/* je za Access.

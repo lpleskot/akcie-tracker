@@ -52,6 +52,9 @@ DRY_RUN = "false"
 # PLEGIN_REPORT = "off" vypne ranní report do PLEGINu (po importu, pojistka
 # i ruční běh; ?dry=1 funguje dál). Import a alerty běží nezávisle.
 PLEGIN_REPORT = "on"
+# PLEGIN_DUVODY = "off" vypne věty o důvodech velkých pohybů (±10 %) v ranním
+# reportu – Claude API s vyhledáváním, secret ANTHROPIC_API_KEY. Report jde dál.
+PLEGIN_DUVODY = "on"
 
 # Secrets — nastavit v CF dashboardu (Worker → Settings → Variables and Secrets)
 # nebo přes `wrangler secret put <NÁZEV>`:
@@ -64,6 +67,8 @@ PLEGIN_REPORT = "on"
 #                         (zadání 13 v ~/Projects/todo; bez něj se report neposílá)
 #   REPORT_RUN_TOKEN    — ruční běh POST /api/plegin-report/run pro hlídač PLEGINu
 #                         (stejná hodnota je v Workeru todo jako AKCIE_RUN_TOKEN)
+#   ANTHROPIC_API_KEY   — Claude API pro důvody velkých pohybů v ranním reportu
+#                         (bez něj sekce Velké pohyby není, report jde dál)
 # Žádné notifikace — e-maily (Resend) odstraněny 2026-07-23; selhání jobů je
 # vidět v CF lozích, fired alerty v tabu Alerty. Access service token není
 # potřeba — joby čtou portfolio JSON přes ASSETS binding a ceny přímo.

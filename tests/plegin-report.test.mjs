@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 import { timingSafeEqual } from "node:crypto";
 import {
   SHORT_NAMES,
+  bigMoves,
   buildPleginReport,
   isBackupHour,
   isImportFresh,
@@ -355,6 +356,80 @@ function fakeEnv({ token = "plr_test", status = 201, body = { created: true } } 
 
 const loadDen = (d) => async () => d;
 const status = (kv, datum) => JSON.parse(kv.get(`plegin-report:${datum}`).value);
+
+// ---------- Velké pohyby (±10 %) ----------
+
+// 6. 11. 2026: DKNG a RCAT ve firmě, RCAT i v Lynxu, OUST jen v Lynxu
+function moveDen() {
+  const d = sampleDen({ datum: "2026-11-06" });
+  const row = (symbol, nazev, zmena_pct, extra = {}) => ({
+    symbol, nazev, mena: "USD", obchodni_den: "2026-11-06", obchodovano: true,
+    den: { zmena_pct, zmena_czk: zmena_pct * 1000 }, total_return: { pct: 0, czk: 0, div_stejna_mena: true }, cena_chybi: false,
+    ...extra,
+  });
+  d.portfolia[0].pozice.push(
+    row("DKNG", "DRAFTKINGS INC-CL A", -21.3),
+    row("RCAT", "RED CAT HOLDINGS INC", 18.65),
+    row("NET", "CLOUDFLARE INC - CLASS A", 9.91),
+    row("ZZTOP", "OLD MOVE", 15, { obchodovano: false, obchodni_den: "2026-11-05" }),
+  );
+  d.portfolia.push({
+    id: "lukas-pleskot-lynx", nazev: "Lukáš Pleskot Lynx", vlastnik: { id: "lukas-pleskot", nazev: "Lukáš Pleskot", typ: "osoba" },
+    den: { zmena_czk: 0, zmena_pct: 0 }, cash_meny: [],
+    pozice: [row("RCAT", "RED CAT HOLDINGS INC", 18.65), row("OUST", "OUSTER INC", 14.01)],
+  });
+  return d;
+}
+
+test("velké pohyby: ±10 % a víc ze všech účtů, každý titul jednou, jen obchodované", () => {
+  assert.deepEqual(
+    bigMoves(moveDen()).map((m) => [m.symbol, m.name, plain(m.pctText)]),
+    [["DKNG", "DraftKings", "−21,30 %"], ["RCAT", "Red Cat", "+18,65 %"], ["OUST", "Ouster", "+14,01 %"]],
+  );
+  assert.deepEqual(bigMoves(sampleDen()), []);
+});
+
+test("velké pohyby: sekce za Kontextem, věta se zdrojem, nedohledáno i chyba", () => {
+  const duvody = new Map([
+    ["DKNG", { status: "ok", text: "slabší výsledky a snížený výhled zisku", url: "https://247wallst.com/a_(b)", host: "247wallst.com" }],
+    ["RCAT", { status: "unknown" }],
+    ["OUST", { status: "error", error: "nestihlo se" }],
+  ]);
+  const r = buildPleginReport(moveDen(), { duvody });
+  assert.deepEqual(r.sections.map((s) => s.title).slice(-3), ["Kontext", "Velké pohyby (±10 %)", "Detail"].map((t) => t.replace(" %", `${NBSP}%`)));
+  const body = plain(r.sections.at(-2).body);
+  assert.equal(
+    body,
+    "- **DKNG · DraftKings −21,30 %** – slabší výsledky a snížený výhled zisku ([247wallst.com](https://247wallst.com/a_%28b%29)).\n" +
+      "- **RCAT · Red Cat +18,65 %** – konkrétní zprávu k pohybu se nepodařilo dohledat.\n" +
+      "- **OUST · Ouster +14,01 %** – vysvětlení se nepodařilo načíst.",
+  );
+  // Bez důvodů (vypnuto, bez klíče) sekce není
+  assert.ok(!buildPleginReport(moveDen()).sections.some((s) => s.title?.startsWith("Velké pohyby")));
+});
+
+test("běh: důvody se hledají pro velké pohyby dne a ruční běh má kratší limit", async () => {
+  const seen = [];
+  const explain = async (_env, moves, opts) => {
+    seen.push({ symbols: moves.map((m) => m.symbol), ...opts });
+    return new Map([["DKNG", { status: "ok", text: "slabý výhled", url: "https://x.test/a", host: "x.test" }]]);
+  };
+  const { env, calls } = fakeEnv();
+  await runPleginReport(env, { datum: "2026-11-06", source: "backup", loadDen: loadDen(moveDen()), explain });
+  await runPleginReport(env, { datum: "2026-11-06", source: "manual", dry: true, loadDen: loadDen(moveDen()), explain });
+  assert.deepEqual(seen.map((s) => s.symbols), [["DKNG", "RCAT", "OUST"], ["DKNG", "RCAT", "OUST"]]);
+  assert.equal(plain(seen[0].denPopis), "pátek 6. 11. 2026");
+  assert.deepEqual(seen.map((s) => s.budgetMs), [150000, 40000]);
+  const sent = JSON.parse(calls[0].init.body);
+  assert.match(sent.sections.find((s) => s.title?.startsWith("Velké pohyby")).body, /DKNG · DraftKings −21,30 %\*\* – slabý výhled/);
+
+  // Selhání hledání důvodů report nezastaví
+  const broken = async () => {
+    throw new Error("KV nedostupné");
+  };
+  const res = await runPleginReport(env, { datum: "2026-11-06", source: "manual", loadDen: loadDen(moveDen()), explain: broken });
+  assert.equal(res.status, "sent");
+});
 
 test("běh: odeslání přes binding PLEGIN s report tokenem, stav sent", async () => {
   const { env, kv, calls } = fakeEnv();

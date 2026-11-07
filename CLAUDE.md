@@ -633,11 +633,29 @@ Nahrazuje Claude úlohu „PLEGIN — report Akcie" (PLEGIN_ZADANI_01, předán�
   z burzy (oceněno 0).“ spolu s původem hotovosti. První věta o dni bez „hlavně“, když se
   hýbal jen jeden účet. Když v účtu nezůstanou ani peníze (všechny měny pod 1 Kč), z reportu
   zmizí úplně.
+- **Velké pohyby (od 2026-11-07, `worker/jobs/move-reasons.js`):** Lukáš: „pokud akcie
+  klesne nebo roste o 10 % a více, tak krátce napsat, co za tím stojí“. Tituly, které ten den
+  obchodovaly a pohnuly se o ±10 % a víc (`bigMoves`: všechny účty včetně Lynxu, každý titul
+  jednou, nejvýš 6 největších), dostanou v sekci `Velké pohyby (±10 %)` za Kontextem jednu
+  větu česky se zdrojem: „- **DKNG · DraftKings −21,30 %** – slabší výsledky … ([web](url)).“
+  Zdroj je **Claude API** (`@anthropic-ai/sdk`, model `claude-opus-5-5`, effort `medium`,
+  `web_search_20260209` nejvýš 3 hledání, `fallbacks: "default"` přes beta
+  `server-side-fallback-2026-07-01`), secret `ANTHROPIC_API_KEY`, vypínač var
+  `PLEGIN_DUVODY = "off"`. Ven jde jen titul, obchodní den a změna v %. Věta se ukáže jen
+  s odkazem, který byl mezi výsledky hledání (adresa porovnaná bez www, dotazu a lomítka;
+  jinak první citace); bez něj nebo s odpovědí `NEZNÁMO` „konkrétní zprávu k pohybu se
+  nepodařilo dohledat“, při chybě API nebo vypršení času „vysvětlení se nepodařilo načíst“.
+  Výsledek (i nedohledáno, se spotřebou tokenů a hledání) je v KV `plegin-duvod:{datum}:{symbol}`
+  na 60 dní – pojistka, ruční běh i dry run za stejný den neplatí podruhé; chyba se neukládá.
+  Časový limit 150 s (ruční běh 40 s – hlídač PLEGINu čeká 60 s), po 3 dotazech souběžně;
+  hledání důvodů report nikdy nezastaví. Kontext zůstává čistě šablonový (zadání 01 „bez AI“).
+  Cena: hledání 10 USD / 1 000 + tokeny výsledků (Opus 5.5 4 / 20 USD za MTok), odhad
+  0,05–0,25 USD na titul.
 
 **KV klíče (sdílené):** `watchlist`, `alerts`, `notes`, `journal`, `settings`,
 `portfolio-overlay:{id}`, `fired:alert:{ruleId}:{portfolioId}:{symbol}` (starý tvar bez portfolia
 = IBKR), `fired:watch:{itemId}:{ruleId}`,
-`plegin-report:{datum}`.
+`plegin-report:{datum}`, `plegin-duvod:{datum}:{symbol}` (důvody velkých pohybů, 60 dní).
 
 **Secrets:** Worker `akcie-tracker` (CF Dashboard → Settings → Variables and Secrets):
 `FLEX_TOKEN`, `LYNX_FLEX_TOKEN` (Lynx, vkládá Lukáš), `ADMIN_KEY`, `MCP_TOKEN` (bez něj je `/mcp` zavřený — 401),
@@ -652,8 +670,8 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared,flex-import,portfolio-shared,akcie-den,plegin-report,tax-optimization,tax-person,closed-positions,owners,alerts-shared,alerts-job,accounting-evidence}.test.mjs` — 138 unit testů
-(`node --test tests/*.test.mjs`), ručně spočítané fixtures: FIFO matching + prorace komise,
+`tests/{fifo,flex-shared,flex-import,portfolio-shared,akcie-den,plegin-report,move-reasons,tax-optimization,tax-person,closed-positions,owners,alerts-shared,alerts-job,accounting-evidence}.test.mjs` — 153 unit testů
+(`npm install` jednou, pak `node --test tests/*.test.mjs`; report importuje SDK pro Claude), ručně spočítané fixtures: FIFO matching + prorace komise,
 proceeds-authoritative ceny, splity (vč. same-day pořadí a 1:25), KB received/removed
 párování + bonus/cancellation, práva odepsaná po víc než 30 dnech (GRPN), orphan sells,
 settle data v closed lots, dividendy, Flex transformace (vč. settle_date), hotovost k datu (i odhad KB mezi výpisy), Total Return pozice, `computePositionsAt`

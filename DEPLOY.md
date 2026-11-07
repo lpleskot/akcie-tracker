@@ -10,6 +10,11 @@
   připojený na repo `lpleskot/akcie-tracker`, branch `main`. Každý push spustí
   build v Cloudflare: Build command žádný, Deploy command `npx wrangler deploy`
   (podle root `wrangler.toml`). Statické assety se uploadují inkrementálně.
+- **npm závislosti (od 2026-11-07)** — `package.json` + `package-lock.json` (jen
+  `@anthropic-ai/sdk` pro důvody velkých pohybů v reportu). Workers Builds je před
+  deployem nainstaluje sám (`npm ci`, verze npm z `packageManager`); wrangler je
+  přibalí do Workeru. `node_modules/` a `package*.json` jsou v `.assetsignore`,
+  jako statický soubor se nic z toho neservíruje (ověřeno lokálně: 404).
 - **Denní ČNB kurzy** — `fx-update-cron.yml` (14:35 UTC) commitne
   `data/fx_rates.json`; push spustí Workers Builds webhookem — funguje i pro
   commity z `GITHUB_TOKEN` (na rozdíl od `on: push` GitHub workflows).
@@ -30,6 +35,7 @@ Settings → Variables and Secrets, nebo `npx wrangler secret put <NÁZEV>`):
 | `MCP_TOKEN` | přístup k `/mcp` (MCP konektor pro PLEGIN; bez něj 401) |
 | `PLEGIN_REPORT_TOKEN` | report token PLEGINu jen pro key `akcie` — ranní report (bez něj se neposílá); vytváří a nastavuje PLEGIN (zadání 13 v `~/Projects/todo`) |
 | `REPORT_RUN_TOKEN` | ruční běh `POST /api/plegin-report/run` pro hlídač PLEGINu; stejná hodnota je ve Workeru `todo` jako `AKCIE_RUN_TOKEN` a lokálně v `.dev.vars` |
+| `ANTHROPIC_API_KEY` | Claude API pro důvody velkých pohybů (±10 %) v ranním reportu; bez něj sekce Velké pohyby není. Vkládá Lukáš sám: `cd ~/Projects/akcie-tracker/web && npx wrangler secret put ANTHROPIC_API_KEY` (vložen 2026-11-07) |
 
 Nový token pro ruční běh (obě strany najednou, hodnota se nevypisuje):
 `cd ~/Projects/akcie-tracker/web && T=$(openssl rand -hex 32) && printf %s "$T" | npx wrangler secret put REPORT_RUN_TOKEN && (cd ~/Projects/todo && printf %s "$T" | npx wrangler secret put AKCIE_RUN_TOKEN)`
@@ -39,7 +45,7 @@ Nový token pro ruční běh (obě strany najednou, hodnota se nevypisuje):
 jsou vidět v tabu Alerty, selhání jobů v CF lozích (Worker → Observability).
 
 Cron triggery, service binding `PLEGIN` (Worker `todo`) a vars (`PORTFOLIO_ID`,
-`FLEX_QUERY_ID`, `LYNX_FLEX_QUERY_ID`, `DRY_RUN`, `PLEGIN_REPORT`) jsou
+`FLEX_QUERY_ID`, `LYNX_FLEX_QUERY_ID`, `DRY_RUN`, `PLEGIN_REPORT`, `PLEGIN_DUVODY`) jsou
 v `wrangler.toml` — deployují se automaticky. Binding vyžaduje, aby Worker `todo` na stejném účtu existoval.
 
 ## Ověření po deployi
