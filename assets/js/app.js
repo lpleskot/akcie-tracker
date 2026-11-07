@@ -3456,12 +3456,18 @@ function renderSummary() {
   const todayFxDate = todayFxDateEarly;
   const fxUsdToCzk = fxUsdToCzkEarly;
 
+  // Obchodní rok podle Prahy – dlaždice YTD a Dividendy letos
+  const thisYear = pragueToday().slice(0, 4);
+  const yearStart = `${thisYear}-01-01`;
+
   // Sesbírat data pro agregaci
   let currentValueUsd = 0;
   let capitalPnlUsd = 0;
   let netDividendsUsd = 0;
   let dividendsGrossUsd = 0;
   let dividendsTaxUsd = 0;
+  let ytdDivGrossUsd = 0;
+  let ytdDivTaxUsd = 0;
   let allPricesAvailable = true;
   const missingPriceSymbols = [];
 
@@ -3489,6 +3495,9 @@ function renderSummary() {
     netDividendsUsd += pos.net_dividend_usd || 0;
     dividendsGrossUsd += pos.dividends_usd || 0;
     dividendsTaxUsd += pos.withholding_usd || 0;
+    // Letošek ze stejných záznamů jako součet celkem, ať spolu sedí
+    for (const d of pos.dividend_records || []) if (d.date >= yearStart) ytdDivGrossUsd += d.amount_usd || 0;
+    for (const t of pos.withholding_records || []) if (t.date >= yearStart) ytdDivTaxUsd += t.amount_usd || 0;
   }
 
   // Cash USD ekv = total cash CZK / USD/CZK
@@ -3500,9 +3509,10 @@ function renderSummary() {
   // jako v MCP konektoru
   const inception = p.inception_date || "2025-11-24";
   const today = new Date();
+  const capitalFlows = capitalFlowsUsd(p, state.fxRates);
   const ret = portfolioTotalReturn({
     assetsUsd: totalAssetsUsd,
-    flows: capitalFlowsUsd(p, state.fxRates),
+    flows: capitalFlows,
     inceptionDate: inception,
     asOf: today,
     usdToCzk: fxUsdToCzk,
@@ -3513,29 +3523,36 @@ function renderSummary() {
   const yearsSince = ret.years;
   const paPct = ret.paPct;
 
-  // === Doplnit Hodnotu portfolia (1. dlaždice — placeholder výše) ===
-  // Total = pozice (tržní hodnota) + cash. Odpovídá IBKR Net Liquidity.
+  // === Doplnit 1. dlaždici (placeholder výše): Celkem = hodnota portfolia + cash ===
+  // Celkem odpovídá IBKR Net Liquidity, hodnota portfolia jsou jen držené
+  // pozice (Lukáš 7. 11. 2026: „Hodnota portfolia tam není cash“).
   {
     const totalAssetsCzk = fxUsdToCzk ? totalAssetsUsd * fxUsdToCzk : null;
     const positionsCzk = fxUsdToCzk ? currentValueUsd * fxUsdToCzk : null;
     const cashCzk = fxUsdToCzk ? cashUsdAll * fxUsdToCzk : null;
-    const mainLine =
-      totalAssetsCzk != null
-        ? `${fmtNum(totalAssetsCzk, 0)} Kč`
-        : `${fmtNum(totalAssetsUsd, 0)} USD`;
+    const czkOrUsd = (czk, usd) => (czk != null ? `${fmtNum(czk, 0)} Kč` : `${fmtNum(usd, 0)} USD`);
     const subLine =
       totalAssetsCzk != null
-        ? `${fmtNum(totalAssetsUsd, 0)} USD ekv. · pozice ${fmtNum(positionsCzk, 0)} + cash ${fmtNum(cashCzk, 0)} Kč`
+        ? `${fmtNum(totalAssetsUsd, 0)} USD ekv. · cash ${fmtNum(cashCzk, 0)} Kč`
         : "";
     const missingPricesNote = allPricesAvailable
       ? ""
       : `<br><span class="muted">chybí cena: ${missingPriceSymbols.join(", ")}</span>`;
     portfolioValueCard.innerHTML = `
-      <div class="label">Hodnota portfolia · CZK <span class="hint" title="Total Net Liquidity — tržní hodnota držených pozic + hotovost ve všech měnách, vše přepočteno přes ČNB kurz. Odpovídá IBKR Net Liquidity v jejich Portal.">i</span></div>
-      <div class="value">${mainLine}</div>
+      <div class="label">Celkem · CZK <span class="hint" title="Hodnota portfolia (držené pozice) + hotovost ve všech měnách, vše přepočtené kurzem ČNB. U IBKR odpovídá Net Liquidity v jejich Portalu.">i</span></div>
+      <div class="value">${czkOrUsd(totalAssetsCzk, totalAssetsUsd)}</div>
+      <div class="value-second">
+        <div class="label">Hodnota portfolia (bez cash)</div>
+        <div class="value">${czkOrUsd(positionsCzk, currentValueUsd)}</div>
+      </div>
       <div class="sub">${subLine}${missingPricesNote}</div>
       <div class="ph-tile-link muted small">📈 Klikni pro vývoj v čase</div>
     `;
+    if (totalAssetsCzk != null) {
+      portfolioValueCard.title =
+        `Celkem = hodnota portfolia + cash = ${fmtNum(positionsCzk, 0)} + ${fmtNum(cashCzk, 0)} = ${fmtNum(totalAssetsCzk, 0)} Kč\n` +
+        `Hodnota portfolia = držené kusy × poslední cena × kurz ČNB (titul stažený z burzy = 0)`;
+    }
     // Klik na dlaždici → přepnutí na tab Hodnota portfolia
     portfolioValueCard.style.cursor = "pointer";
     portfolioValueCard.addEventListener("click", () => {
@@ -3558,11 +3575,17 @@ function renderSummary() {
     `<span class="${signClass(totalReturnPct)}">${fmtPct(totalReturnPct)}</span>`,
     `${absLine}<br>${capitalLine}<br>od založení ${inception} (${Math.round(daysSince)} dní)`,
   );
+  // Ztráta titulu staženého z burzy je ve výnosu celá – je oceněný nulou
+  const delistedHeld = symbols.filter((sym) => p.instruments[sym].delisted && state.positions[sym]?.net_qty > 0);
   returnCard.title =
     `Zisk = hodnota + vybráno − vloženo = ${fmtNum(totalAssetsUsd, 0)} + ${fmtNum(ret.vybrano, 0)} − ` +
     `${fmtNum(ret.vlozeno, 0)} = ${fmtNum(totalReturnUsd, 0)} USD\n` +
     `Výnos = zisk / vloženo = ${fmtPct(totalReturnPct)}\n` +
-    `Vloženo = počáteční kapitál + vklady; výběry základ nezmenšují.`;
+    `Vloženo = počáteční kapitál + vklady; výběry základ nezmenšují.\n` +
+    capitalFlowsNote(capitalFlows) +
+    (delistedHeld.length
+      ? `\n${delistedHeld.join(", ")}: stažené z burzy, v hodnotě 0 – ztráta je ve výnosu celá.`
+      : "");
   wrap.appendChild(returnCard);
 
   // === 4) P.a. — XIRR, počítá s tím, kdy peníze přišly a odešly ===
@@ -3581,7 +3604,6 @@ function renderSummary() {
   // Pro IBKR: použít předpočítaný M2M YTD z Activity Statement.
   // Pro KB (a obecně pokud chybí snapshot): spočítat realized z 2026 transakcí
   // + dividends 2026 net + interest 2026.
-  const yearStart = `${today.getFullYear()}-01-01`;
   let ytdDivNet = 0;
   for (const dRec of p.dividends || []) {
     if (dRec.date >= yearStart) ytdDivNet += dRec.amount_usd || 0;
@@ -3631,31 +3653,57 @@ function renderSummary() {
   if (p.ytd_mark_to_market_usd != null && p.ytd_mark_to_market_usd !== 0) {
     ytdSourceNote = `snapshot ${p.broker} k ${p.statement_period_end || "?"}`;
   } else if (hasYtdRealized) {
-    ytdSourceNote = `realiz. prodeje + div. + úroky 2026 (nezahrnuje změnu tržní hodnoty otevřených pozic)`;
+    ytdSourceNote = `realiz. prodeje + div. + úroky ${thisYear} (nezahrnuje změnu tržní hodnoty otevřených pozic)`;
   } else {
-    ytdSourceNote = `pouze div. + úroky 2026 (nezahrnuje změnu tržní hodnoty otevřených pozic)`;
+    ytdSourceNote = `pouze div. + úroky ${thisYear} (nezahrnuje změnu tržní hodnoty otevřených pozic)`;
   }
   wrap.appendChild(
     cardHtml(
-      `YTD ${today.getFullYear()}`,
+      `YTD ${thisYear}`,
       `<span class="${signClass(ytdPct)}">${fmtPct(ytdPct)}</span>`,
       `${ytdAbs}<br>${ytdSourceNote}`,
     ),
   );
 
-  // === 6) Aggregované dividendy v CZK ===
+  // === 6) Dividendy po dani v CZK – letos a celkem od založení ===
   if (fxUsdToCzk != null) {
-    const netDivCzk = netDividendsUsd * fxUsdToCzk;
-    const grossDivCzk = dividendsGrossUsd * fxUsdToCzk;
-    const taxDivCzk = dividendsTaxUsd * fxUsdToCzk;
-    wrap.appendChild(
-      cardHtml(
-        `Dividendy (po dani) · CZK`,
-        `<span class="${signClass(netDivCzk)}">${fmtNum(netDivCzk, 0)} Kč</span>`,
-        `${fmtNum(netDividendsUsd, 0)} USD ekv.<br>hrubé ${fmtNum(grossDivCzk, 0)} · daň ${fmtNum(taxDivCzk, 0)} Kč`,
-      ),
-    );
+    const kc = (usd) => `${fmtNum(usd * fxUsdToCzk, 0)} Kč`;
+    const netYtdUsd = ytdDivGrossUsd + ytdDivTaxUsd;
+    const divCard = document.createElement("div");
+    divCard.className = "summary-card";
+    divCard.innerHTML = `
+      <div class="label">Dividendy po dani ${thisYear} · CZK</div>
+      <div class="value"><span class="${signClass(netYtdUsd)}">${kc(netYtdUsd)}</span></div>
+      <div class="value-second">
+        <div class="label">Celkem od založení</div>
+        <div class="value"><span class="${signClass(netDividendsUsd)}">${kc(netDividendsUsd)}</span></div>
+      </div>
+      <div class="sub">${thisYear}: hrubé ${kc(ytdDivGrossUsd)} · daň ${kc(ytdDivTaxUsd)}<br>celkem: hrubé ${kc(dividendsGrossUsd)} · daň ${kc(dividendsTaxUsd)}</div>
+    `;
+    divCard.title =
+      `Po dani = hrubé + srážková daň (daň je záporná)\n` +
+      `${thisYear}: ${fmtNum(ytdDivGrossUsd, 0)} + (${fmtNum(ytdDivTaxUsd, 0)}) = ${fmtNum(netYtdUsd, 0)} USD\n` +
+      `Celkem od ${fmtCzDate(inception)}: ${fmtNum(dividendsGrossUsd, 0)} + (${fmtNum(dividendsTaxUsd, 0)}) = ${fmtNum(netDividendsUsd, 0)} USD\n` +
+      `Kč = USD ekvivalent × kurz ČNB USD k ${fmtCzDate(todayFxDate)} (${fmtNum(fxUsdToCzk, 3)})`;
+    wrap.appendChild(divCard);
   }
+}
+
+// Z čeho je „vloženo“ a „vybráno“ v Celkovém výnosu: počáteční stav, vklady
+// a výběry s počtem a obdobím (u KB jsou výběry převody na IBKR)
+function capitalFlowsNote(flows) {
+  const total = (list) => list.reduce((s, f) => s + Math.abs(f.usd), 0);
+  const period = (list) =>
+    list.length > 1 ? `${fmtCzDate(list[0].date)} – ${fmtCzDate(list.at(-1).date)}` : fmtCzDate(list[0].date);
+  const of = (kind) => flows.filter((f) => f.kind === kind);
+  const lines = [];
+  const opening = of("opening");
+  const deposits = of("deposit");
+  const withdrawals = of("withdrawal");
+  if (opening.length) lines.push(`počáteční stav k ${fmtCzDate(opening[0].date)}: ${fmtNum(total(opening), 0)} USD`);
+  if (deposits.length) lines.push(`vklady (${deposits.length}×, ${period(deposits)}): ${fmtNum(total(deposits), 0)} USD`);
+  if (withdrawals.length) lines.push(`výběry (${withdrawals.length}×, ${period(withdrawals)}): ${fmtNum(total(withdrawals), 0)} USD`);
+  return lines.join("\n");
 }
 
 function card(label, value, sub = "") {

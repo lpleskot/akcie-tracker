@@ -228,6 +228,13 @@ button.primary {
   margin-top: 4px;
   line-height: 1.45;
 }
+/* Druhé číslo dlaždice: Celkem → hodnota portfolia bez cash, dividendy letos → celkem */
+.summary-card .value-second {
+  margin-top: 8px;
+}
+.summary-card .value-second .value {
+  font-size: 16px;
+}
 
 /* ------- Modal ------- */
 .modal-overlay {
@@ -1884,6 +1891,12 @@ footer.app-footer {
   }
   .summary-card .value {
     font-size: 16px;
+  }
+  .summary-card .value-second {
+    margin-top: 6px;
+  }
+  .summary-card .value-second .value {
+    font-size: 14px;
   }
   .summary-card .sub {
     font-size: 11px;

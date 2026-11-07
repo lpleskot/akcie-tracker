@@ -481,8 +481,12 @@ za firmu Načíst znovu načte znovu portfolia i ceny.
   dlaždice (Celkem vloženo / Aktuální hodnota / Rozdíl) + period dlaždice + tabulka per day.
 - **Deník investora:** KV-backed text deník, inline editace, search.
 - **Společné:** Search s ×, sort klikem na th, XLSX export per tab (SheetJS self-hosted).
-  Summary dlaždice: Hodnota portfolia CZK (klik → Hodnota portfolia tab), Cash (multi-currency),
-  Celkový výnos %, P.a., YTD, Dividendy (po dani).
+  Summary dlaždice: Celkem CZK = hodnota portfolia + cash, pod ní druhé číslo Hodnota portfolia
+  (bez cash; Lukáš 7. 11. 2026: „Hodnota portfolia tam není cash“; klik → Hodnota portfolia tab),
+  Cash (multi-currency), Celkový výnos % (tooltip: vzorec, počáteční stav, vklady a výběry
+  s počtem a obdobím, titul stažený z burzy v hodnotě 0), P.a., YTD, Dividendy po dani
+  letos (pražský rok) a pod tím celkem od založení – obojí ze stejných záznamů
+  `dividend_records`/`withholding_records`, Kč = USD ekvivalent × dnešní kurz ČNB USD.
 - **Celkový výnos a P.a. (od 2026-09-23):** toky kapitálu z evidence (`capitalFlowsUsd`) =
   `opening_cash` + syntetické počáteční pozice (cost basis, kurz k vypořádání) + `cash_flows`
   typu `deposit`/`withdrawal` a Flex `Deposits/Withdrawals`, vše v USD kurzem ČNB k datu
