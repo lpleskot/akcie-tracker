@@ -516,7 +516,8 @@ const CAPITAL_FLOW = /^(deposit|withdrawal)$|Deposits.*Withdrawals|Account Trans
 /**
  * Toky kapitálu portfolia v USD (+ přišlo do portfolia, − odešlo) podle data:
  * počáteční kapitál, se kterým portfolio vstoupilo do evidence (opening_cash
- * + pozice se synthetic_opening, oceněné jako jejich cost basis), vklady
+ * + nákupy z doby před evidencí vkladů – opening_position, u odhadu
+ * synthetic_opening – za cost basis s provizí ke dni nákupu), vklady
  * a výběry z cash_flows. Portfolio bez evidence toků spadne na
  * total_deposits_usd k datu založení. `upTo` odřízne toky po datu — výnos
  * k datu nesmí vidět pozdější vklady.
@@ -544,8 +545,9 @@ function capitalFlowsIn(portfolio, key, convert, upTo) {
     add(oc.date, convert(amount, ccy, oc.date), "opening");
   }
   for (const t of portfolio.transactions || []) {
-    if (!t.synthetic_opening) continue;
-    const value = t.proceeds != null ? Math.abs(t.proceeds) : t.quantity * t.price;
+    // Peníze na tyhle nákupy (KB 2022) do evidence vkladem nepřišly, kapitál je jejich cena
+    if (!t.opening_position && !t.synthetic_opening) continue;
+    const value = (t.proceeds != null ? Math.abs(t.proceeds) : t.quantity * t.price) + Math.abs(t.commission || 0);
     add(t.date, convert(value, t.currency, t.settle_date || t.date), "opening");
   }
   for (const f of portfolio.cash_flows || []) {

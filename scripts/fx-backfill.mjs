@@ -42,10 +42,19 @@ for (const f of files) {
 }
 
 const data = JSON.parse(readFileSync(FILE, "utf-8"));
+// Dnešní a budoucí den (vypořádání prodeje po víkendu) ČNB ještě nemusí mít vyhlášený: API by vrátilo
+// poslední vyhlášený kurz pod tímto datem a fx-update, který doplňuje jen dny po posledním uloženém,
+// by ho už neopravil (2026-11-07: YAL.AX s vypořádáním 9. 11. dostal kurz z 6. 11.)
+const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Prague" }).format(new Date());
 let added = 0;
 let completed = 0;
 let skipped = 0;
+let future = 0;
 for (const date of [...need.keys()].sort()) {
+  if (date >= today) {
+    future++;
+    continue;
+  }
   const have = data.dates[date];
   const missing = [...need.get(date)].filter((c) => !have?.rates?.[c]);
   if (!missing.length) continue;
@@ -66,4 +75,7 @@ for (const date of [...need.keys()].sort()) {
 // Dny chronologicky — fx-update přidává nové dny na konec
 data.dates = Object.fromEntries(Object.entries(data.dates).sort(([a], [b]) => a.localeCompare(b)));
 writeFileSync(FILE, JSON.stringify(data, null, 2) + "\n", "utf-8");
-console.log(`✅ ${FILE}: +${added} dnů, doplněná měna u ${completed} dnů, ${skipped} dnů bez kurzu (víkend/svátek)`);
+console.log(
+  `✅ ${FILE}: +${added} dnů, doplněná měna u ${completed} dnů, ${skipped} dnů bez kurzu (víkend/svátek), ` +
+    `${future} dnů od dneška dál přeskočeno (doplní denní fx-update)`,
+);

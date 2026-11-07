@@ -1,6 +1,7 @@
 # CLAUDE.md — akcie-tracker
 
-> Aktualizováno 2026-10-31 (osobní portfolio Lynx z IB Flex, vlastníci portfolií, oprava
+> Aktualizováno 2026-11-07 (KB: skutečné nákupy 2022 z potvrzení místo odhadů z 31. 3. 2023);
+> 2026-10-31 (osobní portfolio Lynx z IB Flex, vlastníci portfolií, oprava
 > hotovosti u měnových konverzí); 2026-10-28 (tab Daňová optimalizace – zadání PLEGIN #7; ranní report Akcie
 > do PLEGINu posílá Worker sám – PLEGIN_ZADANI_01;
 > 2026-09-23 MCP konektor pro PLEGIN + sdílený výpočet portfolia; Celkový
@@ -261,11 +262,18 @@ flowchart TD
 
 ### `plegi-invest-kb.json` (Komerční banka, account 1609386)
 - **Zdroj:** KB TRN CP (PDF) + KB TRN CASH (PDF) + KB STAV PTF (snapshoty).
-- Období 2022-12-30 → 2026-09-30 (inception = synthetic).
+- Období 2022-05-12 (první nákup) → 2026-09-30.
 - **47 instrumentů** v 9 měnách (USD, EUR, CAD, SEK, PLN, GBP, AUD, DKK, CZK).
-- **157 transakcí:**
-  - 14 synthetic pre-2023 openings ze STAV PTF 31.3.2023 (cost basis = tržní cena k datu,
-    skutečná pre-2023 nákupní cena neznámá — starší KB výpisy v MiFID formátu bez transakčních dat).
+- **161 transakcí:**
+  - 18 nákupů 2022 (`opening_position: true`, od 2026-11-07) z potvrzení o uzavření obchodu
+    (OneDrive `invest_pohyby/2022/plegi_invest/kb_nakupy/`, `kb_id: "?/<ID obchodu>"`) – nahradily
+    14 odhadů (`synthetic_opening`, cost basis = tržní cena k 31. 3. 2023; skutečně o 57 511,81 Kč
+    méně). Kusy a cena ve stavu po splitu GOOG 20 : 1 (7/2022) a sloučení CNE 5 : 1 (corporate
+    actions do 31. 3. 2023 evidence nevede), objem a provize v měně z potvrzení. Obchod 1264949
+    (CRST.L 1 372 ks, 24. 6. 2022) potvrzení nemá – objem a provize z nákladového výpisu KB 2022
+    (`kb_vypisy/Výpis 1.1.-31.12.2022-archiv.pdf`, Kč kurzem ČNB ke dni obchodu, ostatní nákupy
+    v něm sedí s potvrzeními na korunu). Dividendy 2022 (6 výplat, `kb_dividendy`) evidence nevede –
+    jsou v `opening_cash`.
   - 130 reálných BUY/SELL z TRN CP 2023–2026-Q3 (Q2 2026 bez obchodů) + 13 prodejů z 29. 10. a 4.–5. 11. 2026
     z potvrzení o uzavření obchodu (viz „Q4 2026 průběžně“). (Původních 7 synthetic Q2 2023 nahrazeno
     reálnými — Q2 2023 výpisy existují, jen jsou ve složce podkladů pod chybným názvem
@@ -280,7 +288,8 @@ flowchart TD
 - **160 dividend** + 124 withholding tax, **129 cash flows** (vč. 10 výběrů `withdrawal`
   12/2025–7/2026 = převody na IBKR; 9 doplněno 2026-09-23 z TRN CASH, 59 800 USD 8. 7. 2026 z Q3).
 - **Počáteční kapitál:** `opening_cash` (hotovost k 30. 12. 2022 z počátečních zůstatků
-  výpisů Q1 2023) + 14 syntetických pozic. `total_deposits_usd` KB nemá — vklady, výběry
+  výpisů Q1 2023) + 18 nákupů 2022 za cenu s provizí ke dni nákupu (peníze na ně do evidence
+  vkladem nepřišly). `total_deposits_usd` KB nemá — vklady, výběry
   i počáteční kapitál se počítají z evidence (`capitalFlowsUsd`). **Výběry i vklady se při
   kvartálním importu zapisují vždy** (typ `withdrawal` / `deposit`), jinak Celkový výnos lže.
 - **Q2 2026 import** (dividendy/daně/externí CA poplatky z TRN CASH; žádné obchody — TRN CP Q2
@@ -334,8 +343,10 @@ flowchart TD
 ### `data/fx_rates.json`
 - ČNB rates pro 13 měn (HKD od 2026-10-31), od 2021-06-28: rok 2026 souvisle (backfill všech všedních dnů
   2026-07-25 — settle data Flex auto-importů padají kamkoliv), starší roky jen dny
-  transakcí (Lynx 2021–2025 doplnil `scripts/fx-backfill.mjs <portfolio.json>` — chybějící
+  transakcí (Lynx 2021–2025 a KB 2022 doplnil `scripts/fx-backfill.mjs <portfolio.json>` — chybějící
   den celý, u existujícího jen chybějící měnu; seznam měn a stažení dne ve `scripts/cnb.mjs`).
+  Dnešní a budoucí den (vypořádání po víkendu) skript přeskakuje: ČNB ho ještě nevyhlásila, API by
+  vrátilo starší kurz pod tím datem a fx-update, který jde jen dopředu od max data, by ho neopravil.
   Auto-update denně 14:35 UTC (`fx-update.mjs` — ČNB API `lang=EN`,
   `validFor` per-rate; forward-only od max data — **starší díry doplňovat ručně**,
   stejný entry formát, serializace `JSON.stringify(data, null, 2) + "\n"`, klíče
@@ -491,7 +502,8 @@ za firmu Načíst znovu načte znovu portfolia i ceny.
   – obojí ze stejných záznamů `dividend_records`/`withholding_records`, Kč = USD ekvivalent
   × dnešní kurz ČNB USD. Popisky bez „· CZK“ – jednotka je u každé částky (Lukáš 7. 11.).
 - **Celkový výnos a P.a. (od 2026-09-23):** toky kapitálu z evidence (`capitalFlowsUsd`) =
-  `opening_cash` + syntetické počáteční pozice (cost basis, kurz k vypořádání) + `cash_flows`
+  `opening_cash` + počáteční pozice `opening_position` (u odhadu `synthetic_opening`; cost basis
+  s provizí, kurz k vypořádání) + `cash_flows`
   typu `deposit`/`withdrawal` a Flex `Deposits/Withdrawals`, vše v USD kurzem ČNB k datu
   toku. `total_deposits_usd` jen jako fallback pro portfolio bez jakýchkoli toků.
   Zisk = hodnota + vybráno − vloženo; **% = zisk / vloženo** (výběry základ nezmenšují);

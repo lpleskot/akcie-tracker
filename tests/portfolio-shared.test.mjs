@@ -207,6 +207,18 @@ test("capitalFlowsUsd: počáteční kapitál, vklady a výběry z evidence, pod
   assert.equal(capitalFlowsUsd(p, FX, { upTo: "2026-09-17" }).length, 0);
 });
 
+test("capitalFlowsUsd: skutečný nákup před evidencí vkladů (opening_position) i s provizí", () => {
+  const p = {
+    inception_date: "2026-09-18",
+    transactions: [
+      { symbol: "X", date: "2026-09-18", settle_date: "2026-09-21", type: "BUY", quantity: 2, price: 100, proceeds: -200, commission: -5, currency: "EUR", opening_position: true },
+    ],
+  };
+  const f = capitalFlowsUsd(p, FX);
+  assert.deepEqual(f.map((x) => [x.date, x.kind]), [["2026-09-18", "opening"]]);
+  close(f[0].usd, 205 * (24.3 / 20.8));
+});
+
 test("capitalFlowsUsd: bez evidence toků total_deposits_usd k datu založení", () => {
   const f = capitalFlowsUsd({ inception_date: "2025-11-24", total_deposits_usd: 5000, cash_flows: [] }, FX);
   assert.deepEqual(f, [{ date: "2025-11-24", usd: 5000, kind: "deposit" }]);
