@@ -121,6 +121,8 @@ test("akcie_den: pozice — split po datu, neobchodovaný den, chybějící cena
   assert.match(by.CCC.duvod, /cena nedostupná/);
   assert.equal(by.DDD.cena_chybi, true);
   assert.equal(by.DDD.hodnota_czk, 0);
+  assert.equal(by.DDD.stazeno_z_burzy, "2026-01-01");
+  assert.equal(by.CCC.stazeno_z_burzy, undefined);
   assert.equal(by.DDD.total_return.mena, -15); // oceněno 0 jako v appce
   // řazení: denní změna sestupně, bez změny na konec
   assert.deepEqual(a.pozice.map((p) => p.symbol), ["AAA", "BBB", "CCC", "DDD"]);

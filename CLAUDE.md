@@ -263,10 +263,10 @@ flowchart TD
 - **Zdroj:** KB TRN CP (PDF) + KB TRN CASH (PDF) + KB STAV PTF (snapshoty).
 - Období 2022-12-30 → 2026-09-30 (inception = synthetic).
 - **47 instrumentů** v 9 měnách (USD, EUR, CAD, SEK, PLN, GBP, AUD, DKK, CZK).
-- **150 transakcí:**
+- **157 transakcí:**
   - 14 synthetic pre-2023 openings ze STAV PTF 31.3.2023 (cost basis = tržní cena k datu,
     skutečná pre-2023 nákupní cena neznámá — starší KB výpisy v MiFID formátu bez transakčních dat).
-  - 130 reálných BUY/SELL z TRN CP 2023–2026-Q3 (Q2 2026 bez obchodů) + 6 prodejů z 29. 10. 2026
+  - 130 reálných BUY/SELL z TRN CP 2023–2026-Q3 (Q2 2026 bez obchodů) + 13 prodejů z 29. 10. a 4.–5. 11. 2026
     z potvrzení o uzavření obchodu (viz „Q4 2026 průběžně“). (Původních 7 synthetic Q2 2023 nahrazeno
     reálnými — Q2 2023 výpisy existují, jen jsou ve složce podkladů pod chybným názvem
     `Výpis 1.7.-30.9.2023-9.pdf` … `-12.pdf`.)
@@ -309,6 +309,17 @@ flowchart TD
   u těchto prodejů „chybí kurz“. **Při importu Q4:** prodeje nezdvojit (stejné ID obchodu), datum
   vypořádání ověřit podle TRN CP (u GOOG 2. 7. potvrzení uvádělo 6. 7., TRN CP 7. 7.); odhad
   v `cash_history` může zůstat, od 31. 12. platí snapshot STAV PTF Q4.
+- **Likvidace KB (4.–5. 11. 2026, zapsáno 7. 11.):** dalších 7 prodejů z potvrzení stejným postupem –
+  PRX.AS, P911.DE, VNA.DE, DNP.WA, FILA.MI (vypořádání 6. 11.), LNF.TO (5. 11.), YAL.AX (obchod 5. 11.,
+  vypořádání 9. 11.). Všechno celé pozice (kusy sedí na FIFO), **v KB zbývá jen delistovaný CNE.TO**
+  (2 442 ks). Hotovost: odhad jako v říjnu, dva snapshoty `cash_history` k datu obchodu (4. a 5. 11.),
+  nově PLN (22 248,86, účet PLN u KB existuje, TRN CASH-PLN). Výběry ani měnové konverze po 30. 9. odhad
+  nezná, z IBKR overlay k 7. 11. žádný příchozí převod neplyne. Kontrola 7. 11. nad čerstvými kurzy:
+  v celé historii KB (58 prodejů, 98 nákupních řádků) sedí datum i kurz k vypořádání; YAL.AX čeká na
+  kurz ČNB k 9. 11. (Report „chybí kurz“, Prodané odhad „≈“). **PRX.AS:** 113 ks připsaných 18. 9. 2023
+  bez platby = Prosus Capitalisation Issue (implementace téhož dne), lot za 0 je správně: celá pořizovací
+  cena 6 906,24 EUR je na 209 ks a prodala se celá pozice. Ranní report od 7. 11. ukazuje KB jen
+  s hotovostí (viz „Ranní report do PLEGINu“, účet jen s hotovostí).
 - **14/14 otevřených pozic** match KB statementu (30.9.2026); hotovost 7 měn zrekonciliována na cent.
   KB ve STAV PTF oceňuje Canacol 0,75 CAD/ks (app ho jako delisted oceňuje 0). Validace vs Sharesight
   Sold Securities: 32/34 prodejů match (2 nesoulady = CNE 1890 ks Sharesight chyba, IPO 1 ks zaokrouhlení).
@@ -614,6 +625,14 @@ Nahrazuje Claude úlohu „PLEGIN — report Akcie" (PLEGIN_ZADANI_01, předán�
   `Lynx (osobní) – denní pohyb (N)` (Titul, Den %, Den Kč) za firemními tabulkami; bez
   hotovosti, Total Return a Kontextu. Souhrn `Portfolio za den`, Nejlepší/Nejhorší i Kontext
   jsou jen za firmu (`vse` z `akcie_den`), osobní účet je v textu souhrnu až na konci.
+- **Účet jen s hotovostí (od 2026-11-07, KB po likvidaci):** firemní účet, ve kterém zbyly
+  jen tituly stažené z burzy (`stazeno_z_burzy` v řádku `akcie_den`) nebo nic. Lukáš: „nech
+  jen hotovost a oprav tu větu“ – zůstává jen dlaždice `Volná hotovost KB`; bez dlaždice
+  `KB za den`, tabulky pozic a KB v textu souhrnu. V Kontextu místo „V účtu KB ten den burzy
+  neobchodovaly.“ věta „Účet KB drží jen hotovost a titul CNE.TO · Canacol Energy stažený
+  z burzy (oceněno 0).“ spolu s původem hotovosti. První věta o dni bez „hlavně“, když se
+  hýbal jen jeden účet. Když v účtu nezůstanou ani peníze (všechny měny pod 1 Kč), z reportu
+  zmizí úplně.
 
 **KV klíče (sdílené):** `watchlist`, `alerts`, `notes`, `journal`, `settings`,
 `portfolio-overlay:{id}`, `fired:alert:{ruleId}:{portfolioId}:{symbol}` (starý tvar bez portfolia

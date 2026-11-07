@@ -155,6 +155,65 @@ test("Kontext: odhad hotovosti KB mezi výpisy se nevydává za výpis", () => {
   assert.ok(!body.includes("ze čtvrtletního výpisu"));
 });
 
+// KB po prodejích 4.–5. 11. 2026: zbyla jen Canacol stažená z burzy a hotovost
+function liquidatedKb(d, { pozice, cash_meny } = {}) {
+  const kb = d.portfolia.find((p) => p.id === "plegi-invest-kb");
+  const cne = { ...kb.pozice.find((p) => p.symbol === "CNE.TO"), stazeno_z_burzy: "2025-11-17" };
+  Object.assign(kb, {
+    pozice: pozice ?? [cne],
+    hodnota_pozic_czk: 0,
+    cash_czk: 2401562,
+    cash_k: "2026-11-05",
+    cash_odhad: true,
+    cash_zdroj: "výpis k 30. 9. 2026 + prodeje z 29. 10., 4. 11. a 5. 11. 2026 podle potvrzení o obchodu",
+    cash_meny: cash_meny ?? [
+      { mena: "EUR", castka: 35355.84, czk: 860736 },
+      { mena: "USD", castka: 47240.16, czk: 1030497 },
+    ],
+    den: { zmena_czk: 0, zmena_pct: 0, obchodovalo: 0, neobchodovalo: 0, cena_chybi: 1 },
+  });
+  return { d, cne };
+}
+
+test("účet jen s hotovostí (KB po likvidaci): dlaždice hotovosti a věta v Kontextu, nic víc", () => {
+  const { d } = liquidatedKb(den("2026-10-27"));
+  const r = buildPleginReport(d);
+  const labels = r.sections[0].items.map((t) => t.label);
+  assert.deepEqual(labels, [
+    "Portfolio za den", "IBKR za den", "Volná hotovost IBKR", "Volná hotovost KB", "Nejlepší", "Nejhorší",
+  ]);
+  const kbCash = r.sections[0].items.find((t) => t.label === "Volná hotovost KB");
+  assert.deepEqual([plain(kbCash.value), plain(kbCash.sub)], ["2 401 562 Kč", "+ USD 47 240"]);
+  assert.ok(!plain(r.summary).includes("KB"));
+  assert.deepEqual(r.sections.filter((s) => s.type === "table").map((s) => plain(s.title)), ["IBKR – pozice (35)"]);
+
+  const body = plain(r.sections.find((s) => s.title === "Kontext").body);
+  assert.ok(!body.includes("V účtu KB"));
+  assert.match(body, /^Den táhl nahoru účet IBKR \(\+16 333 Kč\) díky SOFI/);
+  assert.ok(body.includes(
+    "\n\nÚčet KB drží jen hotovost a titul CNE.TO · Canacol Energy stažený z burzy (oceněno 0). " +
+      "Hotovost KB je odhad k 5. 11. 2026: výpis k 30. 9. 2026 + prodeje z 29. 10., 4. 11. a 5. 11. 2026 " +
+      "podle potvrzení o obchodu.",
+  ));
+});
+
+test("účet jen s hotovostí: víc stažených titulů, žádný titul, bez hotovosti zmizí", () => {
+  const kontext = (r) => plain(r.sections.find((s) => s.title === "Kontext").body);
+
+  const { d: two, cne } = liquidatedKb(den("2026-10-27"));
+  two.portfolia.find((p) => p.id === "plegi-invest-kb").pozice.push({ ...cne, symbol: "OLD", nazev: "OLD CORP" });
+  assert.match(kontext(buildPleginReport(two)), /drží jen hotovost a tituly CNE\.TO · Canacol Energy a OLD · OLD CORP stažené z burzy/);
+
+  const { d: none } = liquidatedKb(den("2026-10-27"), { pozice: [] });
+  assert.match(kontext(buildPleginReport(none)), /Účet KB drží jen hotovost\. Hotovost KB je odhad/);
+
+  // Peníze převedené pryč (zbylo 0,03 Kč) → KB v reportu vůbec není
+  const { d: empty } = liquidatedKb(den("2026-10-27"), { cash_meny: [{ mena: "CZK", castka: 0.03, czk: 0 }] });
+  const r = buildPleginReport(empty);
+  assert.ok(!r.sections[0].items.some((t) => t.label.includes("KB")));
+  assert.ok(!kontext(r).includes("KB"));
+});
+
 test("Kontext při poklesu: vede účet, který den nejvíc stáhl dolů", () => {
   const body = plain(buildPleginReport(den("2026-10-26")).sections[3].body);
   assert.match(body, /^Den táhl dolů hlavně účet IBKR \(−104 751 Kč\) kvůli NU · Nu Holdings \(/);

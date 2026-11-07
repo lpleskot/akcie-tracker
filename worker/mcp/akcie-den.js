@@ -52,7 +52,8 @@ export async function toolDefinition(env) {
       "portfolia; osobní (vlastnik.typ = osoba) jsou v seznamu, ale do vse se nepočítají. " +
       "Čísla odpovídají appce akcie-tracker. Ceny jsou uzavřené denní závěry burzy; " +
       "obchodovano=false znamená, že burza ten den neobchodovala a denní změna pozice se " +
-      "do souhrnu nepočítá. Vrací JSON.",
+      "do souhrnu nepočítá; stazeno_z_burzy = datum stažení titulu z burzy, pozice je oceněná 0. " +
+      "Vrací JSON.",
     inputSchema: {
       type: "object",
       properties: {
@@ -393,7 +394,8 @@ function positionRow({ sym, pos, inst }, portfolio, datum, quotes, fxFor, varova
     return {
       ...base, obchodniDen: null, obchodovano: false, close: 0, prev: null,
       value: 0, valueCzk: 0, den: null,
-      tr: trFor(pos, mena, 0, fx), cenaChybi: true, duvod: `staženo z burzy ${delisted}, oceněno 0`,
+      tr: trFor(pos, mena, 0, fx), cenaChybi: true, stazeno: delisted,
+      duvod: `staženo z burzy ${delisted}, oceněno 0`,
     };
   }
 
@@ -516,6 +518,8 @@ function rowOut(r) {
     },
     cena_chybi: r.cenaChybi,
   };
+  // Ranní report podle něj pozná účet, ve kterém zbyla jen hotovost
+  if (r.stazeno) out.stazeno_z_burzy = r.stazeno;
   if (r.duvod) out.duvod = r.duvod;
   return out;
 }

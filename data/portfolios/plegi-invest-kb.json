@@ -2738,6 +2738,118 @@
    "kb_id": "?/2307634",
    "kb_name": "WALT DISNEY CO/THE",
    "note": "Z potvrzení o uzavření obchodu KB (ON_EOBC_1609386___7076483.pdf) – při importu TRN CP Q4 2026 nezdvojit, ověřit datum vypořádání"
+  },
+  {
+   "date": "2026-11-04",
+   "settle_date": "2026-11-06",
+   "time": "",
+   "isin": "NL0013654783",
+   "symbol": "PRX.AS",
+   "type": "SELL",
+   "quantity": 209,
+   "price": 35.61,
+   "proceeds": 7442.49,
+   "commission": -52.1,
+   "currency": "EUR",
+   "kb_id": "?/2311730",
+   "kb_name": "PROSUS NV",
+   "note": "Z potvrzení o uzavření obchodu KB (ON_EOBC_1609386___7085633.pdf) – při importu TRN CP Q4 2026 nezdvojit, ověřit datum vypořádání"
+  },
+  {
+   "date": "2026-11-04",
+   "settle_date": "2026-11-06",
+   "time": "",
+   "isin": "DE000PAG9113",
+   "symbol": "P911.DE",
+   "type": "SELL",
+   "quantity": 300,
+   "price": 46.5,
+   "proceeds": 13950,
+   "commission": -94.4,
+   "currency": "EUR",
+   "kb_id": "?/2311734",
+   "kb_name": "DR ING HC F PORSCHE AG",
+   "note": "Z potvrzení o uzavření obchodu KB (ON_EOBC_1609386___7085635.pdf) – při importu TRN CP Q4 2026 nezdvojit, ověřit datum vypořádání"
+  },
+  {
+   "date": "2026-11-04",
+   "settle_date": "2026-11-06",
+   "time": "",
+   "isin": "DE000A1ML7J1",
+   "symbol": "VNA.DE",
+   "type": "SELL",
+   "quantity": 242,
+   "price": 16.3,
+   "proceeds": 3944.6,
+   "commission": -32.87,
+   "currency": "EUR",
+   "kb_id": "?/2311736",
+   "kb_name": "VONOVIA SE",
+   "note": "Z potvrzení o uzavření obchodu KB (ON_EOBC_1609386___7085637.pdf) – při importu TRN CP Q4 2026 nezdvojit, ověřit datum vypořádání"
+  },
+  {
+   "date": "2026-11-04",
+   "settle_date": "2026-11-06",
+   "time": "",
+   "isin": "PLDINPL00011",
+   "symbol": "DNP.WA",
+   "type": "SELL",
+   "quantity": 590,
+   "price": 38.17,
+   "proceeds": 22520.3,
+   "commission": -271.44,
+   "currency": "PLN",
+   "kb_id": "?/2313150",
+   "kb_name": "DINO POLSKA SA",
+   "note": "Z potvrzení o uzavření obchodu KB (ON_EOBC_1609386___7086604.pdf) – při importu TRN CP Q4 2026 nezdvojit, ověřit datum vypořádání"
+  },
+  {
+   "date": "2026-11-04",
+   "settle_date": "2026-11-06",
+   "time": "",
+   "isin": "IT0004967292",
+   "symbol": "FILA.MI",
+   "type": "SELL",
+   "quantity": 430,
+   "price": 8.9399,
+   "proceeds": 3844.16,
+   "commission": -61.7,
+   "currency": "EUR",
+   "kb_id": "?/2313152",
+   "kb_name": "Fila SpA",
+   "note": "Z potvrzení o uzavření obchodu KB (ON_EOBC_1609386___7086606.pdf) – při importu TRN CP Q4 2026 nezdvojit, ověřit datum vypořádání"
+  },
+  {
+   "date": "2026-11-04",
+   "settle_date": "2026-11-05",
+   "time": "",
+   "isin": "CA5266821092",
+   "symbol": "LNF.TO",
+   "type": "SELL",
+   "quantity": 231,
+   "price": 26.51,
+   "proceeds": 6123.81,
+   "commission": -96.91,
+   "currency": "CAD",
+   "kb_id": "?/2313168",
+   "kb_name": "Leon's Furniture Ltd",
+   "note": "Z potvrzení o uzavření obchodu KB (ON_EOBC_1609386___7086612.pdf) – při importu TRN CP Q4 2026 nezdvojit, ověřit datum vypořádání"
+  },
+  {
+   "date": "2026-11-05",
+   "settle_date": "2026-11-09",
+   "time": "",
+   "isin": "AU000000YAL0",
+   "symbol": "YAL.AX",
+   "type": "SELL",
+   "quantity": 2631,
+   "price": 5.5,
+   "proceeds": 14470.5,
+   "commission": -115.76,
+   "currency": "AUD",
+   "kb_id": "?/2313434",
+   "kb_name": "YANCOAL AUSTRALIA LTD",
+   "note": "Z potvrzení o uzavření obchodu KB (ON_EOBC_1609386___7087367.pdf) – při importu TRN CP Q4 2026 nezdvojit, ověřit datum vypořádání"
   }
  ],
  "corporate_actions": [
@@ -6704,12 +6816,13 @@
   }
  ],
  "cash_balance": {
-  "AUD": 505.15,
-  "CAD": 169.79,
+  "AUD": 14859.89,
+  "CAD": 6196.69,
   "CZK": 0.03,
   "DKK": 574.88,
-  "EUR": 6415.66,
+  "EUR": 35355.84,
   "GBP": 2288.2,
+  "PLN": 22248.86,
   "USD": 47240.16
  },
  "cash_history": [
@@ -6830,6 +6943,36 @@
     "GBP": 2288.2,
     "USD": 47240.16
    }
+  },
+  {
+   "date": "2026-11-04",
+   "source": "výpis k 30. 9. 2026 + prodeje z 29. 10. a 4. 11. 2026 podle potvrzení o obchodu",
+   "estimate": true,
+   "cash": {
+    "AUD": 505.15,
+    "CAD": 6196.69,
+    "CZK": 0.03,
+    "DKK": 574.88,
+    "EUR": 35355.84,
+    "GBP": 2288.2,
+    "PLN": 22248.86,
+    "USD": 47240.16
+   }
+  },
+  {
+   "date": "2026-11-05",
+   "source": "výpis k 30. 9. 2026 + prodeje z 29. 10., 4. 11. a 5. 11. 2026 podle potvrzení o obchodu",
+   "estimate": true,
+   "cash": {
+    "AUD": 14859.89,
+    "CAD": 6196.69,
+    "CZK": 0.03,
+    "DKK": 574.88,
+    "EUR": 35355.84,
+    "GBP": 2288.2,
+    "PLN": 22248.86,
+    "USD": 47240.16
+   }
   }
  ],
  "opening_cash": {
@@ -6853,7 +6996,8 @@
   "Q2 2026 (KB) naimportováno z TRN CASH (01.04–30.06.2026): 15 dividend, 9 withholding, 3 external_fee. Datum = vypořádání (připsání na účet). Žádné obchody (TRN CP Q2 neexistuje). Poplatky za správu + DPH vynechány (řeší účetní, nepromítá se do ceny akcií). cash_balance + period k 30.06.2026, 18/18 pozic match STAV PTF Q2. ČNB kurzy Q2 dnů doplněny do fx_rates.json.",
   "Kapitál KB (oprava 2026-09-23): výnos se počítá z evidence toků — počáteční kapitál (opening_cash + 14 synthetic_opening pozic k 30. 12. 2022), vklady (cash_flows deposit) a výběry (cash_flows withdrawal; doplněno 9 výběrů 12/2025–3/2026 z TRN CASH, převody na IBKR). Odstraněny chybné souhrny total_deposits_usd / total_deposits_by_ccy (obsahovaly jen USD+EUR vklady od 2024, bez CZK, bez roku 2023 a bez výběrů).",
   "Q3 2026 (KB) naimportováno (01.07.–30.09.2026): 4 prodeje z TRN CP (ACN, CRST.L, GOOG, UNH), 5 dividend, 3 withholding, 1 výběr (59 800 USD, 08.07.2026), 1 external_fee. Datum = vypořádání; u obchodů settle_date z TRN CP (GOOG/UNH: TRN CP 07.07., TRN CASH připsal 06.07. — ponechán TRN CP). Poplatky za správu + DPH vynechány. cash_balance + period k 30.09.2026, 14/14 pozic match STAV PTF Q3.",
-  "Q4 2026 průběžně (29. 10. 2026): 6 prodejů z potvrzení o uzavření obchodu (MC.PA, NU, LMT, KSPI, HUYA, DIS – celé pozice), kb_id „?/ID obchodu“ (číslo pokynu doplní TRN CP). Hotovost je odhad: výpis k 30. 9. 2026 + čisté výnosy prodejů (USD +46 779,83, EUR +5 770,32), bez říjnových dividend a poplatků – cash_balance a cash_history (estimate: true). Při importu Q4 (TRN CP, TRN CASH, STAV PTF) prodeje nezdvojit, ověřit datum vypořádání (potvrzení GOOG 2. 7. 2026 uvádělo 6. 7., TRN CP 7. 7.) a odhad hotovosti nechat – snapshot k 31. 12. ho od toho dne nahradí."
+  "Q4 2026 průběžně (29. 10. 2026): 6 prodejů z potvrzení o uzavření obchodu (MC.PA, NU, LMT, KSPI, HUYA, DIS – celé pozice), kb_id „?/ID obchodu“ (číslo pokynu doplní TRN CP). Hotovost je odhad: výpis k 30. 9. 2026 + čisté výnosy prodejů (USD +46 779,83, EUR +5 770,32), bez říjnových dividend a poplatků – cash_balance a cash_history (estimate: true). Při importu Q4 (TRN CP, TRN CASH, STAV PTF) prodeje nezdvojit, ověřit datum vypořádání (potvrzení GOOG 2. 7. 2026 uvádělo 6. 7., TRN CP 7. 7.) a odhad hotovosti nechat – snapshot k 31. 12. ho od toho dne nahradí.",
+  "Q4 2026 průběžně (4.–5. 11. 2026): 7 prodejů z potvrzení o uzavření obchodu (PRX.AS, P911.DE, VNA.DE, DNP.WA, FILA.MI, LNF.TO, YAL.AX – celé pozice, likvidace účtu; v KB zbývá jen delistovaný CNE.TO). kb_id „?/ID obchodu“, settle_date = Vypořádání z potvrzení, ověřit podle TRN CP Q4. Hotovost = odhad (výpis k 30. 9. + čisté výnosy prodejů) v cash_balance a cash_history k datu obchodu."
  ],
  "synthetic_cutoff_date": "2023-03-31",
  "ytd_mark_to_market_usd": 0,

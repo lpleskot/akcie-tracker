@@ -274,17 +274,43 @@ function moverClauses(acc, dir, nMain, nOpp) {
   return s;
 }
 
+// Účet po likvidaci (KB od 5. 11. 2026): zbyly v něm jen tituly stažené
+// z burzy, oceněné nulou, nebo nic. Report z něj ukazuje jen hotovost
+// (Lukáš 7. 11. 2026); bez hotovosti z reportu zmizí úplně.
+const holdsOnlyCash = (p) => p.pozice.every((x) => x.stazeno_z_burzy);
+const hasCash = (p) => (p.cash_meny || []).some((m) => m.czk == null || Math.abs(m.czk) >= 1);
+
+function cashOnlySentence(acc) {
+  const stazene = acc.p.pozice.map(titul);
+  if (!stazene.length) return `Účet ${acc.label} drží jen hotovost.`;
+  const one = stazene.length === 1;
+  return (
+    `Účet ${acc.label} drží jen hotovost a ${one ? "titul" : "tituly"} ${joinCs(stazene)} ` +
+    `${one ? "stažený" : "stažené"} z burzy (oceněno 0).`
+  );
+}
+
+function cashSourceSentence(acc) {
+  if (acc.p.cash_denni) return null;
+  if (acc.p.cash_odhad) return `Hotovost ${acc.label} je odhad k ${dmy(acc.p.cash_k)}: ${acc.p.cash_zdroj}.`;
+  if (acc.p.cash_k) return `Hotovost ${acc.label} je ze čtvrtletního výpisu k ${dmy(acc.p.cash_k)}.`;
+  return `Hotovost ${acc.label} je poslední známý zůstatek z evidence.`;
+}
+
 // Kontext: 1. věta = účet, který den nejvíc táhl směrem celkové změny, a jeho
 // hlavní tituly; 2. věta = druhý účet. Pak jen potřebná vysvětlení.
+// Účet jen s hotovostí do vět o dni nepatří, má vlastní větu u hotovosti.
 function contextBody(den, accounts, fresh) {
   const paragraphs = [];
   const total = den.vse.den.zmena_czk || 0;
   const dir = total >= 0 ? 1 : -1;
-  const ordered = [...accounts].sort((a, b) => dir * ((b.p.den.zmena_czk || 0) - (a.p.den.zmena_czk || 0)));
+  const withPositions = accounts.filter((a) => !a.cashOnly);
+  const ordered = [...withPositions].sort((a, b) => dir * ((b.p.den.zmena_czk || 0) - (a.p.den.zmena_czk || 0)));
   const sentences = ordered.map((acc, i) => {
     const change = acc.p.den.zmena_czk || 0;
     if (i === 0) {
-      return `Den táhl ${dir > 0 ? "nahoru" : "dolů"} hlavně účet ${acc.label} (${kc(change)})${moverClauses(acc, dir, 3, 2)}.`;
+      const lead = ordered.length > 1 ? "hlavně " : "";
+      return `Den táhl ${dir > 0 ? "nahoru" : "dolů"} ${lead}účet ${acc.label} (${kc(change)})${moverClauses(acc, dir, 3, 2)}.`;
     }
     if (!acc.p.den.obchodovalo) return `V účtu ${acc.label} ten den burzy neobchodovaly.`;
     const d = change >= 0 ? 1 : -1;
@@ -296,14 +322,14 @@ function contextBody(den, accounts, fresh) {
           : `Účet ${acc.label} skončil beze změny`;
     return `${head}${moverClauses(acc, d, 2, 1)}.`;
   });
-  paragraphs.push(sentences.join(" "));
+  if (sentences.length) paragraphs.push(sentences.join(" "));
 
   const all = den.portfolia.flatMap((p) => p.pozice);
   if (all.some((p) => !p.cena_chybi && !p.obchodovano)) paragraphs.push(NOT_TRADED_SENTENCE);
 
   // Hvězdička patří ke sloupci Total Return — ten mají jen tabulky firemních účtů
   const starred = [...new Map(
-    accounts
+    withPositions
       .flatMap((a) => a.p.pozice)
       .filter((p) => p.total_return?.div_stejna_mena === false)
       .map((p) => [p.symbol, titul(p)]),
@@ -315,14 +341,8 @@ function contextBody(den, accounts, fresh) {
   }
 
   for (const acc of accounts) {
-    if (acc.p.cash_denni) continue;
-    let sentence = `Hotovost ${acc.label} je poslední známý zůstatek z evidence.`;
-    if (acc.p.cash_odhad) {
-      sentence = `Hotovost ${acc.label} je odhad k ${dmy(acc.p.cash_k)}: ${acc.p.cash_zdroj}.`;
-    } else if (acc.p.cash_k) {
-      sentence = `Hotovost ${acc.label} je ze čtvrtletního výpisu k ${dmy(acc.p.cash_k)}.`;
-    }
-    paragraphs.push(sentence);
+    const sentence = [acc.cashOnly && cashOnlySentence(acc), cashSourceSentence(acc)].filter(Boolean).join(" ");
+    if (sentence) paragraphs.push(sentence);
   }
   paragraphs.push(...(den.varovani || []));
   if (!fresh) paragraphs.push(STALE_SENTENCE);
@@ -336,19 +356,24 @@ function contextBody(den, accounts, fresh) {
  * Osobní účty (vlastník typu osoba): jen denní pohyb — dlaždice a tabulka
  * pozic s Den % a Den Kč, bez hotovosti, Total Return a Kontextu
  * (Lukáš 31. 10. 2026). Souhrn, Nejlepší/Nejhorší a Kontext jsou za firmu.
+ * Firemní účet jen s hotovostí: jen dlaždice hotovosti a věta v Kontextu.
  */
 export function buildPleginReport(den) {
   const datum = den.datum;
   const fresh = isImportFresh(den.overlay, datum);
   const label = (p) => ACCOUNT_LABELS[p.id] || p.nazev || p.id;
   const isPersonal = (p) => p.vlastnik?.typ === "osoba";
-  const accounts = den.portfolia.filter((p) => !isPersonal(p)).map((p) => ({ p, label: label(p) }));
+  const accounts = den.portfolia
+    .filter((p) => !isPersonal(p))
+    .map((p) => ({ p, label: label(p), cashOnly: holdsOnlyCash(p) }))
+    .filter((a) => !a.cashOnly || hasCash(a.p));
+  const withPositions = accounts.filter((a) => !a.cashOnly);
   const personal = den.portfolia.filter(isPersonal).map((p) => ({ p, label: label(p) }));
   const { nejlepsi, nejhorsi } = den.vse;
 
   const summary = [
     `${kc(den.vse.den.zmena_czk)} (${pct(den.vse.den.zmena_pct)})`,
-    ...accounts.map((a) => `${a.label} ${kc(a.p.den.zmena_czk)}`),
+    ...withPositions.map((a) => `${a.label} ${kc(a.p.den.zmena_czk)}`),
     [
       nejlepsi && `nejlepší ${nejlepsi.symbol} ${pct(nejlepsi.zmena_pct)}`,
       nejhorsi && `nejhorší ${nejhorsi.symbol} ${pct(nejhorsi.zmena_pct)}`,
@@ -361,14 +386,14 @@ export function buildPleginReport(den) {
       type: "stats",
       items: [
         dayTile("Portfolio za den", den.vse.den),
-        ...accounts.map((a) => dayTile(`${a.label} za den`, a.p.den)),
+        ...withPositions.map((a) => dayTile(`${a.label} za den`, a.p.den)),
         ...accounts.map(cashTile),
         extremeTile("Nejlepší", nejlepsi, den, true),
         extremeTile("Nejhorší", nejhorsi, den, false),
         ...personal.map((a) => dayTile(`${a.label} (osobní) za den`, a.p.den)),
       ].filter(Boolean),
     },
-    ...accounts.map((a) => ({
+    ...withPositions.map((a) => ({
       type: "table",
       title: `${a.label} ${NDASH} pozice (${a.p.pozice.length})`,
       columns: ["Titul", "Den %", "Total Return %", "Total Return Kč"],
