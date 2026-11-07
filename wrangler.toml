@@ -12,6 +12,12 @@ workers_dev = true
 # Preview URLs vypnuté — privátní nástroj, verze nemají co viset na dalších URL.
 preview_urls = false
 
+# Workers Logs (Observability, 7 dní) — bez nich se výstup cronů nikde
+# neukládal a důvod, proč import Lynx 3.–7. 11. 2026 neprošel, už nejde
+# dohledat (PRAVIDLA_CLOUDFLARE §6.1).
+[observability]
+enabled = true
+
 # Celý repo root je zároveň asset složka — co NEservírovat určuje .assetsignore
 # (worker/, scripts/, .github/, *.md, …). _headers čte platforma automaticky.
 [assets]
