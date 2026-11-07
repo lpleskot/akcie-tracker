@@ -21,12 +21,14 @@
 
 import { computePositionsAt, positionTotalReturn, splitFactorAfter, cashAtDate } from "../../assets/js/fifo.js";
 import {
+  capitalFlowsCzk,
   capitalFlowsUsd,
   cashToCzk,
   fxDateFor,
   fxToCzk,
   mergeOverlayIntoPortfolio,
   portfolioTotalReturn,
+  portfolioTotalReturnCzk,
   pragueToday,
   xirrPct,
 } from "../../assets/js/portfolio-shared.js";
@@ -48,7 +50,8 @@ export async function toolDefinition(env) {
       "Stav akciových portfolií PLEGI invest a osobních portfolií Lukáše k závěru obchodního " +
       "dne. U každé držené pozice denní změna (%, v měně, v Kč) a Total Return (realizovaná " +
       "+ nerealizovaná Z/Z + čisté dividendy, v % z investice); za portfolio hodnota pozic, " +
-      "hotovost, denní změna a celkový výnos od založení. Souhrn vse sčítá jen firemní " +
+      "hotovost, denní změna a celkový výnos od založení (celkovy_vynos v USD, celkovy_vynos_kc " +
+      "v korunách: vklady a výběry kurzem ČNB ke dni pohybu – hlavní číslo appky). Souhrn vse sčítá jen firemní " +
       "portfolia; osobní (vlastnik.typ = osoba) jsou v seznamu, ale do vse se nepočítají. " +
       "Čísla odpovídají appce akcie-tracker. Ceny jsou uzavřené denní závěry burzy; " +
       "obchodovano=false znamená, že burza ten den neobchodovala a denní změna pozice se " +
@@ -223,6 +226,7 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
   const sum = {
     pozice: 0, cash: 0, zmena: 0, obchodovalo: 0, neobchodovalo: 0, chybi: 0,
     usd: 0, vlozeno: 0, vybrano: 0, assetsUsd: 0, flows: [], usdOk: true,
+    kc: 0, vlozenoKc: 0, vybranoKc: 0, assetsKc: 0, flowsKc: [], kcOk: true,
   };
   const traded = [];
   let lastImport = null;
@@ -298,6 +302,23 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
       sum.usdOk = false;
     }
 
+    // Totéž v korunách (vklady a výběry kurzem ke dni pohybu) – v appce
+    // hlavní číslo, dolarový výnos je pod ním (Lukáš 7. 11. 2026)
+    let vynosKc = null;
+    if (portfolio.inception_date) {
+      const flowsKc = capitalFlowsCzk(portfolio, fxRates, { upTo: datum });
+      vynosKc = portfolioTotalReturnCzk({ assetsCzk: celkem, flows: flowsKc, asOf: datum });
+      if (inVse) {
+        sum.kc += vynosKc.czk;
+        sum.vlozenoKc += vynosKc.vlozeno;
+        sum.vybranoKc += vynosKc.vybrano;
+        sum.assetsKc += celkem;
+        sum.flowsKc.push(...flowsKc);
+      }
+    } else if (inVse) {
+      sum.kcOk = false;
+    }
+
     const portTraded = traded.filter((t) => t.portfolio === meta.id);
     portfolia.push({
       id: meta.id,
@@ -320,6 +341,14 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
         od: portfolio.inception_date,
         vlozeno_usd: round(vynos.vlozeno, 0),
         vybrano_usd: round(vynos.vybrano, 0),
+      },
+      celkovy_vynos_kc: vynosKc && {
+        pct: round(vynosKc.pct, 2),
+        czk: round(vynosKc.czk, 0),
+        pa_pct: round(vynosKc.paPct, 2),
+        od: portfolio.inception_date,
+        vlozeno_czk: round(vynosKc.vlozeno, 0),
+        vybrano_czk: round(vynosKc.vybrano, 0),
       },
       nejlepsi: extreme(portTraded, 1, false),
       nejhorsi: extreme(portTraded, -1, false),
@@ -356,6 +385,18 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
           vybrano_usd: round(sum.vybrano, 0),
         }
       : null;
+  // V korunách stejně: základ čistý kapitál, převody mezi účty se ruší
+  const nettoKc = sum.vlozenoKc - sum.vybranoKc;
+  const vseVynosKc =
+    sum.kcOk && nettoKc > 0
+      ? {
+          pct: round((sum.kc / nettoKc) * 100, 2),
+          czk: round(sum.kc, 0),
+          pa_pct: round(xirrPct(sum.flowsKc, sum.assetsKc, datum, "czk"), 2),
+          vlozeno_czk: round(sum.vlozenoKc, 0),
+          vybrano_czk: round(sum.vybranoKc, 0),
+        }
+      : null;
 
   const fxDate = fxDateFor(fxRates, datum);
   const fx = { datum: fxDate, platny_k: fxRates?.dates?.[fxDate]?.valid_for || null };
@@ -373,6 +414,7 @@ export function buildAkcieDenReport({ datum, today, loaded, quotes, fxRates, ori
       hodnota_celkem_czk: round(sum.pozice + sum.cash, 0),
       den: denOut(sum.zmena, sum.pozice, sum.obchodovalo, sum.neobchodovalo, sum.chybi),
       celkovy_vynos: vseVynos,
+      celkovy_vynos_kc: vseVynosKc,
       nejlepsi: extreme(tradedVse, 1, true),
       nejhorsi: extreme(tradedVse, -1, true),
     },

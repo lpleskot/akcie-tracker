@@ -81,6 +81,24 @@ export function amountToUsd(fxRates, amount, currency, date) {
   return (amount * ccyToCzk) / usdToCzk;
 }
 
+/**
+ * Částka v měně → Kč kurzem ČNB ke dni; víkend a svátek bere poslední den
+ * před ním (jako fxToCzk s fallbackem). Když kurzy začínají až po datu,
+ * nejbližší pozdější den – tok se nesmí ztratit, výnos by se nafoukl.
+ * Pro výnos v korunách; měna bez kurzu → NaN.
+ */
+export function amountToCzk(fxRates, amount, currency, date) {
+  if (!Number.isFinite(amount)) return NaN;
+  let rate = fxToCzk(fxRates, date, currency, { allowFallback: true });
+  if (!rate) {
+    const later = Object.keys(fxRates?.dates || {})
+      .sort()
+      .find((d) => d > date && fxRates.dates[d]?.rates?.[currency]);
+    rate = later ? fxToCzk(fxRates, later, currency) : null;
+  }
+  return rate ? amount * rate : NaN;
+}
+
 // Týž split: stejný symbol a poměr, datum do týdne (ruční zápis bývá k datu z Yahoo, IBKR o den jinak)
 function isSameSplit(a, b) {
   return (
@@ -504,26 +522,39 @@ const CAPITAL_FLOW = /^(deposit|withdrawal)$|Deposits.*Withdrawals|Account Trans
  * k datu nesmí vidět pozdější vklady.
  */
 export function capitalFlowsUsd(portfolio, fxRates, { upTo } = {}) {
+  return capitalFlowsIn(portfolio, "usd", (amount, ccy, date) => amountToUsd(fxRates, amount, ccy, date), upTo);
+}
+
+/**
+ * Tytéž toky v Kč kurzem ČNB ke dni toku – kolik korun do portfolia
+ * opravdu přišlo a odešlo. Firma účtuje v Kč, výnos v korunách je proto
+ * v appce hlavní, dolarový pod ním pro srovnání (Lukáš 7. 11. 2026).
+ */
+export function capitalFlowsCzk(portfolio, fxRates, { upTo } = {}) {
+  return capitalFlowsIn(portfolio, "czk", (amount, ccy, date) => amountToCzk(fxRates, amount, ccy, date), upTo);
+}
+
+function capitalFlowsIn(portfolio, key, convert, upTo) {
   const flows = [];
-  const add = (date, usd, kind) => {
-    if (date && Number.isFinite(usd) && usd !== 0) flows.push({ date, usd, kind });
+  const add = (date, value, kind) => {
+    if (date && Number.isFinite(value) && value !== 0) flows.push({ date, [key]: value, kind });
   };
   const oc = portfolio.opening_cash;
   for (const [ccy, amount] of Object.entries(oc?.balances || {})) {
-    add(oc.date, amountToUsd(fxRates, amount, ccy, oc.date), "opening");
+    add(oc.date, convert(amount, ccy, oc.date), "opening");
   }
   for (const t of portfolio.transactions || []) {
     if (!t.synthetic_opening) continue;
     const value = t.proceeds != null ? Math.abs(t.proceeds) : t.quantity * t.price;
-    add(t.date, amountToUsd(fxRates, value, t.currency, t.settle_date || t.date), "opening");
+    add(t.date, convert(value, t.currency, t.settle_date || t.date), "opening");
   }
   for (const f of portfolio.cash_flows || []) {
     if (!CAPITAL_FLOW.test(f.type || "")) continue;
     const amount = parseFloat(f.amount);
-    add(f.date, amountToUsd(fxRates, amount, f.currency, f.date), amount < 0 ? "withdrawal" : "deposit");
+    add(f.date, convert(amount, f.currency, f.date), amount < 0 ? "withdrawal" : "deposit");
   }
   if (flows.length === 0 && portfolio.total_deposits_usd) {
-    add(portfolio.inception_date, portfolio.total_deposits_usd, "deposit");
+    add(portfolio.inception_date, convert(portfolio.total_deposits_usd, "USD", portfolio.inception_date), "deposit");
   }
   return flows
     .filter((f) => !upTo || f.date <= upTo)
@@ -537,13 +568,13 @@ export function capitalFlowsUsd(portfolio, fxRates, { upTo } = {}) {
  * portfolio, kam se vkládalo postupně nebo odkud se vybíralo. Při jediném
  * vkladu je totožná s (hodnota / vklad)^(1 / roky) − 1. Bez řešení → null.
  */
-export function xirrPct(flows, valueUsd, asOf) {
-  if (!flows.length || !Number.isFinite(valueUsd)) return null;
+export function xirrPct(flows, value, asOf, key = "usd") {
+  if (!flows.length || !Number.isFinite(value)) return null;
   const t0 = Math.min(...flows.map((f) => toMs(f.date)));
   const years = (ms) => Math.max(0, ms - t0) / 86400000 / 365.25;
   // Z pohledu investora: vklad je výdaj, výběr a konečná hodnota příjem
-  const cash = flows.map((f) => ({ t: years(toMs(f.date)), v: -f.usd }));
-  cash.push({ t: Math.max(1 / 365.25, years(toMs(asOf))), v: valueUsd });
+  const cash = flows.map((f) => ({ t: years(toMs(f.date)), v: -f[key] }));
+  cash.push({ t: Math.max(1 / 365.25, years(toMs(asOf))), v: value });
   const npv = (r) => cash.reduce((s, c) => s + c.v / Math.pow(1 + r, c.t), 0);
 
   let lo = -0.9999;
@@ -573,16 +604,37 @@ export function xirrPct(flows, valueUsd, asOf) {
  * do Kč se převádí výsledek. `asOf`: Date, nebo ISO datum (půlnoc UTC).
  */
 export function portfolioTotalReturn({ assetsUsd, flows, inceptionDate, asOf, usdToCzk }) {
+  const r = returnFromFlows(assetsUsd, flows, "usd", asOf);
+  const days = Math.max(1, (toMs(asOf) - new Date(inceptionDate).getTime()) / 86400000);
+  const years = days / 365.25;
+  return { usd: r.zisk, pct: r.pct, paPct: r.paPct, days, years, vlozeno: r.vlozeno, vybrano: r.vybrano, czk: usdToCzk ? r.zisk * usdToCzk : null };
+}
+
+/**
+ * Celkový výnos v korunách: toky z capitalFlowsCzk (kurz ke dni toku),
+ * hodnota portfolia v Kč k `asOf`. Proti výnosu v USD obsahuje i kurzový
+ * zisk či ztrátu mezi dolarem a korunou – to je skutečný výsledek firmy v Kč.
+ * Vrací { czk: zisk, pct, paPct, vlozeno, vybrano } (částky v Kč).
+ */
+export function portfolioTotalReturnCzk({ assetsCzk, flows, asOf }) {
+  const r = returnFromFlows(assetsCzk, flows, "czk", asOf);
+  return { czk: r.zisk, pct: r.pct, paPct: r.paPct, vlozeno: r.vlozeno, vybrano: r.vybrano };
+}
+
+// Vzorec je na měně nezávislý; key = pole toku, ve kterém je částka
+function returnFromFlows(assets, flows, key, asOf) {
   let vlozeno = 0;
   let vybrano = 0;
   for (const f of flows) {
-    if (f.usd > 0) vlozeno += f.usd;
-    else vybrano -= f.usd;
+    if (f[key] > 0) vlozeno += f[key];
+    else vybrano -= f[key];
   }
-  const usd = vlozeno > 0 ? assetsUsd + vybrano - vlozeno : 0;
-  const pct = vlozeno > 0 ? (usd / vlozeno) * 100 : 0;
-  const days = Math.max(1, (toMs(asOf) - new Date(inceptionDate).getTime()) / 86400000);
-  const years = days / 365.25;
-  const paPct = vlozeno > 0 ? xirrPct(flows, assetsUsd, asOf) : 0;
-  return { usd, pct, paPct, days, years, vlozeno, vybrano, czk: usdToCzk ? usd * usdToCzk : null };
+  const zisk = vlozeno > 0 ? assets + vybrano - vlozeno : 0;
+  return {
+    zisk,
+    pct: vlozeno > 0 ? (zisk / vlozeno) * 100 : 0,
+    paPct: vlozeno > 0 ? xirrPct(flows, assets, asOf, key) : 0,
+    vlozeno,
+    vybrano,
+  };
 }

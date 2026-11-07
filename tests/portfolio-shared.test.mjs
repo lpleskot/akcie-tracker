@@ -9,13 +9,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { computePositions } from "../assets/js/fifo.js";
 import {
+  amountToCzk,
   amountToUsd,
+  capitalFlowsCzk,
   capitalFlowsUsd,
   cashToCzk,
   fxDateFor,
   fxToCzk,
   mergeOverlayIntoPortfolio,
   portfolioTotalReturn,
+  portfolioTotalReturnCzk,
   xirrPct,
 } from "../assets/js/portfolio-shared.js";
 
@@ -207,6 +210,53 @@ test("capitalFlowsUsd: počáteční kapitál, vklady a výběry z evidence, pod
 test("capitalFlowsUsd: bez evidence toků total_deposits_usd k datu založení", () => {
   const f = capitalFlowsUsd({ inception_date: "2025-11-24", total_deposits_usd: 5000, cash_flows: [] }, FX);
   assert.deepEqual(f, [{ date: "2025-11-24", usd: 5000, kind: "deposit" }]);
+});
+
+test("capitalFlowsCzk: tytéž toky v Kč kurzem ke dni toku, víkend z předchozího dne", () => {
+  const p = {
+    inception_date: "2026-09-18",
+    opening_cash: { date: "2026-09-18", balances: { USD: 50, CZK: 1000 } },
+    cash_flows: [
+      { date: "2026-09-21", type: "deposit", currency: "CZK", amount: 100000 },
+      { date: "2026-09-21", type: "withdrawal", currency: "USD", amount: -100 },
+      { date: "2026-09-22", type: "deposit", currency: "EUR", amount: 10 }, // úterý → kurz z pondělí 21. 9.
+      { date: "2026-09-10", type: "deposit", currency: "EUR", amount: 1 }, // před prvním kurzem EUR → nejbližší pozdější
+      { date: "2026-09-21", type: "deposit", currency: "XXX", amount: 5 }, // měna bez kurzu → vypadne
+    ],
+  };
+  const f = capitalFlowsCzk(p, FX);
+  assert.deepEqual(f.map((x) => [x.date, x.kind, x.czk]), [
+    ["2026-09-10", "deposit", 24.3],
+    ["2026-09-18", "opening", 50 * 20.5],
+    ["2026-09-18", "opening", 1000],
+    ["2026-09-21", "deposit", 100000], // koruny jsou koruny, žádný přepočet tam a zpět
+    ["2026-09-21", "withdrawal", -100 * 20.8],
+    ["2026-09-22", "deposit", 10 * 24.3],
+  ]);
+  // měna bez kurzu vypadne stejně jako v USD
+  assert.ok(Number.isNaN(amountToCzk(FX, 5, "XXX", "2026-09-21")));
+  assert.equal(capitalFlowsUsd(p, FX).length, f.length);
+});
+
+test("portfolioTotalReturnCzk: výnos v korunách včetně kurzu dolaru", () => {
+  // 100 USD vloženo při 25 Kč, dnes portfolio 100 USD při 20 Kč:
+  // v dolarech 0 %, v korunách −20 % (dolar oslabil)
+  const flows = [{ date: "2025-01-01", czk: 2500 }];
+  const r = portfolioTotalReturnCzk({ assetsCzk: 100 * 20, flows, asOf: "2026-01-01" });
+  close(r.czk, -500);
+  close(r.pct, -20);
+  close(r.vlozeno, 2500);
+  close(r.vybrano, 0);
+  close(r.paPct, (Math.pow(0.8, 365.25 / 365) - 1) * 100, 1e-8);
+  // výběry základ nezmenšují stejně jako v USD
+  const kb = portfolioTotalReturnCzk({
+    assetsCzk: 120,
+    flows: [{ date: "2023-01-01", czk: 100 }, { date: "2024-01-01", czk: 100 }, { date: "2025-01-01", czk: -150 }],
+    asOf: "2026-01-01",
+  });
+  close(kb.czk, 70);
+  close(kb.pct, 35);
+  close(kb.paPct, xirrPct([{ date: "2023-01-01", usd: 100 }, { date: "2024-01-01", usd: 100 }, { date: "2025-01-01", usd: -150 }], 120, "2026-01-01"), 1e-9);
 });
 
 // Toky postavené ze známé sazby 10 % p. a. — XIRR ji musí zpětně najít

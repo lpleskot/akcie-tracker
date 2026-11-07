@@ -13,6 +13,7 @@ import { flexDate } from "./flex-shared.js";
 import { alertRuleMatches, firedAlertId, heldYahooSymbols } from "./alerts-shared.js";
 import {
   amountToUsd,
+  capitalFlowsCzk,
   capitalFlowsUsd,
   cashToCzk,
   closedPositions,
@@ -20,6 +21,7 @@ import {
   mergeOverlayIntoPortfolio,
   openLotsCostCzk,
   portfolioTotalReturn,
+  portfolioTotalReturnCzk,
   pragueToday,
   realizedSales,
 } from "./portfolio-shared.js";
@@ -2042,7 +2044,7 @@ function renderPortfolioHistory() {
   }
 
   // 4) Globální (all-time) dlaždice — pevné, nezávislé na zvoleném období
-  renderPhGlobalTiles(navRaw, p, depositsByDate);
+  renderPhGlobalTiles(navRaw, p);
 
   // 4b) Stav ke konci roku — podklad pro účetnictví, nezávislý na období
   renderPhYearEnd(navRaw);
@@ -2101,12 +2103,14 @@ function renderPortfolioHistory() {
 }
 
 /**
- * Globální (all-time) dlaždice — nezávislé na zvoleném období filtru:
- *  - Celkem vloženo (suma všech depositů od inception, v USD a CZK)
- *  - Aktuální hodnota portfolia (poslední záznam v NAV historii)
- *  - Rozdíl = current − deposits (kolik jsi vydělal/ztratil oproti tomu co jsi vložil)
+ * Globální (all-time) dlaždice — nezávislé na zvoleném období filtru, stejný
+ * výpočet jako dlaždice Celkový výnos v Přehledu (sdílené capitalFlows*):
+ *  - Celkem vloženo: počáteční stav + vklady v Kč kurzem ke dni vkladu
+ *  - Celkem dnes: poslední záznam v NAV historii (pozice + cash)
+ *  - Navíc: hodnota + vybráno − vloženo v Kč, pod tím % a výsledek v USD
+ * Výběry (u KB převody na IBKR) výsledek nezkreslují (Lukáš 7. 11. 2026).
  */
-function renderPhGlobalTiles(navRaw, p, depositsByDateMap) {
+function renderPhGlobalTiles(navRaw, p) {
   const setText = (id, val) => {
     const el = document.getElementById(id);
     if (el) el.textContent = val;
@@ -2115,55 +2119,46 @@ function renderPhGlobalTiles(navRaw, p, depositsByDateMap) {
   // Current NAV = poslední záznam v navRaw (bez ohledu na filtr), v měně účtu
   const last = navRaw.length > 0 ? navRaw[navRaw.length - 1] : null;
   const ccy = last?.currency || p?.base_currency || "USD";
-  const currentNav = last ? last.value : 0;
-  const currentDate = last ? last.date : null;
-
-  // Total deposits — sečíst VŠECHNY (historické + Flex overlay), dedupe by (date+amount+ccy),
-  // v měně účtu kurzem ke dni vkladu (Lynx: vklady v CZK i EUR)
-  let totalDeposits = 0;
-  for (const [date, deps] of depositsByDateMap) {
-    for (const d of deps) {
-      const v = amountInCcy(d.amount, d.currency, ccy, date);
-      if (Number.isFinite(v)) totalDeposits += v;
-    }
+  const currentDate = last?.date || null;
+  const fxNav = currentDate ? getFxToCzk(currentDate, ccy, { allowFallback: true }) : null;
+  const usdNav = currentDate ? getFxToCzk(currentDate, "USD", { allowFallback: true }) : null;
+  const navCzk = last && fxNav != null ? last.value * fxNav : null;
+  if (navCzk == null || !usdNav) {
+    ["ph-total-deposits-czk", "ph-total-deposits-usd", "ph-current-nav-czk", "ph-current-nav-usd", "ph-net-diff-czk", "ph-net-diff-pct"]
+      .forEach((id) => setText(id, "—"));
+    return;
   }
 
-  const fxToday = currentDate ? getFxToCzk(currentDate, ccy, { allowFallback: true }) : null;
-  const usdToday = currentDate ? getFxToCzk(currentDate, "USD", { allowFallback: true }) : null;
+  const { usd: retUsd, kc } = totalReturnBoth(p, {
+    assetsUsd: navCzk / usdNav,
+    usdToCzk: usdNav,
+    asOf: currentDate,
+    upTo: currentDate,
+  });
 
-  const fmtMoney = (v) => {
-    if (fxToday != null) return `${fmtNum(v * fxToday, 0)} Kč`;
-    return `${fmtNum(v, 0)} ${ccy}`;
-  };
-  // Pod hodnotou měna účtu, u korunového účtu orientačně USD
-  const subMoney = (v) =>
-    ccy !== "CZK" ? `${fmtNum(v, 0)} ${ccy} ekv.` : usdToday ? `≈ ${fmtNum(v / usdToday, 0)} USD` : "";
+  setText("ph-total-deposits-czk", `${fmtNum(kc.vlozeno, 0)} Kč`);
+  setText(
+    "ph-total-deposits-usd",
+    [`${fmtNum(retUsd.vlozeno, 0)} USD`, kc.vybrano > 0 && `vybráno ${fmtNum(kc.vybrano, 0)} Kč`]
+      .filter(Boolean)
+      .join(" · "),
+  );
 
-  setText("ph-total-deposits-czk", fmtMoney(totalDeposits));
-  setText("ph-total-deposits-usd", subMoney(totalDeposits));
-
-  setText("ph-current-nav-czk", fmtMoney(currentNav));
-  setText("ph-current-nav-usd", subMoney(currentNav));
-
-  // Diff
-  const diff = currentNav - totalDeposits;
-  const diffCzk = fxToday != null ? diff * fxToday : null;
-  const diffPct =
-    totalDeposits > 0 ? (diff / totalDeposits) * 100 : 0;
+  setText("ph-current-nav-czk", `${fmtNum(navCzk, 0)} Kč`);
+  setText(
+    "ph-current-nav-usd",
+    `${ccy !== "CZK" ? `${fmtNum(last.value, 0)} ${ccy}` : usdNav ? `≈ ${fmtNum(navCzk / usdNav, 0)} USD` : ""} k ${fmtCzDate(currentDate)}`,
+  );
 
   const diffEl = document.getElementById("ph-net-diff-czk");
   if (diffEl) {
-    const prefix = diff > 0 ? "+" : "";
-    diffEl.textContent =
-      diffCzk != null
-        ? `${prefix}${fmtNum(diffCzk, 0)} Kč`
-        : `${prefix}${fmtNum(diff, 0)} ${ccy}`;
-    diffEl.className = `ph-tile-value ${signClass(diff)}`;
+    diffEl.textContent = `${kc.czk > 0 ? "+" : ""}${fmtNum(kc.czk, 0)} Kč`;
+    diffEl.className = `ph-tile-value ${signClass(kc.czk)}`;
   }
   const pctEl = document.getElementById("ph-net-diff-pct");
   if (pctEl) {
-    pctEl.textContent = `${diff > 0 ? "+" : ""}${diffPct.toFixed(2)} %`;
-    pctEl.className = `ph-tile-sub ${signClass(diff)}`;
+    pctEl.textContent = `${fmtPct(kc.pct)} · v USD ${fmtPct(retUsd.pct)}`;
+    pctEl.className = `ph-tile-sub ${signClass(kc.czk)}`;
   }
 }
 
@@ -3445,7 +3440,7 @@ function renderSummary() {
     const subText = cashBreakdown.join(" · ");
     wrap.appendChild(
       cardHtml(
-        `Cash zůstatek · CZK`,
+        `Cash zůstatek`,
         `<span class="${signClass(cashCzkTotal)}">${fmtNum(cashCzkTotal, 0)} Kč</span>`,
         subText,
       ),
@@ -3509,19 +3504,15 @@ function renderSummary() {
   // jako v MCP konektoru
   const inception = p.inception_date || "2025-11-24";
   const today = new Date();
-  const capitalFlows = capitalFlowsUsd(p, state.fxRates);
-  const ret = portfolioTotalReturn({
-    assetsUsd: totalAssetsUsd,
-    flows: capitalFlows,
-    inceptionDate: inception,
-    asOf: today,
-    usdToCzk: fxUsdToCzk,
-  });
+  const {
+    usd: ret,
+    kc: retKc,
+    flowsUsd: capitalFlows,
+    flowsKc: capitalFlowsKc,
+  } = totalReturnBoth(p, { assetsUsd: totalAssetsUsd, usdToCzk: fxUsdToCzk, asOf: today });
   const totalReturnUsd = ret.usd;
-  const totalReturnPct = ret.pct;
   const daysSince = ret.days;
   const yearsSince = ret.years;
-  const paPct = ret.paPct;
 
   // === Doplnit 1. dlaždici (placeholder výše): Celkem = hodnota portfolia + cash ===
   // Celkem odpovídá IBKR Net Liquidity, hodnota portfolia jsou jen držené
@@ -3539,7 +3530,7 @@ function renderSummary() {
       ? ""
       : `<br><span class="muted">chybí cena: ${missingPriceSymbols.join(", ")}</span>`;
     portfolioValueCard.innerHTML = `
-      <div class="label">Celkem · CZK <span class="hint" title="Hodnota portfolia (držené pozice) + hotovost ve všech měnách, vše přepočtené kurzem ČNB. U IBKR odpovídá Net Liquidity v jejich Portalu.">i</span></div>
+      <div class="label">Celkem <span class="hint" title="Hodnota portfolia (držené pozice) + hotovost ve všech měnách, vše přepočtené kurzem ČNB. U IBKR odpovídá Net Liquidity v jejich Portalu.">i</span></div>
       <div class="value">${czkOrUsd(totalAssetsCzk, totalAssetsUsd)}</div>
       <div class="value-second">
         <div class="label">Hodnota portfolia (bez cash)</div>
@@ -3561,43 +3552,51 @@ function renderSummary() {
     });
   }
 
-  // === 3) Total Return % od inception (primary = %, sub = absolutní hodnoty) ===
-  const totalReturnCzk = ret.czk;
-  const absLine =
-    totalReturnCzk != null
-      ? `${fmtNum(totalReturnCzk, 0)} Kč (${fmtNum(totalReturnUsd, 0)} USD)`
-      : `${fmtNum(totalReturnUsd, 0)} USD`;
-  const capitalLine = ret.vybrano > 0
-    ? `vloženo ${fmtNum(ret.vlozeno, 0)} · vybráno ${fmtNum(ret.vybrano, 0)} USD`
-    : `vloženo ${fmtNum(ret.vlozeno, 0)} USD`;
+  // === 3) Celkový výnos od založení: kolik jsem vložil z vlastního a kolik
+  //         mám navíc – výběry jsou jen ve vysvětlivce (Lukáš 7. 11. 2026) ===
+  // Zisk po znaménku: „navíc 1 792 138 Kč“ / „ztráta 230 792 Kč“
+  const gain = (v, unit) => `${v >= 0 ? "navíc" : "ztráta"} ${fmtNum(Math.abs(v), 0)} ${unit}`;
+  const usdLine = `v USD ${fmtPct(ret.pct)} · ${gain(totalReturnUsd, "USD")}`;
+  const mainPct = retKc ? retKc.pct : ret.pct;
+  const returnSub = retKc
+    ? `vloženo ${fmtNum(retKc.vlozeno, 0)} Kč · ${gain(retKc.czk, "Kč")}<br>${usdLine}`
+    : `vloženo ${fmtNum(ret.vlozeno, 0)} USD · ${gain(totalReturnUsd, "USD")}`;
   const returnCard = cardHtml(
     `Celkový výnos`,
-    `<span class="${signClass(totalReturnPct)}">${fmtPct(totalReturnPct)}</span>`,
-    `${absLine}<br>${capitalLine}<br>od založení ${inception} (${Math.round(daysSince)} dní)`,
+    `<span class="${signClass(mainPct)}">${fmtPct(mainPct)}</span>`,
+    `${returnSub}<br>od založení ${fmtCzDate(inception)} (${Math.round(daysSince)} dní)`,
   );
   // Ztráta titulu staženého z burzy je ve výnosu celá – je oceněný nulou
   const delistedHeld = symbols.filter((sym) => p.instruments[sym].delisted && state.positions[sym]?.net_qty > 0);
+  const kcFormula = retKc
+    ? `V korunách: zisk = hodnota + vybráno − vloženo = ${fmtNum(totalAssetsUsd * fxUsdToCzk, 0)} + ` +
+      `${fmtNum(retKc.vybrano, 0)} − ${fmtNum(retKc.vlozeno, 0)} = ${fmtNum(retKc.czk, 0)} Kč, ` +
+      `výnos ${fmtPct(retKc.pct)}\nVklady a výběry kurzem ČNB ke dni pohybu, hodnota dnešním kurzem.\n`
+    : "";
   returnCard.title =
-    `Zisk = hodnota + vybráno − vloženo = ${fmtNum(totalAssetsUsd, 0)} + ${fmtNum(ret.vybrano, 0)} − ` +
-    `${fmtNum(ret.vlozeno, 0)} = ${fmtNum(totalReturnUsd, 0)} USD\n` +
-    `Výnos = zisk / vloženo = ${fmtPct(totalReturnPct)}\n` +
+    kcFormula +
+    `V USD: ${fmtNum(totalAssetsUsd, 0)} + ${fmtNum(ret.vybrano, 0)} − ${fmtNum(ret.vlozeno, 0)} = ` +
+    `${fmtNum(totalReturnUsd, 0)} USD, výnos ${fmtPct(ret.pct)}` +
+    (retKc ? " – rozdíl proti korunám dělá kurz dolaru.\n" : "\n") +
     `Vloženo = počáteční kapitál + vklady; výběry základ nezmenšují.\n` +
-    capitalFlowsNote(capitalFlows) +
+    (retKc ? capitalFlowsNote(capitalFlowsKc, "czk", "Kč") : capitalFlowsNote(capitalFlows, "usd", "USD")) +
     (delistedHeld.length
       ? `\n${delistedHeld.join(", ")}: stažené z burzy, v hodnotě 0 – ztráta je ve výnosu celá.`
       : "");
   wrap.appendChild(returnCard);
 
   // === 4) P.a. — XIRR, počítá s tím, kdy peníze přišly a odešly ===
+  const mainPa = retKc ? retKc.paPct : ret.paPct;
   const paCard = cardHtml(
     `P.a. (anualizováno)`,
-    `<span class="${signClass(paPct)}">${fmtPct(paPct)}</span>`,
-    `roční výnos vážený penězi (XIRR)<br>${fmtNum(yearsSince, 2)} let od založení`,
+    `<span class="${signClass(mainPa)}">${fmtPct(mainPa)}</span>`,
+    `roční výnos vážený penězi (XIRR)${retKc ? `<br>v USD ${fmtPct(ret.paPct)}` : ""}<br>${fmtNum(yearsSince, 2)} let od založení`,
   );
   paCard.title =
     "XIRR: roční sazba, při které se vyrovnají všechny vklady a výběry (k jejich datu) " +
     "s dnešní hodnotou portfolia. Na rozdíl od prosté anualizace nepřeceňuje peníze, " +
-    "které přišly později nebo odešly.";
+    "které přišly později nebo odešly." +
+    (retKc ? " Hlavní číslo je v korunách (vklady a výběry kurzem ke dni pohybu), pod ním v dolarech." : "");
   wrap.appendChild(paCard);
 
   // === 5) YTD % ===
@@ -3672,7 +3671,7 @@ function renderSummary() {
     const divCard = document.createElement("div");
     divCard.className = "summary-card";
     divCard.innerHTML = `
-      <div class="label">Dividendy po dani ${thisYear} · CZK</div>
+      <div class="label">Dividendy po dani ${thisYear}</div>
       <div class="value"><span class="${signClass(netYtdUsd)}">${kc(netYtdUsd)}</span></div>
       <div class="value-second">
         <div class="label">Celkem od založení</div>
@@ -3689,10 +3688,31 @@ function renderSummary() {
   }
 }
 
+/**
+ * Celkový výnos v korunách i v dolarech ze sdílených toků (Přehled i tab
+ * Hodnota portfolia). Hlavní je v korunách – vklady a výběry kurzem ke dni
+ * pohybu, hodnota kurzem k asOf (Lukáš 7. 11. 2026). Bez kurzu USD k asOf
+ * kc = null a appka ukáže výnos v dolarech jako dřív.
+ */
+function totalReturnBoth(p, { assetsUsd, usdToCzk, asOf, upTo }) {
+  const flowsUsd = capitalFlowsUsd(p, state.fxRates, { upTo });
+  const flowsKc = capitalFlowsCzk(p, state.fxRates, { upTo });
+  const usd = portfolioTotalReturn({
+    assetsUsd,
+    flows: flowsUsd,
+    inceptionDate: p.inception_date || "2025-11-24",
+    asOf,
+    usdToCzk,
+  });
+  const kc = usdToCzk ? portfolioTotalReturnCzk({ assetsCzk: assetsUsd * usdToCzk, flows: flowsKc, asOf }) : null;
+  return { usd, kc, flowsUsd, flowsKc };
+}
+
 // Z čeho je „vloženo“ a „vybráno“ v Celkovém výnosu: počáteční stav, vklady
-// a výběry s počtem a obdobím (u KB jsou výběry převody na IBKR)
-function capitalFlowsNote(flows) {
-  const total = (list) => list.reduce((s, f) => s + Math.abs(f.usd), 0);
+// a výběry s počtem a obdobím (u KB jsou výběry převody na IBKR).
+// key/unit: toky z capitalFlowsCzk ("czk", "Kč") nebo capitalFlowsUsd ("usd", "USD")
+function capitalFlowsNote(flows, key, unit) {
+  const total = (list) => list.reduce((s, f) => s + Math.abs(f[key]), 0);
   const period = (list) =>
     list.length > 1 ? `${fmtCzDate(list[0].date)} – ${fmtCzDate(list.at(-1).date)}` : fmtCzDate(list[0].date);
   const of = (kind) => flows.filter((f) => f.kind === kind);
@@ -3700,9 +3720,9 @@ function capitalFlowsNote(flows) {
   const opening = of("opening");
   const deposits = of("deposit");
   const withdrawals = of("withdrawal");
-  if (opening.length) lines.push(`počáteční stav k ${fmtCzDate(opening[0].date)}: ${fmtNum(total(opening), 0)} USD`);
-  if (deposits.length) lines.push(`vklady (${deposits.length}×, ${period(deposits)}): ${fmtNum(total(deposits), 0)} USD`);
-  if (withdrawals.length) lines.push(`výběry (${withdrawals.length}×, ${period(withdrawals)}): ${fmtNum(total(withdrawals), 0)} USD`);
+  if (opening.length) lines.push(`počáteční stav k ${fmtCzDate(opening[0].date)}: ${fmtNum(total(opening), 0)} ${unit}`);
+  if (deposits.length) lines.push(`vklady (${deposits.length}×, ${period(deposits)}): ${fmtNum(total(deposits), 0)} ${unit}`);
+  if (withdrawals.length) lines.push(`výběry (${withdrawals.length}×, ${period(withdrawals)}): ${fmtNum(total(withdrawals), 0)} ${unit}`);
   return lines.join("\n");
 }
 

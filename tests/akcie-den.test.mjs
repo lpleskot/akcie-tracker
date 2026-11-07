@@ -147,6 +147,11 @@ test("akcie_den: souhrn portfolia — denní změna jen z obchodovaných, hotovo
   assert.equal(a.celkovy_vynos.vlozeno_usd, 2000);
   assert.equal(a.celkovy_vynos.vybrano_usd, 0);
   assert.equal(a.celkovy_vynos.pa_pct, -29.09);
+  // v Kč: jediný kurz v datech → stejný výsledek jako v USD; vklad z doby
+  // před prvním kurzem se přepočte nejbližším pozdějším, nevypadne
+  assert.deepEqual(a.celkovy_vynos_kc, {
+    pct: -22, czk: -8800, pa_pct: -29.09, od: "2026-01-01", vlozeno_czk: 40000, vybrano_czk: 0,
+  });
   assert.deepEqual(a.nejlepsi, { symbol: "AAA", zmena_pct: 9.09 });
 
   // B: dividenda po datu se nepočítá; bez snapshotu hotovost z cash_balance
@@ -182,6 +187,7 @@ test("akcie_den: vse sčítá v Kč, výnos = Σ zisků / čistý vložený kapi
   close(r.vse.den.zmena_pct, 4.66);
   assert.equal(r.vse.den.zmena_czk, 1500);
   assert.deepEqual(r.vse.celkovy_vynos, { pct: -26.6, czk: -13300, usd: -665, pa_pct: -35.49, vlozeno_usd: 2500, vybrano_usd: 0 });
+  assert.deepEqual(r.vse.celkovy_vynos_kc, { pct: -26.6, czk: -13300, pa_pct: -35.49, vlozeno_czk: 50000, vybrano_czk: 0 });
   assert.deepEqual(r.vse.nejlepsi, { symbol: "AAA", portfolio: "a", zmena_pct: 9.09 });
   assert.deepEqual(r.vse.nejhorsi, { symbol: "EEE", portfolio: "b", zmena_pct: -10 });
   assert.deepEqual(r.fx, { datum: DATUM, platny_k: DATUM, EUR: 25, USD: 20 });
@@ -240,6 +246,30 @@ test("akcie_den: KB — počáteční kapitál a výběry z evidence, vklad po d
   assert.deepEqual(r.vse.celkovy_vynos, {
     pct: -28.74, czk: -14800, usd: -740, pa_pct: -38, vlozeno_usd: 2700, vybrano_usd: 125,
   });
+  // v Kč: výběr 100 EUR × 25 = 2 500 Kč; zisk = 5 500 + 2 500 − 14 000
+  assert.deepEqual(r.portfolia[1].celkovy_vynos_kc, {
+    pct: -42.86, czk: -6000, pa_pct: -66.8, od: "2026-02-01", vlozeno_czk: 14000, vybrano_czk: 2500,
+  });
+});
+
+test("akcie_den: výnos v Kč kurzem ke dni pohybu – obsahuje kurz dolaru", () => {
+  const fx = {
+    dates: {
+      "2026-02-02": { valid_for: "2026-02-02", rates: { USD: { rate: 25, amount: 1 }, EUR: { rate: 25, amount: 1 } } },
+      [DATUM]: { valid_for: DATUM, rates: { USD: { rate: 20, amount: 1 }, EUR: { rate: 25, amount: 1 } } },
+    },
+  };
+  const b = portfolioB();
+  delete b.total_deposits_usd;
+  b.cash_flows = [{ date: "2026-02-02", type: "deposit", currency: "USD", amount: 400 }];
+  const loaded = [{ meta: { id: "b" }, portfolio: b, lastImport: null }];
+  loaded[0].open = openPositionsAt(b, DATUM);
+  const r = buildAkcieDenReport({ datum: DATUM, today: "2026-09-23", loaded, quotes: QUOTES, fxRates: fx, origin: null });
+  const p = r.portfolia[0];
+  // hodnota 275 USD = 5 500 Kč; vloženo 400 USD při 25 Kč = 10 000 Kč
+  assert.equal(p.celkovy_vynos.pct, -31.25); // v USD: 275 / 400
+  assert.equal(p.celkovy_vynos_kc.pct, -45); // v Kč: dolar mezitím oslabil z 25 na 20
+  assert.equal(p.celkovy_vynos_kc.vlozeno_czk, 10000);
 });
 
 test("akcie_den: den bez obchodování → nulová denní změna, pozice si nesou poslední", () => {

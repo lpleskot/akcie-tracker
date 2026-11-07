@@ -478,15 +478,18 @@ za firmu Načíst znovu načte znovu portfolia i ceny.
   = poslední vyhlášený). Delisted (`instruments[sym].delisted` ≤ datum) → cena 0.
   XLSX export má v A1 doslovné znění požadavku auditora (`PA_TITLE_TEMPLATE`, {DATE}).
 - **Hodnota portfolia:** NAV time-series (SVG chart), deposit markery, 3 emphasized globální
-  dlaždice (Celkem vloženo / Aktuální hodnota / Rozdíl) + period dlaždice + tabulka per day.
+  dlaždice (Celkem vloženo v Kč ke dni vkladu / Celkem dnes = poslední NAV / Navíc = hodnota
+  + vybráno − vloženo v Kč, pod tím % a v USD – od 2026-11-07 přes `totalReturnBoth`, dřív
+  ignorovaly výběry) + period dlaždice + tabulka per day.
 - **Deník investora:** KV-backed text deník, inline editace, search.
 - **Společné:** Search s ×, sort klikem na th, XLSX export per tab (SheetJS self-hosted).
-  Summary dlaždice: Celkem CZK = hodnota portfolia + cash, pod ní druhé číslo Hodnota portfolia
+  Summary dlaždice: Celkem = hodnota portfolia + cash, pod ní druhé číslo Hodnota portfolia
   (bez cash; Lukáš 7. 11. 2026: „Hodnota portfolia tam není cash“; klik → Hodnota portfolia tab),
-  Cash (multi-currency), Celkový výnos % (tooltip: vzorec, počáteční stav, vklady a výběry
-  s počtem a obdobím, titul stažený z burzy v hodnotě 0), P.a., YTD, Dividendy po dani
-  letos (pražský rok) a pod tím celkem od založení – obojí ze stejných záznamů
-  `dividend_records`/`withholding_records`, Kč = USD ekvivalent × dnešní kurz ČNB USD.
+  Cash (multi-currency), Celkový výnos v Kč (vloženo · navíc, pod tím v USD; tooltip: vzorce,
+  počáteční stav, vklady a výběry s počtem a obdobím, titul stažený z burzy v hodnotě 0),
+  P.a. v Kč a v USD, YTD, Dividendy po dani letos (pražský rok) a pod tím celkem od založení
+  – obojí ze stejných záznamů `dividend_records`/`withholding_records`, Kč = USD ekvivalent
+  × dnešní kurz ČNB USD. Popisky bez „· CZK“ – jednotka je u každé částky (Lukáš 7. 11.).
 - **Celkový výnos a P.a. (od 2026-09-23):** toky kapitálu z evidence (`capitalFlowsUsd`) =
   `opening_cash` + syntetické počáteční pozice (cost basis, kurz k vypořádání) + `cash_flows`
   typu `deposit`/`withdrawal` a Flex `Deposits/Withdrawals`, vše v USD kurzem ČNB k datu
@@ -496,6 +499,17 @@ za firmu Načíst znovu načte znovu portfolia i ceny.
   vklady) je % stejné jako dřív, P.a. se od prosté anualizace liší. Dřívější vzorec
   (hodnota − vklady) / vklady s neúplnými vklady dával KB +127 % / p.a. 24,6 %, správně
   je ≈ +43 % / XIRR ≈ 16,6 % (k 2026-09-23).
+- **Výnos v korunách (od 2026-11-07, Lukáš: „Obojí“ – hlavní v Kč, pod ním v USD):**
+  `capitalFlowsCzk` = tytéž toky kurzem ČNB ke dni toku (`amountToCzk`: víkend z předchozího
+  dne, před prvním kurzem nejbližší pozdější – tok se nesmí ztratit), hodnota portfolia
+  dnešním kurzem, `portfolioTotalReturnCzk` (stejný vzorec, XIRR přes `xirrPct(…, "czk")`).
+  Rozdíl proti USD je kurz dolaru: k 7. 11. 2026 KB v Kč vloženo 5 508 715, navíc 1 792 139
+  (+32,53 %, p.a. 12,83 %) proti USD +42,63 % / 16,32 %; IBKR v Kč +1,13 % proti USD −3,08 %.
+  Dlaždice Celkový výnos: „vloženo X Kč · navíc/ztráta Y Kč“ a řádek „v USD …“ – výběry
+  (u KB převody na IBKR) jen ve vysvětlivce (Lukáš: „vloženo · vybráno“ pod % mátlo).
+  P.a. v Kč, pod ním v USD. Výpočet obou v `totalReturnBoth` (app.js) pro Přehled i tab
+  Hodnota portfolia; MCP `akcie_den` vrací vedle `celkovy_vynos` (USD) i `celkovy_vynos_kc`
+  `{pct, czk, pa_pct, od, vlozeno_czk, vybrano_czk}`, `vse` se základem čistý kapitál.
 
 ### Mobil (úpravy 2026-08-19, `styles.css`)
 
@@ -674,7 +688,7 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared,flex-import,portfolio-shared,akcie-den,plegin-report,move-reasons,tax-optimization,tax-person,closed-positions,owners,alerts-shared,alerts-job,accounting-evidence}.test.mjs` — 153 unit testů
+`tests/{fifo,flex-shared,flex-import,portfolio-shared,akcie-den,plegin-report,move-reasons,tax-optimization,tax-person,closed-positions,owners,alerts-shared,alerts-job,accounting-evidence}.test.mjs` — 156 unit testů
 (`npm install` jednou, pak `node --test tests/*.test.mjs`; report importuje SDK pro Claude), ručně spočítané fixtures: FIFO matching + prorace komise,
 proceeds-authoritative ceny, splity (vč. same-day pořadí a 1:25), KB received/removed
 párování + bonus/cancellation, práva odepsaná po víc než 30 dnech (GRPN), orphan sells,
