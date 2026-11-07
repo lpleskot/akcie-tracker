@@ -33174,6 +33174,177 @@
           "amount": 1
         }
       }
+    },
+    "2026-11-04": {
+      "valid_for": "2026-11-04",
+      "rates": {
+        "AUD": {
+          "rate": 15.134,
+          "amount": 1
+        },
+        "CAD": {
+          "rate": 15.479,
+          "amount": 1
+        },
+        "DKK": {
+          "rate": 3.253,
+          "amount": 1
+        },
+        "EUR": {
+          "rate": 24.31,
+          "amount": 1
+        },
+        "HKD": {
+          "rate": 2.749,
+          "amount": 1
+        },
+        "HUF": {
+          "rate": 6.696,
+          "amount": 100
+        },
+        "JPY": {
+          "rate": 13.632,
+          "amount": 100
+        },
+        "NOK": {
+          "rate": 2.338,
+          "amount": 1
+        },
+        "PLN": {
+          "rate": 5.526,
+          "amount": 1
+        },
+        "SEK": {
+          "rate": 2.215,
+          "amount": 1
+        },
+        "CHF": {
+          "rate": 26.467,
+          "amount": 1
+        },
+        "GBP": {
+          "rate": 29.118,
+          "amount": 1
+        },
+        "USD": {
+          "rate": 21.57,
+          "amount": 1
+        }
+      }
+    },
+    "2026-11-05": {
+      "valid_for": "2026-11-05",
+      "rates": {
+        "AUD": {
+          "rate": 15.159,
+          "amount": 1
+        },
+        "CAD": {
+          "rate": 15.5,
+          "amount": 1
+        },
+        "DKK": {
+          "rate": 3.25,
+          "amount": 1
+        },
+        "EUR": {
+          "rate": 24.29,
+          "amount": 1
+        },
+        "HKD": {
+          "rate": 2.759,
+          "amount": 1
+        },
+        "HUF": {
+          "rate": 6.69,
+          "amount": 100
+        },
+        "JPY": {
+          "rate": 13.661,
+          "amount": 100
+        },
+        "NOK": {
+          "rate": 2.329,
+          "amount": 1
+        },
+        "PLN": {
+          "rate": 5.534,
+          "amount": 1
+        },
+        "SEK": {
+          "rate": 2.212,
+          "amount": 1
+        },
+        "CHF": {
+          "rate": 26.46,
+          "amount": 1
+        },
+        "GBP": {
+          "rate": 29.137,
+          "amount": 1
+        },
+        "USD": {
+          "rate": 21.646,
+          "amount": 1
+        }
+      }
+    },
+    "2026-11-06": {
+      "valid_for": "2026-11-06",
+      "rates": {
+        "AUD": {
+          "rate": 14.991,
+          "amount": 1
+        },
+        "CAD": {
+          "rate": 15.503,
+          "amount": 1
+        },
+        "DKK": {
+          "rate": 3.257,
+          "amount": 1
+        },
+        "EUR": {
+          "rate": 24.345,
+          "amount": 1
+        },
+        "HKD": {
+          "rate": 2.782,
+          "amount": 1
+        },
+        "HUF": {
+          "rate": 6.693,
+          "amount": 100
+        },
+        "JPY": {
+          "rate": 13.772,
+          "amount": 100
+        },
+        "NOK": {
+          "rate": 2.314,
+          "amount": 1
+        },
+        "PLN": {
+          "rate": 5.542,
+          "amount": 1
+        },
+        "SEK": {
+          "rate": 2.209,
+          "amount": 1
+        },
+        "CHF": {
+          "rate": 26.619,
+          "amount": 1
+        },
+        "GBP": {
+          "rate": 29.19,
+          "amount": 1
+        },
+        "USD": {
+          "rate": 21.804,
+          "amount": 1
+        }
+      }
     }
   }
 }
