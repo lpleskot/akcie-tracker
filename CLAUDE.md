@@ -1,6 +1,7 @@
 # CLAUDE.md — akcie-tracker
 
-> Aktualizováno 2026-11-07 (KB: skutečné nákupy 2022 z potvrzení místo odhadů z 31. 3. 2023);
+> Aktualizováno 2026-11-08 (platnost Flex tokenů, Workers Logs);
+> 2026-11-07 (KB: skutečné nákupy 2022 z potvrzení místo odhadů z 31. 3. 2023);
 > 2026-10-31 (osobní portfolio Lynx z IB Flex, vlastníci portfolií, oprava
 > hotovosti u měnových konverzí); 2026-10-28 (tab Daňová optimalizace – zadání PLEGIN #7; ranní report Akcie
 > do PLEGINu posílá Worker sám – PLEGIN_ZADANI_01;
@@ -34,6 +35,9 @@ XTB nemá API (vypnuté 14. 3. 2025), import z ručních exportů jako u KB.
   Akcie do PLEGINu a vyhodnocení alertů nad čerstvým overlay (`runDailyJobs` ve
   `worker/index.js`). **Pojistka reportu** `20 5,6 * * TUE-SAT` = 7:20 Prahy v létě
   i v zimě (kód pustí jen ten UTC čas, kdy je v Praze 7:xx) – viz „Ranní report do PLEGINu".
+- **Logy:** Workers Logs zapnuté od 2026-11-07 (`[observability]` ve `wrangler.toml`,
+  uchovávají se 7 dní) – CF → Workers → `akcie-tracker` → Observability → Logs. Wrangler
+  je nepřečte (OAuth bez scope observability), logy z dashboardu kopíruje Lukáš.
 - Bývalý Pages projekt a samostatné Workery `akcie-tracker-cron` +
   `akcie-tracker-flex-import` jsou zrušené (migrace 2026-07-23/25). Účet od
   2026-07-25 **Workers Paid** (free měl account limit 5 cron triggerů).
@@ -196,7 +200,10 @@ flowchart TD
   `import_status`, appka ukáže žlutý banner hned při chybě i s důvodem a jinak, když nová
   data nepřišla >4 dny (`importWarning` v `portfolio-shared.js`); ranní report dá do Kontextu
   větu o neprošlém importu (`failedImports`). Důvod: Lynx od 3. 11. 2026 tiše nestahoval,
-  overlay se bez nových dat neukládá a chyba byla jen v logu. E-maily se neposílají. Secrets:
+  overlay se bez nových dat neukládá a chyba byla jen v logu (příčina: token – nový
+  `LYNX_FLEX_TOKEN` 7. 11., běh 8. 11. dotáhl NAV 2.–6. 11.). **Token Flex má omezenou
+  platnost a každý nový token zneplatní předchozí** – data vypršení a postup obnovy
+  v `DEPLOY.md`. E-maily se neposílají. Secrets:
   `FLEX_TOKEN`, `ADMIN_KEY`; var `FLEX_QUERY_ID` (1514926), `DRY_RUN` pro test bez zápisu.
   **Zdroje (`FLEX_SOURCES`, od 2026-10-31):** `ibkr` (portfolio z `PORTFOLIO_ID`, token
   `FLEX_TOKEN`, var `FLEX_QUERY_ID`) a `lynx` (portfolio `lukas-pleskot-lynx`, secret
@@ -698,7 +705,8 @@ Nahrazuje Claude úlohu „PLEGIN — report Akcie" (PLEGIN_ZADANI_01, předán�
 `plegin-report:{datum}`, `plegin-duvod:{datum}:{symbol}` (důvody velkých pohybů, 60 dní).
 
 **Secrets:** Worker `akcie-tracker` (CF Dashboard → Settings → Variables and Secrets):
-`FLEX_TOKEN`, `LYNX_FLEX_TOKEN` (Lynx, vkládá Lukáš), `ADMIN_KEY`, `MCP_TOKEN` (bez něj je `/mcp` zavřený — 401),
+`FLEX_TOKEN` (IBKR, datum vypršení neznámé), `LYNX_FLEX_TOKEN` (Lynx, vkládá Lukáš, platí
+do 7. 11. 2027 – obnova v `DEPLOY.md`), `ADMIN_KEY`, `MCP_TOKEN` (bez něj je `/mcp` zavřený — 401),
 `PLEGIN_REPORT_TOKEN` (report token PLEGINu), `REPORT_RUN_TOKEN` (ruční běh reportu).
 Binding `PLEGIN` (service `todo`), var `PLEGIN_REPORT`. Lokálně `.dev.vars` (v `.gitignore`
 i `.assetsignore`, vzor `.dev.vars.example`). Deploy běží přes Workers Builds pod CF účtem — GitHub

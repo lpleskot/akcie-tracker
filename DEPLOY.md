@@ -29,8 +29,8 @@ Settings → Variables and Secrets, nebo `npx wrangler secret put <NÁZEV>`):
 
 | Secret | K čemu |
 | --- | --- |
-| `FLEX_TOKEN` | IBKR Flex Web Service token (denní import) |
-| `LYNX_FLEX_TOKEN` | LYNX Flex Web Service token (denní import osobního portfolia Lynx; bez něj se Lynx přeskočí); vkládá Lukáš sám: `cd ~/Projects/akcie-tracker/web && npx wrangler secret put LYNX_FLEX_TOKEN` |
+| `FLEX_TOKEN` | IBKR Flex Web Service token (denní import). Secret vložen 25. 7. 2026, token mohl vzniknout dřív – **datum vypršení neznámé**, zjistit v IBKR portálu (Flex Web Service Configuration → Current Token Details) a zapsat sem |
+| `LYNX_FLEX_TOKEN` | LYNX Flex Web Service token (denní import osobního portfolia Lynx; bez něj se Lynx přeskočí); vkládá Lukáš sám: `cd ~/Projects/akcie-tracker/web && npx wrangler secret put LYNX_FLEX_TOKEN`. **Platí do 7. 11. 2027** (vygenerován 7. 11. 2026 na 1 rok), obnovit nejpozději 31. 10. 2027 |
 | `ADMIN_KEY` | ochrana manuálních `/run/*` endpointů (bez něj zavřeno = 403) |
 | `MCP_TOKEN` | přístup k `/mcp` (MCP konektor pro PLEGIN; bez něj 401) |
 | `PLEGIN_REPORT_TOKEN` | report token PLEGINu jen pro key `akcie` — ranní report (bez něj se neposílá); vytváří a nastavuje PLEGIN (zadání 13 v `~/Projects/todo`) |
@@ -42,7 +42,8 @@ Nový token pro ruční běh (obě strany najednou, hodnota se nevypisuje):
 — pak hodnotu přepsat i v `.dev.vars` obou projektů.
 
 Žádné e-mailové notifikace — Resend byl odstraněn (2026-07-23). Fired alerty
-jsou vidět v tabu Alerty, selhání jobů v CF lozích (Worker → Observability).
+jsou vidět v tabu Alerty, selhání jobů v CF lozích (Worker → Observability → Logs,
+zapnuté od 7. 11. 2026, uchovávají se 7 dní).
 
 Cron triggery, service binding `PLEGIN` (Worker `todo`) a vars (`PORTFOLIO_ID`,
 `FLEX_QUERY_ID`, `LYNX_FLEX_QUERY_ID`, `DRY_RUN`, `PLEGIN_REPORT`, `PLEGIN_DUVODY`) jsou
@@ -111,10 +112,17 @@ Routes → Add Custom domain → **nová self-hosted Access aplikace na tu domé
 - Konkrétní symbol může selhat sám — error je v response per symbol, ostatní fungují
 
 **Flex import selhává (log ve Worker → Observability):**
-- IBKR WAF občas vrací 530 — job má retry; opakované selhání = zkontrolovat
-  platnost `FLEX_TOKEN` (expiruje ~1× ročně v IBKR Client Portal),
-  u Lynx `LYNX_FLEX_TOKEN` (LYNX portál → Flex Web Service Configuration).
-  Řádky v logu nesou zdroj: `Flex import ibkr …` / `Flex import lynx …`.
+- Důvod poslední chyby ukáže žlutý banner v appce (KV `flex-import:{id}`), ranní report
+  ho má v Kontextu. Řádky v logu nesou zdroj: `Flex import ibkr …` / `Flex import lynx …`.
+- IBKR WAF občas vrací 530 — job má retry; opakované selhání = token.
+- **Obnova tokenu** (prošlý nebo neplatný): portál brokera (IBKR Client Portal, u Lynx
+  LYNX portál) → Flex Web Service Configuration → Generate New Token, Should Expire After
+  = 1 rok (výchozí je jen 6 hodin), Valid For IP Address prázdné (Worker nemá pevnou IP).
+  Nový token hned zneplatní předchozí – i když se generuje pro jinou appku. Vložit
+  `cd ~/Projects/akcie-tracker/web && npx wrangler secret put LYNX_FLEX_TOKEN` (u IBKR
+  `FLEX_TOKEN`) a nové datum vypršení zapsat do tabulky secrets výše.
+- Flex vrací jen 7 dní zpět: výpadek do týdne se po výměně tokenu dotáhne sám, starší dny
+  doplnit z ručního XML přes `scripts/flex-history.mjs`.
 
 **Stránka po deployi zobrazuje starou verzi:**
 - Hard reload (Cmd+Shift+R); `/data/*` má `no-cache`, `/assets/*` revalidaci
