@@ -35287,6 +35287,63 @@
           "amount": 1
         }
       }
+    },
+    "2026-11-11": {
+      "valid_for": "2026-11-11",
+      "rates": {
+        "AUD": {
+          "rate": 15.03,
+          "amount": 1
+        },
+        "CAD": {
+          "rate": 15.389,
+          "amount": 1
+        },
+        "DKK": {
+          "rate": 3.261,
+          "amount": 1
+        },
+        "EUR": {
+          "rate": 24.38,
+          "amount": 1
+        },
+        "HKD": {
+          "rate": 2.793,
+          "amount": 1
+        },
+        "HUF": {
+          "rate": 6.679,
+          "amount": 100
+        },
+        "JPY": {
+          "rate": 13.757,
+          "amount": 100
+        },
+        "NOK": {
+          "rate": 2.296,
+          "amount": 1
+        },
+        "PLN": {
+          "rate": 5.535,
+          "amount": 1
+        },
+        "SEK": {
+          "rate": 2.206,
+          "amount": 1
+        },
+        "CHF": {
+          "rate": 26.4,
+          "amount": 1
+        },
+        "GBP": {
+          "rate": 29.152,
+          "amount": 1
+        },
+        "USD": {
+          "rate": 21.91,
+          "amount": 1
+        }
+      }
     }
   }
 }
