@@ -28,7 +28,7 @@ import * as portfolioOverlay from "./api/portfolio-overlay.js";
 import * as accountingEvidence from "./api/accounting-evidence.js";
 import { handleMcp } from "./mcp/server.js";
 import { addDays, pragueToday } from "./mcp/akcie-den.js";
-import { runAllImports, runImport } from "./jobs/flex-import.js";
+import { failedSourcesToday, runAllImports, runImport } from "./jobs/flex-import.js";
 import { runAlertEvaluation } from "./jobs/alerts.js";
 import { isBackupHour, readReportStatus, reportEnabled, runPleginReport } from "./jobs/plegin-report.js";
 import * as pleginReport from "./api/plegin-report.js";
@@ -65,9 +65,13 @@ async function runDailyJobs(env) {
 // Pojistka 7:20 Prahy: report za včerejšek, pokud ještě neodešel. Když ranní
 // import neměl data za včerejšek (stav stale) nebo report vůbec neběžel,
 // zkusí nejdřív import znovu; report pak odejde i s varováním o datech.
-// Čerstvost reportu hlídá firemní IBKR, proto se opakuje jen jeho import.
+// Čerstvost reportu hlídá firemní IBKR, proto se kvůli reportu opakuje jen
+// jeho import. Lynx, jehož ranní import selhal (WAF IBKR občas vrací Cloudflare
+// 403, Flex v 6:00 hlásí 1001), se zkusí znovu vždy – i když report odešel.
 async function runReportBackup(env, now) {
-  if (!isBackupHour(now) || !reportEnabled(env)) return;
+  if (!isBackupHour(now)) return;
+  for (const key of await failedSourcesToday(env, now)) await runImport(env, key);
+  if (!reportEnabled(env)) return;
   const prev = await readReportStatus(env, addDays(pragueToday(now), -1));
   if (prev?.status === "sent" || prev?.status === "holiday") return;
   if (!prev || prev.status === "stale") await runImport(env);

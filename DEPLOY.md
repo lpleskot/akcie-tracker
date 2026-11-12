@@ -114,7 +114,17 @@ Routes → Add Custom domain → **nová self-hosted Access aplikace na tu domé
 **Flex import selhává (log ve Worker → Observability):**
 - Důvod poslední chyby ukáže žlutý banner v appce (KV `flex-import:{id}`), ranní report
   ho má v Kontextu. Řádky v logu nesou zdroj: `Flex import ibkr …` / `Flex import lynx …`.
-- IBKR WAF občas vrací 530 — job má retry; opakované selhání = token.
+- **Nejdřív zjistit, co Flex vrací z Macu:** `cd ~/Projects/akcie-tracker/web && node scripts/flex-diag.mjs lynx`
+  (u IBKR `ibkr`; token se zadá skrytě). Vypíše stav dotazu, období výpisu a dny NAV.
+  - **HTTP 403 nebo 530 jen z Workeru** (z Macu prošlo): WAF IBKR odmítá adresy Cloudflare
+    jen občas – job to zkouší znovu a co ráno selže, zopakuje pojistka v 7:20 (út–so). Nic
+    se nemění.
+  - **Prošlo, ale chybí poslední dny:** období dotazu musí být Last 7 Calendar Days
+    (diagnostika vypíše `LastNCalendarDays` a 7 dní do včerejška). Při
+    `LastBusinessWeek` (tak byl Lynx do 12. 11. 2026) jdou data jen po víkendu – opravit
+    v portálu (Flex Queries → dotaz akcie-tracker → Period: Last 7 Calendar Days); Query ID
+    zůstává.
+  - **Kód 1012 / 1015 (Token expired / invalid):** obnova tokenu, viz další bod.
 - **Obnova tokenu** (prošlý nebo neplatný): portál brokera (IBKR Client Portal, u Lynx
   LYNX portál) → Flex Web Service Configuration → Generate New Token, Should Expire After
   = 1 rok (výchozí je jen 6 hodin), Valid For IP Address prázdné (Worker nemá pevnou IP).

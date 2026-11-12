@@ -21,6 +21,7 @@
  */
 
 import { flexDate } from "../../assets/js/flex-shared.js";
+import { pragueToday } from "../mcp/akcie-den.js";
 
 const FLEX_BASE = "https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService";
 const KV_OVERLAY_PREFIX = "portfolio-overlay:";
@@ -33,6 +34,12 @@ const KV_STATUS_PREFIX = "flex-import:";
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+// HTTP stavy, po kterých má smysl to zkusit znovu. 403 vrací WAF IBKR adresám
+// Cloudflare jen občas: 9. 11. 2026 IBKR i Lynx, 12. 11. Lynx po kódu 1001 –
+// tentýž dotaz z Macu prošel napoprvé.
+const TRANSIENT_HTTP = [403, 429, 502, 503, 504, 522, 524, 530];
+// Základ čekání mezi pokusy (SendRequest 2×, 3×; GetStatement polovina). Testy ho zkracují.
+const RETRY_MS = 30_000;
 
 // Token je secret, query ID var ve wrangler.toml. Volitelný zdroj bez nich
 // ranní běh přeskočí (Lynx do nastavení secretu); IBKR bez nich je chyba.
@@ -77,7 +84,7 @@ export async function runImport(env, key = "ibkr") {
 
   try {
     // 1) Stáhnout XML přes Flex API
-    const xml = await fetchFlexStatement(src);
+    const xml = await fetchFlexStatement(src, Number(env.FLEX_RETRY_MS) || RETRY_MS);
     console.log(`📥 Stáhnuto ${xml.length} znaků XML`);
 
     // 2) Parse
@@ -135,6 +142,23 @@ export async function readImportStatus(env, portfolioId) {
   return env.AKCIE_TRACKER_KV.get(`${KV_STATUS_PREFIX}${portfolioId}`, "json");
 }
 
+/**
+ * Zdroje kromě IBKR, jejichž poslední běh dnes (pražský den) selhal – pojistka v 7:20
+ * je zkusí znovu. IBKR pojistka opakuje sama, když report nemá čerstvá data.
+ */
+export async function failedSourcesToday(env, now = new Date()) {
+  const today = pragueToday(now);
+  const keys = [];
+  for (const { key } of FLEX_SOURCES) {
+    if (key === "ibkr") continue;
+    const src = flexSource(env, key);
+    if (!src.token || !src.queryId) continue;
+    const run = await readImportStatus(env, src.portfolioId).catch(() => null);
+    if (run?.ok === false && run.at && pragueToday(new Date(run.at)) === today) keys.push(key);
+  }
+  return keys;
+}
+
 // Zápis stavu nesmí shodit import ani ranní sekvenci za ním
 async function saveImportStatus(env, portfolioId, status) {
   try {
@@ -154,25 +178,29 @@ function latestNavDate(nav) {
 }
 
 // ---------- Flex API (2-call flow) ----------
-async function fetchFlexStatement({ token, queryId, tokenVar, queryVar }) {
+async function fetchFlexStatement({ token, queryId, tokenVar, queryVar }, retryMs) {
   if (!token) throw new Error(`${tokenVar} secret není nastaven`);
   if (!queryId) throw new Error(`${queryVar} není nastaveno`);
 
-  // 1) SendRequest → ReferenceCode  (s retry pro 530 a "try again shortly")
-  const refCode = await sendRequestWithRetry(token, queryId);
+  // 1) SendRequest → ReferenceCode  (s retry pro 403/530 a "try again shortly")
+  const refCode = await sendRequestWithRetry(token, queryId, retryMs);
   console.log(`🔑 ReferenceCode: ${refCode}`);
 
   // 2) GetStatement — s retry pokud Status=InProgress
   // IBKR generuje report obvykle 5-30 s; můžeme čekat až 90 s.
   const getUrl = `${FLEX_BASE}.GetStatement?t=${encodeURIComponent(token)}&q=${encodeURIComponent(refCode)}&v=3`;
   const maxAttempts = 6;
-  const waitMs = 15000;
+  const waitMs = retryMs / 2;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     if (attempt > 1) await sleep(waitMs);
     console.log(`⏳ GetStatement attempt ${attempt}/${maxAttempts}…`);
 
     const res = await fetch(getUrl, { headers: { "User-Agent": USER_AGENT } });
     if (!res.ok) {
+      if (TRANSIENT_HTTP.includes(res.status) && attempt < maxAttempts) {
+        console.log(`   ⚠️  GetStatement HTTP ${res.status} (transient, retry)`);
+        continue;
+      }
       throw new Error(`GetStatement HTTP ${res.status}`);
     }
     const xml = await res.text();
@@ -198,24 +226,24 @@ async function fetchFlexStatement({ token, queryId, tokenVar, queryVar }) {
 }
 
 // SendRequest s retry. IBKR občas vrací:
-//  - HTTP 530 z CF edge (transient routing)
-//  - HTTP 200 + Status=Fail + "Statement could not be generated at this time" (rate limit)
-// Obě jsou dočasné, pokoušíme až 3× s exponential backoff (45s, 90s).
-async function sendRequestWithRetry(token, queryId, maxAttempts = 3) {
+//  - HTTP 403 z WAF nebo 530 z CF edge (adresy Cloudflare, transient)
+//  - HTTP 200 + Status=Fail + "Statement could not be generated at this time" (kód 1001)
+// Všechno je dočasné, pokoušíme až 3× s odstupem 2× a 3× retryMs (60 s, 90 s).
+async function sendRequestWithRetry(token, queryId, retryMs, maxAttempts = 3) {
   const sendUrl = `${FLEX_BASE}.SendRequest?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=3`;
   let lastErr = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     if (attempt > 1) {
-      const wait = 30000 * attempt; // 60s, 90s
+      const wait = retryMs * attempt;
       console.log(`   ⏳ Retry SendRequest #${attempt} za ${wait / 1000}s…`);
       await sleep(wait);
     }
     try {
       const res = await fetch(sendUrl, { headers: { "User-Agent": USER_AGENT } });
 
-      // HTTP úroveň — 530 / 502 / 504 jsou transient, retry
+      // HTTP úroveň — 403 (WAF) / 530 / 502 / 504 jsou transient, retry
       if (!res.ok) {
-        const transient = [502, 503, 504, 522, 524, 530].includes(res.status);
+        const transient = TRANSIENT_HTTP.includes(res.status);
         lastErr = new Error(`SendRequest HTTP ${res.status}`);
         if (transient && attempt < maxAttempts) {
           console.log(`   ⚠️  ${lastErr.message} (transient, retry)`);

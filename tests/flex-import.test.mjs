@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   emptyOverlay,
+  failedSourcesToday,
   flexSource,
   mergeOverlay,
   parseFlexXml,
@@ -77,13 +78,16 @@ function fakeKv() {
   };
 }
 
-// Flex Web Service bez sítě: SendRequest vrátí referenci, GetStatement výpis
+// Flex Web Service bez sítě: SendRequest vrátí referenci, GetStatement výpis.
+// Pole = odpovědi po sobě (opakování), { status } = HTTP chyba (WAF IBKR).
 async function withFlex(responses, fn) {
   const { fetch: realFetch } = globalThis;
   const { log, error } = console;
   globalThis.fetch = async (url) => {
-    const handler = String(url).includes(".SendRequest") ? responses.send : responses.get;
+    const slot = String(url).includes(".SendRequest") ? "send" : "get";
+    const handler = Array.isArray(responses[slot]) ? responses[slot].shift() : responses[slot];
     if (handler instanceof Error) throw handler;
+    if (handler && typeof handler === "object") return new Response(handler.body ?? "Forbidden", { status: handler.status });
     return new Response(handler);
   };
   console.log = console.error = () => {};
@@ -127,4 +131,35 @@ test("runImport: chyba Flexu jde do stavu bez tokenu, overlay zůstane", async (
   const leak = new Error("Spojení přerušeno: GetStatement?t=tajny-token&q=991");
   await withFlex({ send: SEND_OK, get: leak }, () => runImport(lynxEnv(kv), "lynx"));
   assert.equal((await readImportStatus(lynxEnv(kv), "lukas-pleskot-lynx")).error, "Spojení přerušeno: GetStatement?t=***&q=991");
+});
+
+const BUSY =
+  "<FlexStatementResponse><Status>Fail</Status><ErrorCode>1001</ErrorCode><ErrorMessage>Statement could not be generated at this time. Please try again shortly.</ErrorMessage></FlexStatementResponse>";
+
+test("runImport: 1001 a 403 z WAF IBKR se zkusí znovu (12. 11. 2026 skončil Lynx hned po 403)", async () => {
+  const kv = fakeKv();
+  const env = { ...lynxEnv(kv), FLEX_RETRY_MS: "1" };
+  const r = await withFlex({ send: [BUSY, { status: 403 }, SEND_OK], get: [{ status: 403 }, XML] }, () => runImport(env, "lynx"));
+  assert.equal(r.ok, true);
+  assert.equal((await readImportStatus(env, "lukas-pleskot-lynx")).ok, true);
+
+  const blocked = await withFlex({ send: [{ status: 403 }, { status: 403 }, { status: 403 }], get: XML }, () => runImport(env, "lynx"));
+  assert.deepEqual([blocked.ok, blocked.error], [false, "SendRequest HTTP 403"]);
+});
+
+test("failedSourcesToday: pojistka zkusí znovu Lynx, jen když dnes ráno selhal", async () => {
+  const kv = fakeKv();
+  const env = lynxEnv(kv);
+  const now = new Date("2026-11-12T06:20:00Z"); // 7:20 Prahy
+  const status = (at, ok) => kv.store.set("flex-import:lukas-pleskot-lynx", JSON.stringify({ at, ok, error: ok ? undefined : "SendRequest HTTP 403" }));
+
+  status("2026-11-12T05:01:16Z", false);
+  assert.deepEqual(await failedSourcesToday(env, now), ["lynx"]);
+  status("2026-11-11T23:30:00Z", false); // 0:30 Prahy 12. 11. – pořád dnešek
+  assert.deepEqual(await failedSourcesToday(env, now), ["lynx"]);
+  status("2026-11-11T05:01:16Z", false); // včera
+  assert.deepEqual(await failedSourcesToday(env, now), []);
+  status("2026-11-12T05:00:30Z", true);
+  assert.deepEqual(await failedSourcesToday(env, now), []);
+  assert.deepEqual(await failedSourcesToday({ AKCIE_TRACKER_KV: kv }, now), []); // bez tokenu Lynx není
 });

@@ -200,19 +200,31 @@ flowchart TD
   `import_status`, appka ukáže žlutý banner hned při chybě i s důvodem a jinak, když nová
   data nepřišla >4 dny (`importWarning` v `portfolio-shared.js`); ranní report dá do Kontextu
   větu o neprošlém importu (`failedImports`). Důvod: Lynx od 3. 11. 2026 tiše nestahoval,
-  overlay se bez nových dat neukládá a chyba byla jen v logu (příčina: token – nový
-  `LYNX_FLEX_TOKEN` 7. 11., běh 8. 11. dotáhl NAV 2.–6. 11.). **Token Flex má omezenou
-  platnost a každý nový token zneplatní předchozí** – data vypršení a postup obnovy
-  v `DEPLOY.md`. E-maily se neposílají. Secrets:
+  overlay se bez nových dat neukládá a chyba byla jen v logu. **Skutečná příčina (zjištěno
+  12. 11. přes `scripts/flex-diag.mjs`): dotaz Lynx měl období „Last Business Week"** –
+  v týdnu vracel pořád minulý pracovní týden, nová data přišla jen po víkendu (1. a 8. 11.).
+  Výměna tokenu 7. 11. nebyla potřeba. **Token Flex má omezenou platnost a každý nový
+  token zneplatní předchozí** – data vypršení a postup obnovy v `DEPLOY.md`.
+  **HTTP 403 a kód 1001:** WAF IBKR občas odmítne adresy Cloudflare (9. 11. IBKR i Lynx,
+  12. 11. Lynx po 1001; z Macu tentýž dotaz prošel) – SendRequest i GetStatement je berou
+  jako dočasné a zkusí znovu (`TRANSIENT_HTTP`, čekání `FLEX_RETRY_MS`, výchozí 30 s);
+  co ráno selže, zkusí pojistka v 7:20 znovu (viz níže). **Diagnostika z Macu:**
+  `node scripts/flex-diag.mjs lynx|ibkr` (token skrytě, vypíše období výpisu a dny NAV,
+  XML do `podklady/<zdroj>/`). E-maily se neposílají. Secrets:
   `FLEX_TOKEN`, `ADMIN_KEY`; var `FLEX_QUERY_ID` (1514926), `DRY_RUN` pro test bez zápisu.
   **Zdroje (`FLEX_SOURCES`, od 2026-10-31):** `ibkr` (portfolio z `PORTFOLIO_ID`, token
   `FLEX_TOKEN`, var `FLEX_QUERY_ID`) a `lynx` (portfolio `lukas-pleskot-lynx`, secret
   `LYNX_FLEX_TOKEN`, var `LYNX_FLEX_QUERY_ID`). Ranní běh `runAllImports` je bere po sobě;
   Lynx je volitelný — bez tokenu nebo query ID se přeskočí, IBKR bez nich je chyba.
-  Pojistka reportu v 7:20 opakuje jen import IBKR (čerstvost reportu je firemní).
+  Pojistka reportu v 7:20 (út–so) opakuje import IBKR, když report nemá čerstvá data, a od
+  12. 11. 2026 i každý jiný zdroj, jehož dnešní ranní import selhal (`failedSourcesToday`) –
+  Lynx se tak zkusí znovu, i když report už odešel.
   Flex query Lynx („akcie-tracker" v LYNX portálu) má stejné sekce jako IBKR + Cash Report:
-  Trades jen Execution, Open Positions jen Summary, Cash Transactions Detail, Period
-  Last 7 Calendar Days, yyyyMMdd / HHmmss / středník, Breakout by Day No.
+  Trades jen Execution, Open Positions jen Summary, Cash Transactions Detail, **Period
+  Last 7 Calendar Days** (do 12. 11. 2026 omylem Last Business Week – pak jdou data jen
+  po víkendu; opraveno 12. 11. 19:33), yyyyMMdd / HHmmss / středník, Breakout by Day No.
+  Kontrola: `flex-diag.mjs` vypíše `období <7 dní do včerejška> (LastNCalendarDays)` a dny
+  NAV až do včerejška.
   **Údržba overlay (~1× ročně):** overlay v KV roste donekonečna — promítnout obsah do
   statického portfolio JSON (commit) a overlay klíč smazat; další import začne načisto.
 - **alerts**: hlídá **všechna portfolia z manifestu** (od 2026-11-03, dřív jen IBKR
