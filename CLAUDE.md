@@ -519,9 +519,11 @@ za firmu Načíst znovu načte znovu portfolia i ceny.
   ignorovaly výběry) + period dlaždice + tabulka per day.
 - **Deník investora:** KV-backed text deník, inline editace, search.
 - **Společné:** Search s ×, sort klikem na th, XLSX export per tab (SheetJS self-hosted).
-  Summary dlaždice: Celkem = hodnota portfolia + cash, pod ní druhé číslo Hodnota portfolia
-  (bez cash; Lukáš 7. 11. 2026: „Hodnota portfolia tam není cash“; klik → Hodnota portfolia tab),
-  Cash (multi-currency), Celkový výnos v Kč (vloženo · navíc, pod tím v USD; tooltip: vzorce,
+  Summary dlaždice: Celkem = hodnota portfolia + cash, pod ní za linkou druhé číslo Hodnota portfolia
+  (bez cash; Lukáš 7. 11. 2026: „Hodnota portfolia tam není cash“; klik → Hodnota portfolia tab) –
+  popisek druhého čísla je POD ním (`.value-second`, i u Dividend; nad číslem vypadal jako popisek
+  horní hodnoty, 17. 11.), Cash (multi-currency) s podílem na celku „X % z celku“ (cash ÷ Celkem,
+  vzorec v tooltipu; Lukáš 17. 11.: „ať na první pohled vidím, kolik % držím cash“), Celkový výnos v Kč (vloženo · navíc, pod tím v USD; tooltip: vzorce,
   počáteční stav, vklady a výběry s počtem a obdobím, titul stažený z burzy v hodnotě 0),
   P.a. v Kč a v USD, YTD, Dividendy po dani letos (pražský rok) a pod tím celkem od založení
   – obojí ze stejných záznamů `dividend_records`/`withholding_records`, Kč = USD ekvivalent

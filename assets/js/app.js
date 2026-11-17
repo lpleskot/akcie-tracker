@@ -3431,15 +3431,16 @@ function renderSummary() {
     : { czk: 0, items: [] };
   const cashCzkTotal = cash.czk;
   const cashBreakdown = cash.items.map((it) => `${fmtNum(it.amount, 2)} ${it.currency}`);
+  // Podíl na celku se doplní níž, až bude spočítaná hodnota pozic
+  let cashCard = null;
   if (Object.keys(cashBalance).length > 0) {
     const subText = cashBreakdown.join(" · ");
-    wrap.appendChild(
-      cardHtml(
-        `Cash zůstatek`,
-        `<span class="${signClass(cashCzkTotal)}">${fmtNum(cashCzkTotal, 0)} Kč</span>`,
-        subText,
-      ),
+    cashCard = cardHtml(
+      `Cash zůstatek`,
+      `<span class="${signClass(cashCzkTotal)}">${fmtNum(cashCzkTotal, 0)} Kč</span>`,
+      subText,
     );
+    wrap.appendChild(cashCard);
   }
 
   // Použít už vytažené FX hodnoty z bloku výše
@@ -3528,8 +3529,8 @@ function renderSummary() {
       <div class="label">Celkem <span class="hint" title="Hodnota portfolia (držené pozice) + hotovost ve všech měnách, vše přepočtené kurzem ČNB. U IBKR odpovídá Net Liquidity v jejich Portalu.">i</span></div>
       <div class="value">${czkOrUsd(totalAssetsCzk, totalAssetsUsd)}</div>
       <div class="value-second">
-        <div class="label">Hodnota portfolia (bez cash)</div>
         <div class="value">${czkOrUsd(positionsCzk, currentValueUsd)}</div>
+        <div class="label">Hodnota portfolia (bez cash)</div>
       </div>
       <div class="sub">${subLine}${missingPricesNote}</div>
       <div class="ph-tile-link muted small">📈 Klikni pro vývoj v čase</div>
@@ -3538,6 +3539,15 @@ function renderSummary() {
       portfolioValueCard.title =
         `Celkem = hodnota portfolia + cash = ${fmtNum(positionsCzk, 0)} + ${fmtNum(cashCzk, 0)} = ${fmtNum(totalAssetsCzk, 0)} Kč\n` +
         `Hodnota portfolia = držené kusy × poslední cena × kurz ČNB (titul stažený z burzy = 0)`;
+    }
+    // Kolik % celku leží v hotovosti – na první pohled u částky cash (Lukáš 17. 11. 2026)
+    if (cashCard && totalAssetsCzk > 0) {
+      const share = (cashCzk / totalAssetsCzk) * 100;
+      const shareEl = document.createElement("div");
+      shareEl.className = "share";
+      shareEl.textContent = `${fmtNum(share, 1)} % z celku`;
+      shareEl.title = `Podíl hotovosti = cash ÷ celkem = ${fmtNum(cashCzk, 0)} Kč ÷ ${fmtNum(totalAssetsCzk, 0)} Kč = ${fmtNum(share, 1)} %`;
+      cashCard.querySelector(".value").after(shareEl);
     }
     // Klik na dlaždici → přepnutí na tab Hodnota portfolia
     portfolioValueCard.style.cursor = "pointer";
@@ -3669,8 +3679,8 @@ function renderSummary() {
       <div class="label">Dividendy po dani ${thisYear}</div>
       <div class="value"><span class="${signClass(netYtdUsd)}">${kc(netYtdUsd)}</span></div>
       <div class="value-second">
-        <div class="label">Celkem od založení</div>
         <div class="value"><span class="${signClass(netDividendsUsd)}">${kc(netDividendsUsd)}</span></div>
+        <div class="label">Celkem od založení</div>
       </div>
       <div class="sub">${thisYear}: hrubé ${kc(ytdDivGrossUsd)} · daň ${kc(ytdDivTaxUsd)}<br>celkem: hrubé ${kc(dividendsGrossUsd)} · daň ${kc(dividendsTaxUsd)}</div>
     `;

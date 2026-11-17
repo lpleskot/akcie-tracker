@@ -228,12 +228,26 @@ button.primary {
   margin-top: 4px;
   line-height: 1.45;
 }
-/* Druhé číslo dlaždice: Celkem → hodnota portfolia bez cash, dividendy letos → celkem */
+/* Druhé číslo dlaždice: Celkem → hodnota portfolia bez cash, dividendy letos → celkem.
+   Popisek je POD číslem a blok odděluje linka – nad číslem vypadal jako popisek horní
+   hodnoty (Lukáš 17. 11. 2026). */
 .summary-card .value-second {
   margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
 }
 .summary-card .value-second .value {
   font-size: 16px;
+}
+.summary-card .value-second .label {
+  margin: 2px 0 0;
+}
+/* Podíl hotovosti na celku pod částkou cash */
+.summary-card .share {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ------- Modal ------- */
@@ -1894,9 +1908,13 @@ footer.app-footer {
   }
   .summary-card .value-second {
     margin-top: 6px;
+    padding-top: 6px;
   }
   .summary-card .value-second .value {
     font-size: 14px;
+  }
+  .summary-card .share {
+    font-size: 12px;
   }
   .summary-card .sub {
     font-size: 11px;
