@@ -130,6 +130,26 @@ export function transformFlexTrade(t) {
   };
 }
 
+// Měnová konverze s poplatkem – pozice z ní nevzniká, ale poplatek je náklad
+// (Lynx účtuje konverze v Kč, IBKR je měnil zdarma). Množství a výnos se
+// znaménkem jako ve Flexu: quantity v základní měně páru, proceeds v `currency`.
+export function transformFlexFxConversion(t) {
+  return {
+    id: `flex-fx-${t.tradeID}`,
+    flex_id: t.tradeID,
+    date: flexDate(t.tradeDate || t.dateTime),
+    settle_date: flexDate(t.settleDateTarget),
+    pair: t.symbol,
+    base_currency: String(t.symbol || "").split(".")[0],
+    quantity: parseFloat(t.quantity),
+    proceeds: parseFloat(t.proceeds),
+    currency: t.currency,
+    commission: parseFloat(t.ibCommission) || 0,
+    commission_currency: t.ibCommissionCurrency || t.currency,
+    _source: "flex",
+  };
+}
+
 export function transformFlexDividend(c) {
   return {
     id: `flex-div-${c.transactionID}`,
@@ -163,6 +183,8 @@ export function transformFlexCashFlow(c) {
     flex_id: c.transactionID,
     date: flexDate(c.dateTime || c.reportDate),
     type: c.type,
+    // Poplatek k titulu (ADR fee u dividendy) – tab Poplatky ukáže, ke kterému
+    ...(c.symbol ? { symbol: c.symbol } : {}),
     amount: parseFloat(c.amount),
     currency: c.currency,
     description: c.description || c.code || "",

@@ -1,6 +1,7 @@
 # CLAUDE.md — akcie-tracker
 
-> Aktualizováno 2026-11-08 (platnost Flex tokenů, Workers Logs);
+> Aktualizováno 2026-11-18 (tab Poplatky, poplatky za správu KB a konverze Lynx v datech);
+> 2026-11-08 (platnost Flex tokenů, Workers Logs);
 > 2026-11-07 (KB: skutečné nákupy 2022 z potvrzení místo odhadů z 31. 3. 2023);
 > 2026-10-31 (osobní portfolio Lynx z IB Flex, vlastníci portfolií, oprava
 > hotovosti u měnových konverzí); 2026-10-28 (tab Daňová optimalizace – zadání PLEGIN #7; ranní report Akcie
@@ -95,7 +96,9 @@ jinak se nedostanou do repa.
   - **KV overlay** = denní auto-import přes IB Flex (Worker `flex-import` → KV `portfolio-overlay:{id}`;
     zdroje IBKR a Lynx, `FLEX_SOURCES` ve `worker/jobs/flex-import.js`)
   - `mergeOverlayIntoPortfolio()` (`portfolio-shared.js`, volá frontend i Worker) přidává overlay eventy ke statickému JSON,
-    dedupe podle `flex_id` (= IBKR `tradeID` / `transactionID` / `actionID`)
+    dedupe podle `flex_id` (= IBKR `tradeID` / `transactionID` / `actionID`). Měnové konverze nejsou
+    pozice – jdou do hotovosti a od 2026-11-18 i jako záznam do `fx_conversions` (kvůli poplatku
+    v tabu Poplatky); dedupe i proti `fx_conversions` statického JSON, ať se hotovost nezmění dvakrát
 - **Účetně rozhoduje datum VYPOŘÁDÁNÍ (settle_date)**, ne datum obchodu — určuje rok
   i kurz ČNB. Prodej s obchodem 30.12. a vypořádáním 2.1. patří do nového roku.
   Platí pro: Report pro účetní (rok chips, FIFO párování, kurzy), export Reportu,
@@ -261,6 +264,13 @@ flowchart TD
 - `data/portfolio-history-plegi-invest-ibkr.json` — NAV backfill od inception
   (jednorázově `outputs/backfill_nav.py`: Activity Statement CSV + Yahoo historical close),
   obsahuje i `deposits[]`. Tolerance vs IBKR snapshot ~1,5 % (dividend accruals + FX rounding).
+- **Poplatky ze statického období doplněné 2026-11-18** (tab Poplatky): francouzská daň
+  z transakce u nákupu DSY 20. 2. 2026 (−17,33 EUR) byla ve výpisu zvlášť (sekce Transaction
+  Fees) a v provizi obchodu chyběla – **doplněna do `commission` obchodu** (−3 → −20,33 EUR,
+  rozpad v `ib_commission` a `taxes`, Lukášův pokyn), stejně jako u Flex obchodů, kde `taxes`
+  do komise jde; je tak v pořizovací ceně DSY (FIFO 4 351,58 EUR). ADR fee KSPI 22. 4. 2026
+  (−1,30 USD) v `cash_flows` jako `Other Fees` se `source`. Hotovost se nemění (`cash_balance`
+  je snapshot výpisu).
 - **`cash_balance` po měnách podle Cash Report výpisu k 15. 5. 2026** (DKK 1 741,05,
   SEK 915,64, USD 2 640,75; opraveno 2026-10-31 — dřív celé v USD jako Base Currency
   Summary 3 008,47). Spolu s opravou konverzí sedí hotovost appky s NAV IB na centy
@@ -274,6 +284,10 @@ flowchart TD
   import, takže záznamy nesou `flex_id` a overlay je nezdvojí. Skript před zápisem ověří
   hotovost po měnách proti Cash Report a pozice proti Open Positions; při nesouladu nic
   nezapíše. Dál denní import (zdroj `lynx`).
+- **`fx_conversions` (od 2026-11-18):** 167 měnových konverzí z výpisů (45 s poplatkem v Kč,
+  2021–2026 celkem 4 937 Kč) – kvůli tabu Poplatky. Přegenerováno `scripts/flex-history.mjs`
+  ze stejných XML: výsledek shodný se souborem v repu až na nové pole, hotovost i pozice sedí
+  s IB. Skript výstupy `flex-diag-*.xml` (diagnostika ve stejné složce) přeskakuje.
 - 140 obchodů (+167 měnových konverzí jen v hotovosti), 33 dividend, 49 srážek, 25 pohybů
   hotovosti (13 vkladů/výběrů, úroky), 1 corporate action (SMSI reverse split 1:8, 4/2024),
   12 držených titulů. Evolution přes `--seed` z IBKR jako `EVO` (Lynx ho vede jako `EVOs`/`EVOG.ST`).
@@ -320,7 +334,14 @@ flowchart TD
 - **Q2 2026 import** (dividendy/daně/externí CA poplatky z TRN CASH; žádné obchody — TRN CP Q2
   neexistuje): datum = **vypořádání (= připsání na účet)**, ne splatnost. Důkaz: HUYA dividenda
   (splatnost 01.07, vypořádání 30.06) je v Q2 výpisu a v zůstatku k 30.06. Poplatky za vedení
-  účtu ("Poplatek za správu" + DPH) se **neimportují** (řeší účetní, nepromítají se do ceny akcií).
+  účtu ("Poplatek za správu" + DPH) se do 2026-11-17 neimportovaly; **od 2026-11-18 ano** (tab
+  Poplatky): `cash_flows` typu `management_fee` (Poplatek za správu), `management_fee_vat` (DPH
+  poplatku za správu / DPH za správu / DPH k popl. za evidenci…) a `fee_rebilling` (Přefakturace
+  externích poplatků), datum = vypořádání, `description` = text řádku bez částky, `amount_usd`.
+  Doplněno 2023-01 → 2026-09 (99 záznamů z TRN CASH 2024–2026 a Výpisů 2023; KB je strhává
+  z měnového podúčtu, kde je hotovost – CZK, EUR, USD, GBP) + rok 2022 jako roční souhrn 373 Kč
+  z výpisu nákladů (měsíční výpisy 2022 v podkladech nejsou). Pozice ani hotovost to nemění.
+  **Při importu Q4 2026 přidat i poplatky za správu** (říjen a listopad).
   **Celá historie přerovnána na vypořádání** (audit 2026-07 přes reparsing všech TRN CASH + 2023
   Výpisů): 74 záznamů (2023–2026-Q1) posunuto o 1–5 dní, **žádná změna daňového roku**, celkový
   FX dopad +534 CZK. Re-audit: 0 záznamů zbývá na datu splatnosti.
@@ -384,7 +405,7 @@ flowchart TD
 ## Frontend taby (v pořadí)
 
 Lišta tabů zvoleného portfolia: `overview` Přehled pozic · `transactions` Transakce ·
-`dividends` Dividendy · `allocation` Alokace · `report` Report pro účetní ·
+`dividends` Dividendy · `allocation` Alokace · `report` Report pro účetní · `fees` Poplatky ·
 `portfolio-history` Hodnota portfolia.
 
 V hlavičce vedle výběru portfolia (od 2026-10-31, přání Lukáše): na začátku společné
@@ -428,6 +449,25 @@ za firmu Načíst znovu načte znovu portfolia i ceny.
   (stejné seskupení, barevné řádky, kurz s datem) + tisk/PDF. Výpočet prodejů v Kč je
   sdílená `realizedSales()` (`portfolio-shared.js`) — obrazovka, export i Daňová
   optimalizace (refaktor 2026-10-28 ověřen proti původnímu kódu: 151 prodejů, 0 rozdílů).
+- **Poplatky (od 2026-11-18, Lukáš: „vyčíslení poplatků pro účetnictví u každého účtu brokera,
+  je to náklad, vždy za kalendářní rok“):** výpočet `assets/js/fees.js` (čisté funkce, testy
+  `tests/fees.test.mjs`). Druhy: **Poplatky při nákupu / při prodeji** (`commission` obchodů vč.
+  kolkovného a burzovních daní z Flexu, rok podle **vypořádání** jako Report), **Konverze měn**
+  (`fx_conversions[].commission`), **Správa účtu** (KB `management_fee`, `management_fee_vat`,
+  `fee_rebilling`), **Ostatní poplatky** (KB `external_fee`, IB `Other Fees` – ADR, `Transaction
+  Fees`), **Placené úroky** (`Broker Interest Paid`). Vklady, výběry, přijaté úroky a konverze KB
+  (poplatek je v kurzu) nejsou poplatek. Kč kurzem ČNB ke dni zaúčtování; chybí-li den,
+  poslední předchozí jako odhad „≈“ (čerstvé vypořádání před vyhlášením kurzu), bez kurzu vůbec
+  = mimo součty. **Nákupní a prodejní poplatky jsou v appce součástí FIFO** (pořizovací cena,
+  výnos z prodeje) – dlaždice Celkem je dělí na „v FIFO“ a „samostatně“, aby je účetní
+  nezapočítala dvakrát. Obrazovka: čipy roků (výchozí letošní, jinak poslední s poplatky; rok
+  zůstává při přepnutí účtu), dlaždice (Celkem + druhy, které účet má v kterémkoli roce),
+  Přehled po letech (klik na rok = výběr), Položky roku. Export XLSX: list roku (druhy nahoře
+  přes `SUMIFS` nad položkami, Celkem `SUM`) + list Přehled po letech. Kontrola KB proti
+  ročním výpisům nákladů KB (RVN, „Informace o nákladech, poplatcích a pobídkách“): provize
+  ke dni obchodu 2022–2024 na korunu, správa účtu (custody průběžné) 2023 1 740, 2024 2 649,
+  2025 4 182 Kč na korunu. IBKR měnil měny bez poplatku (AFx, „Comm in USD“ 0; částky
+  v posledním sloupci forex řádků Activity Statementu jsou MTM, ne poplatek).
 - **Daňová optimalizace (od 2026-10-28, zadání PLEGIN #7):** za zvolenou firmu (všechna
   její portfolia podle Nastavení, nezávisle na aktivním). Dlaždice: **Realizováno <rok>** (prodeje vypořádané
   v aktuálním pražském roce = součet Reportu pro účetní za IBKR + KB), **Odhad daně z prodejů**
@@ -732,7 +772,7 @@ Bez `ADMIN_KEY` jsou `/run/*` endpointy zavřené (403); cron triggery běží v
 
 ## Testy
 
-`tests/{fifo,flex-shared,flex-import,portfolio-shared,akcie-den,plegin-report,move-reasons,tax-optimization,tax-person,closed-positions,owners,alerts-shared,alerts-job,accounting-evidence}.test.mjs` — 163 unit testů
+`tests/{fifo,flex-shared,flex-import,portfolio-shared,akcie-den,plegin-report,move-reasons,tax-optimization,tax-person,closed-positions,owners,alerts-shared,alerts-job,accounting-evidence,fees}.test.mjs` — 171 unit testů
 (`npm install` jednou, pak `node --test tests/*.test.mjs`; report importuje SDK pro Claude), ručně spočítané fixtures: FIFO matching + prorace komise,
 proceeds-authoritative ceny, splity (vč. same-day pořadí a 1:25), KB received/removed
 párování + bonus/cancellation, práva odepsaná po víc než 30 dnech (GRPN), orphan sells,
@@ -754,7 +794,9 @@ podle vypořádání, dividendy, simulace, zpětné odečtení ztráty a dopočt
 prodeje, dividendy v jiné měně), vlastníci portfolií (manifest vs. uložené nastavení, nové
 portfolio, validace /api/settings), evidence pro účetní BI (nákup ze dvou obchodů téhož dne, Kč
 k vypořádání i ke dni obchodu, zbytek na začátku a konci období se splitem, bonusové kusy, prodej
-hrubě/poplatek/FIFO, kurz dividendy odhadem, hotovost ze staršího výpisu, prodej bez nákupu).
+hrubě/poplatek/FIFO, kurz dividendy odhadem, hotovost ze staršího výpisu, prodej bez nákupu),
+Poplatky (druhy, rok podle vypořádání, měna z instrumentu, vratka, kurz odhadem i chybějící,
+součty v FIFO a samostatně; konverze z overlay jako záznam a bez zdvojení hotovosti).
 CI: `.github/workflows/tests.yml` při každém pushi (neblokuje
 deploy — červený běh = signál). Uzavírá REVIZE R9 (2026-07-25).
 
@@ -796,10 +838,11 @@ Cost basis prorataována o proporcionální komisi.
 
 ```
 web/                                    ← repo root = asset složka Workeru
-├── index.html                          ← 9 tabů portfolia + 3 v hlavičce, modaly, #warnings banner
-├── assets/js/{app.js, fifo.js, flex-shared.js, portfolio-shared.js, tax-optimization.js, tax-person.js, owners.js, vendor/xlsx-js-style.min.js}
+├── index.html                          ← 7 tabů portfolia + 6 v hlavičce, modaly, #warnings banner
+├── assets/js/{app.js, fifo.js, flex-shared.js, portfolio-shared.js, tax-optimization.js, tax-person.js, fees.js, owners.js, vendor/xlsx-js-style.min.js}
 │                                       ← fifo+flex-shared+portfolio-shared+owners sdílené s Workerem,
 │                                         tax-optimization = výpočty tabu Daňová optimalizace,
+│                                         fees = výpočet tabu Poplatky,
 │                                         tax-person = daň fyzické osoby (časový test),
 │                                         owners = vlastníci portfolií (Nastavení, /api/settings)
 ├── assets/css/styles.css

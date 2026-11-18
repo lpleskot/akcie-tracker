@@ -46,9 +46,10 @@ if (!dir || !opt.id || !opt.name || !opt.broker) {
   process.exit(1);
 }
 
-// Výpisy chronologicky — Open Positions a M2M v overlay jsou z posledního
+// Výpisy chronologicky — Open Positions a M2M v overlay jsou z posledního.
+// Výstupy scripts/flex-diag.mjs (posledních 7 dní) do historie nepatří.
 const statements = readdirSync(dir)
-  .filter((f) => f.endsWith(".xml"))
+  .filter((f) => f.endsWith(".xml") && !f.startsWith("flex-diag-"))
   .map((f) => {
     const xml = readFileSync(join(dir, f), "utf-8");
     const [st] = parseElements(xml, "FlexStatement", ["accountId", "fromDate", "toDate"]);
@@ -102,6 +103,8 @@ const portfolio = {
   dividends: [],
   withholding_tax: [],
   cash_flows: [],
+  // Měnové konverze kvůli poplatkům (tab Poplatky); do hotovosti je promítne merge níž
+  fx_conversions: [],
   cash_balance: {},
 };
 const fxRates = JSON.parse(readFileSync("data/fx_rates.json", "utf-8"));
@@ -167,6 +170,7 @@ writeFileSync(historyFile, JSON.stringify(history, null, 2) + "\n", "utf-8");
 console.log(
   `✅ ${portfolioFile}: ${portfolio.transactions.length} obchodů, ${portfolio.dividends.length} dividend, ` +
     `${portfolio.withholding_tax.length} srážek, ${portfolio.cash_flows.length} pohybů hotovosti, ` +
+    `${portfolio.fx_conversions.length} měnových konverzí, ` +
     `${portfolio.corporate_actions.length} corporate actions, ${Object.keys(held).length} držených titulů – ` +
     `hotovost a pozice sedí s IB k ${portfolio.period_to}`,
 );

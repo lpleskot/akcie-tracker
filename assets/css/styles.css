@@ -16,6 +16,7 @@
   --color-positive: #1e7b3d;
   --color-negative: #b3261e;
   --color-zebra: #fafaf8;
+  --color-selected: #eef3fb;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --radius: 6px;
   /* Šipka výběru (barva --color-text-muted) — viz pravidlo select níže */
@@ -968,6 +969,43 @@ tfoot td {
   background: #8b9aaf;
 }
 
+/* ------- Poplatky ------- */
+.fees-title {
+  margin: 20px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.fees-title:first-of-type {
+  margin-top: 4px;
+}
+/* Zvolený rok v přehledu po letech (vč. ukotveného prvního sloupce na mobilu) */
+#tbl-fees-years tbody tr.selected > td,
+#tbl-fees-years tbody tr.selected:nth-child(even) > td {
+  background: var(--color-selected);
+}
+.fees-year-link {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0;
+}
+.fees-year-link[aria-current="true"] {
+  color: var(--color-text);
+}
+#tbl-fees .missing-fx,
+#tbl-fees-years .missing-fx {
+  color: var(--color-negative);
+}
+/* Popisy z výpisů bývají dlouhé – zalomit, ať tabulka nejede do strany */
+#tbl-fees td.fees-desc {
+  white-space: normal;
+  min-width: 14rem;
+  max-width: 26rem;
+}
+#tbl-fees .fees-trade-date {
+  display: block;
+  font-size: 11.5px;
+}
+
 /* ------- Report pro účetní ------- */
 .report-intro {
   margin-bottom: 12px;
@@ -1219,6 +1257,11 @@ tfoot td {
   }
   .filter-chip {
     min-height: 44px;
+  }
+  .fees-year-link {
+    min-width: 44px;
+    min-height: 44px;
+    text-align: left;
   }
 }
 

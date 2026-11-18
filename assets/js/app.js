@@ -48,6 +48,7 @@ import {
   timeTestSummary,
   withTimeTest,
 } from "./tax-person.js";
+import { FEE_LABELS, feeItems, feesByYear, usedCategories } from "./fees.js";
 import {
   OWNER_TYPES,
   OWNER_TYPE_LABELS,
@@ -118,6 +119,8 @@ const state = {
   closedSort: { key: "lastSell", dir: "desc" },
   txFilter: { from: null, to: null },
   reportFilter: { from: null, to: null },
+  // Tab Poplatky: zvolený kalendářní rok (null = letošní, nebo poslední s poplatky)
+  fees: { year: null },
   divFilter: { year: null },
   searches: {
     overview: "",
@@ -215,6 +218,7 @@ async function init() {
   setupTxFilter();
   setupDivFilter();
   setupReportFilter();
+  setupFees();
   setupOverviewSearch();
   setupWatchlistModal();
   setupEditWatchModal();
@@ -889,6 +893,7 @@ async function refreshQuotes() {
   renderTransactions();
   renderDividends();
   renderReport();
+  renderFees();
   renderJournal();
   renderPortfolioHistory();
   renderSummary();
@@ -4001,6 +4006,286 @@ function renderReport() {
   summary.innerHTML = sumHtml;
 }
 
+// ---------- Poplatky ----------
+// Výpočet v ./fees.js (čisté funkce, testy) – tady jen obrazovka a export.
+const polozek = (n) => (n === 1 ? "položka" : n >= 2 && n <= 4 ? "položky" : "položek");
+const kc2 = (n) => `${fmtNum(n, 2)} Kč`;
+
+function setupFees() {
+  // Rok jde zvolit čipem nahoře i klikem na rok v přehledu po letech
+  const pick = (e) => {
+    const el = e.target.closest("[data-fee-year]");
+    if (!el) return;
+    state.fees.year = el.dataset.feeYear;
+    renderFees();
+  };
+  document.getElementById("fees-year-chips")?.addEventListener("click", pick);
+  document.getElementById("tbl-fees-years")?.addEventListener("click", pick);
+}
+
+// Poplatky aktivního portfolia – obrazovka i export z jednoho výpočtu
+function feesView() {
+  const items = feeItems(state.portfolio, state.fxRates);
+  const years = feesByYear(items);
+  // Zvolený rok platí i po přepnutí účtu, když ho účet má; jinak letošní, nebo poslední s poplatky
+  if (!years.some((y) => y.year === state.fees.year)) {
+    const thisYear = pragueToday().slice(0, 4);
+    state.fees.year = years.some((y) => y.year === thisYear) ? thisYear : years[0]?.year || null;
+  }
+  const year = years.find((y) => y.year === state.fees.year) || null;
+  const rows = year ? items.filter((i) => i.date.startsWith(year.year)) : [];
+  return { years, cats: usedCategories(items), year, rows };
+}
+
+function renderFees() {
+  if (!state.portfolio) return;
+  const v = feesView();
+  document.getElementById("fees-year-chips").innerHTML = v.years
+    .map(
+      (y) =>
+        `<button class="filter-chip${y.year === state.fees.year ? " active" : ""}" type="button" data-fee-year="${y.year}">${y.year}</button>`,
+    )
+    .join("");
+  document.getElementById("fees-count").textContent = v.year ? `${v.rows.length} ${polozek(v.rows.length)}` : "";
+  const empty = !v.year;
+  const status = document.getElementById("fees-status");
+  status.hidden = !empty;
+  status.textContent = empty ? "Účet zatím nemá žádné poplatky." : "";
+  for (const id of ["fees-cards", "fees-years-title", "fees-years-wrap", "fees-items-title", "fees-wrap"]) {
+    document.getElementById(id).hidden = empty;
+  }
+  if (empty) return;
+  renderFeeCards(v);
+  renderFeeYears(v);
+  renderFeeRows(v);
+}
+
+// Položky bez kurzu nejsou v součtech, odhad kurzu je vidět – do bublin i patičky
+function feeGapsText(s) {
+  return [
+    s.missing ? `${s.missing} ${polozek(s.missing)} bez kurzu ČNB není v součtu` : "",
+    s.estimates ? `${s.estimates} ${polozek(s.estimates)} kurzem předchozího dne (≈)` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function renderFeeCards(v) {
+  const wrap = document.getElementById("fees-cards");
+  wrap.innerHTML = "";
+  const y = v.year;
+  const gaps = feeGapsText(y);
+  const split = v.cats.some((c) => c.inFifo) && v.cats.some((c) => !c.inFifo);
+  const total = cardHtml(
+    `Poplatky ${y.year} celkem`,
+    kcText(y.czk),
+    `${y.count} ${polozek(y.count)}${split ? `<br>v FIFO ${kcText(y.inFifo)} · samostatně ${kcText(y.separate)}` : ""}`,
+  );
+  total.title =
+    `${v.cats.map((c) => `${c.label} ${kc2(y.categories[c.key].czk)}`).join(" + ")} = ${kc2(y.czk)}` +
+    (split ? `. V FIFO (nákupy a prodeje) ${kc2(y.inFifo)}, samostatný náklad ${kc2(y.separate)}` : "") +
+    (gaps ? `. ${gaps}` : "");
+  wrap.appendChild(total);
+  for (const c of v.cats) {
+    const s = y.categories[c.key];
+    const card = cardHtml(c.label, kcText(s.czk), `${s.count} ${polozek(s.count)} · ${escapeHtml(c.note)}`);
+    card.title =
+      `Součet ${s.count} ${polozek(s.count)} roku ${y.year}: částka v měně × kurz ČNB ke dni zaúčtování = ${kc2(s.czk)}` +
+      (s.missing ? `; ${s.missing} bez kurzu ČNB není v součtu` : "");
+    wrap.appendChild(card);
+  }
+}
+
+function renderFeeYears(v) {
+  const table = document.getElementById("tbl-fees-years");
+  table.tHead.innerHTML = `<tr><th>Rok</th>${v.cats
+    .map((c) => `<th class="num">${escapeHtml(c.label)}</th>`)
+    .join("")}<th class="num">Celkem</th></tr>`;
+  const cell = (s) =>
+    s.count
+      ? `<td class="num" title="${s.count} ${polozek(s.count)}${s.missing ? `, ${s.missing} bez kurzu ČNB není v součtu` : ""}">${fmtNum(s.czk, 2)}</td>`
+      : '<td class="num muted">—</td>';
+  table.tBodies[0].innerHTML = v.years
+    .map((y) => {
+      const selected = y.year === state.fees.year;
+      const gaps = feeGapsText(y);
+      return `<tr${selected ? ' class="selected"' : ""}>
+        <td><button class="btn-link fees-year-link" type="button" data-fee-year="${y.year}"${selected ? ' aria-current="true"' : ""}>${y.year}</button></td>
+        ${v.cats.map((c) => cell(y.categories[c.key])).join("")}
+        <td class="num"${gaps ? ` title="${gaps}"` : ""}><strong>${fmtNum(y.czk, 2)}</strong>${y.missing ? ' <span class="missing-fx">*</span>' : ""}</td>
+      </tr>`;
+    })
+    .join("");
+  const sumOf = (pick) => v.years.reduce((sum, y) => sum + pick(y), 0);
+  table.tFoot.innerHTML = `<tr><td>Celkem</td>${v.cats
+    .map((c) => `<td class="num">${fmtNum(sumOf((y) => y.categories[c.key].czk), 2)}</td>`)
+    .join("")}<td class="num">${fmtNum(sumOf((y) => y.czk), 2)}</td></tr>`;
+}
+
+function feeRateHtml(r) {
+  if (r.currency === "CZK") return '<span class="muted">—</span>';
+  if (r.rate == null) return '<span class="missing-fx">chybí kurz</span>';
+  if (!r.estimate) return fmtNum(r.rate, 4);
+  return `<span title="Kurz ČNB k ${r.date} v kurzech chybí – použit kurz k ${r.rate_date}">≈ ${fmtNum(r.rate, 4)}</span>`;
+}
+
+function renderFeeRows(v) {
+  const y = v.year;
+  document.getElementById("fees-items-title").textContent = `Položky ${y.year}`;
+  const instruments = state.portfolio.instruments || {};
+  document.querySelector("#tbl-fees tbody").innerHTML = v.rows
+    .map((r) => {
+      const name = r.symbol ? instruments[r.symbol]?.name || "" : "";
+      // Den obchodu pod datum zaúčtování – vedle něj by ukotvený první sloupec na mobilu zabral půl displeje
+      const traded = r.trade_date && r.trade_date !== r.date ? `<span class="fees-trade-date muted">obchod ${r.trade_date}</span>` : "";
+      const czk = r.czk == null ? '<span class="missing-fx">—</span>' : `${r.estimate ? "≈ " : ""}${fmtNum(r.czk, 2)}`;
+      return `<tr>
+        <td>${r.date}${traded}</td>
+        <td>${escapeHtml(FEE_LABELS[r.category])}</td>
+        <td class="symbol"${name ? ` title="${escapeHtml(name)}"` : ""}>${escapeHtml(r.symbol || "")}</td>
+        <td class="fees-desc">${escapeHtml(r.description)}</td>
+        <td class="num">${fmtNum(r.amount, 2)}</td>
+        <td>${escapeHtml(r.currency || "")}</td>
+        <td class="num">${feeRateHtml(r)}</td>
+        <td class="num">${czk}</td>
+      </tr>`;
+    })
+    .join("");
+  const gaps = feeGapsText(y);
+  document.querySelector("#tbl-fees tfoot").innerHTML = `<tr>
+    <td colspan="7">Celkem ${y.year}${gaps ? ` <span class="muted">(${gaps})</span>` : ""}</td>
+    <td class="num">${fmtNum(y.czk, 2)}</td>
+  </tr>`;
+}
+
+// Export = co je vidět: položky zvoleného roku s druhy nahoře (SUMIFS) a druhý list přehled po letech
+function exportFeesXlsx() {
+  const v = feesView();
+  if (!v.year) {
+    alert("Účet zatím nemá žádné poplatky.");
+    return;
+  }
+  const p = state.portfolio;
+  const y = v.year;
+  const dateOf = (iso) => (iso ? new Date(`${iso}T00:00:00`) : "");
+  const title = `Poplatky ${y.year} – ${p.name}${p.account ? ` (účet ${p.account})` : ""}`;
+  const subtitle =
+    "Kč kurzem ČNB ke dni zaúčtování (≈ = kurz k tomu dni v datech chybí, použit poslední předchozí). Poplatky z obchodů podle data vypořádání, " +
+    "stejně jako Report pro účetní. Poplatky při nákupu a prodeji jsou v aplikaci součástí FIFO (pořizovací cena akcií, výnos z prodeje) – " +
+    "v Reportu pro účetní se už projevují. Konverze měn, správa účtu, ostatní poplatky a placené úroky jsou samostatný náklad.";
+  const header = ["Datum", "Datum obchodu", "Druh", "Titul", "Popis", "Částka", "Měna", "Kurz ČNB", "Kč", "Pozn."];
+  const firstSummary = 4; // 1-based řádek prvního druhu (pod nadpisem, popisem a mezerou)
+  const headerRow = 3 + v.cats.length + 2; // 0-based: druhy, Celkem, mezera
+  const firstData = headerRow + 2; // 1-based
+  const lastData = headerRow + 1 + v.rows.length;
+  const czkRange = `I${firstData}:I${lastData}`;
+  const kindRange = `C${firstData}:C${lastData}`;
+  const aoa = [[title], [subtitle], []];
+  for (const c of v.cats) {
+    aoa.push([c.label, { t: "n", f: `SUMIFS(${czkRange},${kindRange},"${c.label}")`, v: y.categories[c.key].czk }, c.note]);
+  }
+  aoa.push([
+    `Celkem ${y.year}`,
+    { t: "n", f: `SUM(B${firstSummary}:B${firstSummary + v.cats.length - 1})`, v: y.czk },
+    feeGapsText(y),
+  ]);
+  aoa.push([]);
+  aoa.push(header);
+  for (const r of v.rows) {
+    const note =
+      r.czk == null
+        ? "chybí kurz ČNB – není v součtu"
+        : r.estimate
+          ? `kurz ČNB k ${fmtCzDate(r.rate_date)} (den ${fmtCzDate(r.date)} v kurzech chybí)`
+          : "";
+    aoa.push([
+      dateOf(r.date),
+      r.trade_date && r.trade_date !== r.date ? dateOf(r.trade_date) : "",
+      FEE_LABELS[r.category],
+      r.symbol || "",
+      r.description,
+      r.amount,
+      r.currency || "",
+      r.currency === "CZK" || r.rate == null ? "" : r.rate,
+      r.czk ?? "",
+      note,
+    ]);
+  }
+  aoa.push([]);
+  aoa.push(["Celkem", "", "", "", "", "", "", "", { t: "n", f: `SUM(${czkRange})`, v: y.czk }, ""]);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa, { dateNF: "d\\. m\\. yyyy" });
+  const lastCol = header.length - 1;
+  const totalRow = aoa.length - 1;
+  ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: totalRow, c: lastCol } });
+  ws["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: lastCol } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: lastCol } },
+  ];
+  ws["!rows"] = [{ hpt: 20 }, { hpt: 46 }];
+  ws["A1"].s = { font: { bold: true, sz: 12 } };
+  ws["A2"].s = { font: { sz: 10, color: { rgb: "6B6B66" } }, alignment: { wrapText: true, vertical: "top" } };
+  const numFmt = { 5: "#,##0.00", 7: "#,##0.0000", 8: "#,##0.00" };
+  for (let rr = 3; rr <= totalRow; rr++) {
+    for (let c = 0; c <= lastCol; c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r: rr, c })];
+      if (!cell) continue;
+      if (rr === headerRow || rr === totalRow || (rr < headerRow && c === 0)) cell.s = { font: { bold: true } };
+      if (rr < headerRow && c === 1) cell.z = "#,##0.00";
+      if (rr > headerRow && cell.t === "n" && numFmt[c]) cell.z = numFmt[c];
+    }
+  }
+  ws["!autofilter"] = { ref: `A${headerRow + 1}:${XLSX.utils.encode_col(lastCol)}${lastData}` };
+  ws["!cols"] = [
+    { wch: 20 }, { wch: 13 }, { wch: 20 }, { wch: 9 }, { wch: 44 }, { wch: 11 }, { wch: 6 }, { wch: 10 }, { wch: 12 }, { wch: 40 },
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, `Poplatky ${y.year}`);
+  XLSX.utils.book_append_sheet(wb, feeYearsSheet(v, p), "Přehled po letech");
+  XLSX.writeFile(wb, `${p.id}-poplatky-${y.year}.xlsx`);
+}
+
+function feeYearsSheet(v, p) {
+  const header = ["Rok", ...v.cats.map((c) => c.label), "Celkem"];
+  const lastCol = header.length - 1;
+  const lastCatCol = XLSX.utils.encode_col(lastCol - 1);
+  const aoa = [[`Poplatky po letech – ${p.name}`], [], header];
+  const headerRow = aoa.length - 1;
+  for (const y of v.years) {
+    const row = aoa.length + 1; // 1-based řádek, který se právě přidává
+    aoa.push([
+      Number(y.year),
+      ...v.cats.map((c) => (y.categories[c.key].count ? y.categories[c.key].czk : "")),
+      { t: "n", f: `SUM(B${row}:${lastCatCol}${row})`, v: y.czk },
+    ]);
+  }
+  const firstData = headerRow + 2;
+  const lastData = aoa.length;
+  aoa.push([
+    "Celkem",
+    ...[...v.cats, null].map((_, i) => {
+      const col = XLSX.utils.encode_col(i + 1);
+      const value = v.years.reduce((sum, y) => sum + (i < v.cats.length ? y.categories[v.cats[i].key].czk : y.czk), 0);
+      return { t: "n", f: `SUM(${col}${firstData}:${col}${lastData})`, v: value };
+    }),
+  ]);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const totalRow = aoa.length - 1;
+  ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: totalRow, c: lastCol } });
+  ws["A1"].s = { font: { bold: true, sz: 12 } };
+  for (let rr = headerRow; rr <= totalRow; rr++) {
+    for (let c = 0; c <= lastCol; c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r: rr, c })];
+      if (!cell) continue;
+      if (rr === headerRow || rr === totalRow) cell.s = { font: { bold: true }, alignment: { wrapText: true, vertical: "top" } };
+      if (rr > headerRow && c > 0 && cell.t === "n") cell.z = "#,##0.00";
+    }
+  }
+  ws["!cols"] = [{ wch: 8 }, ...v.cats.map(() => ({ wch: 16 })), { wch: 16 }];
+  return ws;
+}
+
 // ---------- XLSX export — current view ----------
 function exportCurrentViewXlsx() {
   if (typeof XLSX === "undefined") {
@@ -4039,6 +4324,8 @@ function exportCurrentViewXlsx() {
     filenamePart = "alerty";
   } else if (view === "report") {
     return exportReportXlsx();
+  } else if (view === "fees") {
+    return exportFeesXlsx();
   } else if (view === "positions-at") {
     return exportPositionsAtXlsx();
   } else if (view === "tax") {

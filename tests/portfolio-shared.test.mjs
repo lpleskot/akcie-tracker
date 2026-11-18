@@ -114,7 +114,7 @@ test("mergeOverlayIntoPortfolio: dedupe, forex jen do hotovosti, dividendy, vkla
   const stats = mergeOverlayIntoPortfolio(p, overlay(), FX);
 
   assert.deepEqual(stats, {
-    trades: 1, dividends: 1, withholding: 1, corp_actions: 1, cash_flows: 2,
+    trades: 1, dividends: 1, withholding: 1, corp_actions: 1, cash_flows: 2, fx_conversions: 1,
     last_import: "2026-09-22T05:00:12Z",
   });
   assert.deepEqual(p.transactions.map((t) => t.flex_id), ["T0", "T1"]);
@@ -146,6 +146,32 @@ test("mergeOverlayIntoPortfolio: konverze s netCash 0 – obě měny i poplatek 
   close(p.cash_balance.EUR, 0);
   close(p.cash_balance.HKD, 12404.66);
   assert.equal(p.transactions.length, 0); // konverze není pozice
+  // …ale zůstane jako záznam s poplatkem pro tab Poplatky
+  assert.deepEqual(
+    p.fx_conversions.map((x) => [x.flex_id, x.pair, x.base_currency, x.quantity, x.commission, x.commission_currency]),
+    [
+      ["L1", "EUR.CZK", "EUR", 1349, -100, "CZK"],
+      ["L2", "EUR.HKD", "EUR", -1349, -112.59, "CZK"],
+    ],
+  );
+});
+
+test("mergeOverlayIntoPortfolio: konverze ze statického JSON se z overlay nezapočte podruhé", () => {
+  // Historie Lynx z výpisů nese konverze i hotovost k poslednímu dni výpisu
+  const p = {
+    transactions: [],
+    instruments: {},
+    cash_balance: { CZK: 1000 },
+    fx_conversions: [{ flex_id: "L1", pair: "EUR.CZK", quantity: 40, proceeds: -1000, currency: "CZK", commission: -100, commission_currency: "CZK" }],
+  };
+  const stats = mergeOverlayIntoPortfolio(p, {
+    trades: [
+      { tradeID: "L1", symbol: "EUR.CZK", assetCategory: "CASH", buySell: "BUY", quantity: "40", proceeds: "-1000", ibCommission: "-100", ibCommissionCurrency: "CZK", netCash: "0", currency: "CZK" },
+    ],
+  }, null);
+  assert.equal(stats.fx_conversions, 0);
+  assert.equal(p.fx_conversions.length, 1);
+  assert.deepEqual(p.cash_balance, { CZK: 1000 });
 });
 
 test("mergeOverlayIntoPortfolio: opakovaný merge téhož overlay nic nezdvojí", () => {

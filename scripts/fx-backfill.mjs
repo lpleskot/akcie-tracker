@@ -38,6 +38,11 @@ for (const f of files) {
   }
   for (const r of [...(p.dividends || []), ...(p.withholding_tax || []), ...(p.cash_flows || []), ...(p.corporate_actions || [])]) {
     want(r.date, ccyOf(r));
+    want(r.settle_date, ccyOf(r));
+  }
+  // Poplatek za konverzi se v tabu Poplatky přepočítává ke dni vypořádání
+  for (const x of p.fx_conversions || []) {
+    if (x.commission) want(x.settle_date || x.date, x.commission_currency);
   }
 }
 

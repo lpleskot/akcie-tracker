@@ -6895,6 +6895,806 @@
    "amount": -4.5,
    "description": "Externí poplatek za CA c. 104961",
    "amount_usd": -4.5
+  },
+  {
+   "date": "2022-12-30",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -373.0,
+   "description": "Poplatek za správu portfolia 2022 vč. DPH – roční souhrn z výpisu nákladů KB (Výpis 1.1.-31.12.2022), měsíční rozpad v podkladech není",
+   "amount_usd": -16.4927
+  },
+  {
+   "date": "2023-01-06",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -76.02,
+   "description": "Poplatek za správu 01.12 - 31.12",
+   "amount_usd": -3.3181
+  },
+  {
+   "date": "2023-01-06",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -15.97,
+   "description": "DPH za správu 01.12 - 31.12",
+   "amount_usd": -0.697
+  },
+  {
+   "date": "2023-02-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -90.45,
+   "description": "Poplatek za správu 01.01 - 31.01",
+   "amount_usd": -4.0613
+  },
+  {
+   "date": "2023-02-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -19.0,
+   "description": "DPH za správu 01.01 - 31.01",
+   "amount_usd": -0.8531
+  },
+  {
+   "date": "2023-03-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -86.15,
+   "description": "Poplatek za správu 01.02 - 28.02",
+   "amount_usd": -3.9104
+  },
+  {
+   "date": "2023-03-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -18.1,
+   "description": "DPH za správu 01.02 - 28.02",
+   "amount_usd": -0.8216
+  },
+  {
+   "date": "2023-04-12",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -98.25,
+   "description": "Poplatek za správu 01.03 - 31.03",
+   "amount_usd": -4.5828
+  },
+  {
+   "date": "2023-04-12",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -20.64,
+   "description": "DPH za správu 01.03 - 31.03",
+   "amount_usd": -0.9627
+  },
+  {
+   "date": "2023-05-09",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -99.71,
+   "description": "Poplatek za správu 01.04 - 30.04",
+   "amount_usd": -4.6788
+  },
+  {
+   "date": "2023-05-09",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -20.94,
+   "description": "DPH za správu 01.04 - 30.04",
+   "amount_usd": -0.9826
+  },
+  {
+   "date": "2023-06-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -102.86,
+   "description": "Poplatek za správu 01.05 - 31.05",
+   "amount_usd": -4.6627
+  },
+  {
+   "date": "2023-06-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -21.6,
+   "description": "DPH za správu 01.05 - 31.05",
+   "amount_usd": -0.9791
+  },
+  {
+   "date": "2023-07-11",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -122.18,
+   "description": "Poplatek za správu 01.06 - 30.06",
+   "amount_usd": -5.6296
+  },
+  {
+   "date": "2023-07-11",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -25.66,
+   "description": "DPH za správu 01.06 - 30.06",
+   "amount_usd": -1.1823
+  },
+  {
+   "date": "2023-08-11",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -133.49,
+   "description": "Poplatek za správu 01.07 - 31.07",
+   "amount_usd": -6.0935
+  },
+  {
+   "date": "2023-08-11",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -28.04,
+   "description": "DPH za správu 01.07 - 31.07",
+   "amount_usd": -1.28
+  },
+  {
+   "date": "2023-09-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -150.94,
+   "description": "Poplatek za správu 01.08 - 31.08",
+   "amount_usd": -6.6309
+  },
+  {
+   "date": "2023-09-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -31.7,
+   "description": "DPH za správu 01.08 - 31.08",
+   "amount_usd": -1.3926
+  },
+  {
+   "date": "2023-10-10",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -161.66,
+   "description": "Poplatek za správu 01.09 - 30.09",
+   "amount_usd": -6.9645
+  },
+  {
+   "date": "2023-10-10",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -33.95,
+   "description": "DPH za správu 01.09 - 30.09",
+   "amount_usd": -1.4626
+  },
+  {
+   "date": "2023-11-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -156.82,
+   "description": "Poplatek za správu 01.10 - 31.10",
+   "amount_usd": -6.7999
+  },
+  {
+   "date": "2023-11-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -32.94,
+   "description": "DPH za správu 01.10 - 31.10",
+   "amount_usd": -1.4283
+  },
+  {
+   "date": "2023-12-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -159.18,
+   "description": "Poplatek za správu 01.11 - 30.11",
+   "amount_usd": -7.0384
+  },
+  {
+   "date": "2023-12-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -33.43,
+   "description": "DPH za správu 01.11 - 30.11",
+   "amount_usd": -1.4782
+  },
+  {
+   "date": "2024-01-08",
+   "type": "management_fee",
+   "currency": "USD",
+   "amount": -8.21,
+   "description": "Poplatek za správu 01.12 - 31.12",
+   "amount_usd": -8.21
+  },
+  {
+   "date": "2024-01-08",
+   "type": "management_fee_vat",
+   "currency": "USD",
+   "amount": -1.72,
+   "description": "DPH za správu 01.12 - 31.12",
+   "amount_usd": -1.72
+  },
+  {
+   "date": "2024-02-07",
+   "type": "management_fee",
+   "currency": "EUR",
+   "amount": -7.37,
+   "description": "Poplatek za správu 01.01 - 31.01",
+   "amount_usd": -7.942
+  },
+  {
+   "date": "2024-02-07",
+   "type": "management_fee_vat",
+   "currency": "EUR",
+   "amount": -1.55,
+   "description": "DPH za správu 01.01 - 31.01",
+   "amount_usd": -1.6703
+  },
+  {
+   "date": "2024-03-07",
+   "type": "management_fee",
+   "currency": "EUR",
+   "amount": -7.02,
+   "description": "Poplatek za správu 01.02 - 29.02",
+   "amount_usd": -7.6475
+  },
+  {
+   "date": "2024-03-07",
+   "type": "management_fee_vat",
+   "currency": "EUR",
+   "amount": -1.48,
+   "description": "DPH za správu 01.02 - 29.02",
+   "amount_usd": -1.6123
+  },
+  {
+   "date": "2024-04-08",
+   "type": "management_fee",
+   "currency": "EUR",
+   "amount": -7.45,
+   "description": "Poplatek za správu 01.03 - 31.03",
+   "amount_usd": -8.0645
+  },
+  {
+   "date": "2024-04-08",
+   "type": "management_fee_vat",
+   "currency": "EUR",
+   "amount": -1.56,
+   "description": "DPH za správu 01.03 - 31.03",
+   "amount_usd": -1.6887
+  },
+  {
+   "date": "2024-05-09",
+   "type": "management_fee",
+   "currency": "EUR",
+   "amount": -7.17,
+   "description": "Poplatek za správu 01.04 - 30.04",
+   "amount_usd": -7.6948
+  },
+  {
+   "date": "2024-05-09",
+   "type": "management_fee_vat",
+   "currency": "EUR",
+   "amount": -1.5,
+   "description": "DPH poplatku za správu 01.04 - 30.04",
+   "amount_usd": -1.6098
+  },
+  {
+   "date": "2024-06-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -180.53,
+   "description": "Poplatek za správu 01.05 - 31.05",
+   "amount_usd": -8.0026
+  },
+  {
+   "date": "2024-06-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -37.92,
+   "description": "DPH poplatku za správu 01.05 - 31.05",
+   "amount_usd": -1.6809
+  },
+  {
+   "date": "2024-07-08",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -167.39,
+   "description": "Poplatek za správu 01.06 - 30.06",
+   "amount_usd": -7.2104
+  },
+  {
+   "date": "2024-07-08",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -35.16,
+   "description": "DPH poplatku za správu 01.06 - 30.06",
+   "amount_usd": -1.5145
+  },
+  {
+   "date": "2024-08-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -181.94,
+   "description": "Poplatek za správu 01.07 - 31.07",
+   "amount_usd": -7.8619
+  },
+  {
+   "date": "2024-08-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -38.21,
+   "description": "DPH poplatku za správu 01.07 - 31.07",
+   "amount_usd": -1.6511
+  },
+  {
+   "date": "2024-09-06",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -174.44,
+   "description": "Poplatek za správu 01.08 - 31.08",
+   "amount_usd": -7.7384
+  },
+  {
+   "date": "2024-09-06",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -36.64,
+   "description": "DPH poplatku za správu 01.08 - 31.08",
+   "amount_usd": -1.6254
+  },
+  {
+   "date": "2024-10-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -173.65,
+   "description": "Poplatek za správu 01.09 - 30.09",
+   "amount_usd": -7.5232
+  },
+  {
+   "date": "2024-10-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -36.47,
+   "description": "DPH poplatku za správu 01.09 - 30.09",
+   "amount_usd": -1.58
+  },
+  {
+   "date": "2024-11-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -194.9,
+   "description": "Poplatek za správu 01.10 - 31.10",
+   "amount_usd": -8.3269
+  },
+  {
+   "date": "2024-11-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -40.93,
+   "description": "DPH poplatku za správu 01.10 - 31.10",
+   "amount_usd": -1.7487
+  },
+  {
+   "date": "2024-12-06",
+   "type": "management_fee",
+   "currency": "EUR",
+   "amount": -8.09,
+   "description": "Poplatek za správu 01.11 - 30.11",
+   "amount_usd": -8.5626
+  },
+  {
+   "date": "2024-12-06",
+   "type": "management_fee_vat",
+   "currency": "EUR",
+   "amount": -1.7,
+   "description": "DPH poplatku za správu 01.11 - 30.11",
+   "amount_usd": -1.7993
+  },
+  {
+   "date": "2025-01-08",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -227.36,
+   "description": "Poplatek za správu 01.12 - 31.12",
+   "amount_usd": -9.307
+  },
+  {
+   "date": "2025-01-08",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -47.75,
+   "description": "DPH poplatku za správu 01.12 - 31.12",
+   "amount_usd": -1.9546
+  },
+  {
+   "date": "2025-02-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -240.56,
+   "description": "Poplatek za správu 01.01 - 31.01",
+   "amount_usd": -9.9434
+  },
+  {
+   "date": "2025-02-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -50.52,
+   "description": "DPH poplatku za správu 01.01 - 31.01",
+   "amount_usd": -2.0882
+  },
+  {
+   "date": "2025-02-07",
+   "type": "fee_rebilling",
+   "currency": "CZK",
+   "amount": -9.79,
+   "description": "Přefakturace externích poplatků 01.01 - 31.01",
+   "amount_usd": -0.4047
+  },
+  {
+   "date": "2025-03-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -241.7,
+   "description": "Poplatek za správu 01.02 - 28.02",
+   "amount_usd": -10.4914
+  },
+  {
+   "date": "2025-03-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -50.76,
+   "description": "DPH poplatku za správu 01.02 - 28.02",
+   "amount_usd": -2.2033
+  },
+  {
+   "date": "2025-03-07",
+   "type": "fee_rebilling",
+   "currency": "CZK",
+   "amount": -13.38,
+   "description": "Přefakturace externích poplatků 01.02 - 28.02",
+   "amount_usd": -0.5808
+  },
+  {
+   "date": "2025-04-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -257.67,
+   "description": "Poplatek za správu 01.03 - 31.03",
+   "amount_usd": -11.2021
+  },
+  {
+   "date": "2025-04-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -54.11,
+   "description": "DPH poplatku za správu 01.03 - 31.03",
+   "amount_usd": -2.3524
+  },
+  {
+   "date": "2025-04-07",
+   "type": "fee_rebilling",
+   "currency": "CZK",
+   "amount": -16.98,
+   "description": "Přefakturace externích poplatků 01.03 - 31.03",
+   "amount_usd": -0.7382
+  },
+  {
+   "date": "2025-05-09",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -242.24,
+   "description": "Poplatek za správu 01.04 - 30.04",
+   "amount_usd": -10.9304
+  },
+  {
+   "date": "2025-05-09",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -50.87,
+   "description": "DPH poplatku za správu 01.04 - 30.04",
+   "amount_usd": -2.2954
+  },
+  {
+   "date": "2025-05-09",
+   "type": "fee_rebilling",
+   "currency": "CZK",
+   "amount": -15.84,
+   "description": "Přefakturace externích poplatků 01.04 - 30.04",
+   "amount_usd": -0.7147
+  },
+  {
+   "date": "2025-06-06",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -284.18,
+   "description": "Poplatek za správu 01.05 - 31.05",
+   "amount_usd": -13.0989
+  },
+  {
+   "date": "2025-06-06",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -59.68,
+   "description": "DPH poplatku za správu 01.05 - 31.05",
+   "amount_usd": -2.7509
+  },
+  {
+   "date": "2025-06-06",
+   "type": "fee_rebilling",
+   "currency": "CZK",
+   "amount": -17.8,
+   "description": "Přefakturace externích poplatků 01.05 - 31.05",
+   "amount_usd": -0.8205
+  },
+  {
+   "date": "2025-07-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -294.37,
+   "description": "Poplatek za správu 01.06 - 30.06",
+   "amount_usd": -14.019
+  },
+  {
+   "date": "2025-07-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -61.82,
+   "description": "DPH poplatku za správu 01.06 - 30.06",
+   "amount_usd": -2.9441
+  },
+  {
+   "date": "2025-07-07",
+   "type": "fee_rebilling",
+   "currency": "CZK",
+   "amount": -18.82,
+   "description": "Přefakturace externích poplatků 01.06 - 30.06",
+   "amount_usd": -0.8963
+  },
+  {
+   "date": "2025-08-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -320.46,
+   "description": "Poplatek za správu 01.07 - 31.07",
+   "amount_usd": -15.2129
+  },
+  {
+   "date": "2025-08-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -67.3,
+   "description": "DPH poplatku za správu 01.07 - 31.07",
+   "amount_usd": -3.1949
+  },
+  {
+   "date": "2025-08-07",
+   "type": "fee_rebilling",
+   "currency": "CZK",
+   "amount": -21.04,
+   "description": "Přefakturace externích poplatků 01.07 - 31.07",
+   "amount_usd": -0.9988
+  },
+  {
+   "date": "2025-09-05",
+   "type": "management_fee",
+   "currency": "EUR",
+   "amount": -14.61,
+   "description": "Poplatek za správu 01.08 - 31.08",
+   "amount_usd": -17.0905
+  },
+  {
+   "date": "2025-09-05",
+   "type": "management_fee_vat",
+   "currency": "EUR",
+   "amount": -3.07,
+   "description": "DPH poplatku za správu 01.08 - 31.08",
+   "amount_usd": -3.5912
+  },
+  {
+   "date": "2025-09-05",
+   "type": "fee_rebilling",
+   "currency": "EUR",
+   "amount": -0.85,
+   "description": "Přefakturace externích poplatků 01.08 - 31.08",
+   "amount_usd": -0.9943
+  },
+  {
+   "date": "2025-10-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -308.55,
+   "description": "Poplatek za správu 01.09 - 30.09",
+   "amount_usd": -14.795
+  },
+  {
+   "date": "2025-10-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -64.8,
+   "description": "DPH poplatku za správu 01.09 - 30.09",
+   "amount_usd": -3.1072
+  },
+  {
+   "date": "2025-10-07",
+   "type": "fee_rebilling",
+   "currency": "CZK",
+   "amount": -6.34,
+   "description": "Přefakturace externích poplatků 01.09 - 30.09",
+   "amount_usd": -0.304
+  },
+  {
+   "date": "2025-11-07",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -304.43,
+   "description": "Poplatek za správu 01.10 - 31.10",
+   "amount_usd": -14.4657
+  },
+  {
+   "date": "2025-11-07",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -63.93,
+   "description": "DPH poplatku za správu 01.10 - 31.10",
+   "amount_usd": -3.0378
+  },
+  {
+   "date": "2025-12-05",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -261.08,
+   "description": "Poplatek za správu 01.11 - 30.11",
+   "amount_usd": -12.5604
+  },
+  {
+   "date": "2025-12-05",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -54.83,
+   "description": "DPH poplatku za správu 01.11 - 30.11",
+   "amount_usd": -2.6378
+  },
+  {
+   "date": "2026-01-08",
+   "type": "management_fee",
+   "currency": "CZK",
+   "amount": -233.27,
+   "description": "Poplatek za správu 01.12 - 31.12",
+   "amount_usd": -11.223
+  },
+  {
+   "date": "2026-01-08",
+   "type": "management_fee_vat",
+   "currency": "CZK",
+   "amount": -48.99,
+   "description": "DPH poplatku za správu 01.12 - 31.12",
+   "amount_usd": -2.357
+  },
+  {
+   "date": "2026-02-06",
+   "type": "management_fee",
+   "currency": "USD",
+   "amount": -11.12,
+   "description": "Poplatek za správu 01.01 - 31.01",
+   "amount_usd": -11.12
+  },
+  {
+   "date": "2026-02-06",
+   "type": "management_fee_vat",
+   "currency": "USD",
+   "amount": -2.34,
+   "description": "DPH poplatku za správu 01.01 - 31.01",
+   "amount_usd": -2.34
+  },
+  {
+   "date": "2026-03-06",
+   "type": "management_fee",
+   "currency": "GBP",
+   "amount": -6.94,
+   "description": "Poplatek za správu 01.02 - 28.02",
+   "amount_usd": -9.2613
+  },
+  {
+   "date": "2026-03-06",
+   "type": "management_fee_vat",
+   "currency": "GBP",
+   "amount": -1.46,
+   "description": "DPH k popl. za evidenci, správu nebo přefakt. 01.02 - 28.02",
+   "amount_usd": -1.9484
+  },
+  {
+   "date": "2026-04-09",
+   "type": "management_fee",
+   "currency": "USD",
+   "amount": -9.19,
+   "description": "Poplatek za správu 01.03 - 31.03",
+   "amount_usd": -9.19
+  },
+  {
+   "date": "2026-04-09",
+   "type": "management_fee_vat",
+   "currency": "USD",
+   "amount": -1.93,
+   "description": "DPH k popl. za evidenci, správu nebo přefakt. 01.03 - 31.03",
+   "amount_usd": -1.93
+  },
+  {
+   "date": "2026-05-11",
+   "type": "management_fee",
+   "currency": "EUR",
+   "amount": -7.84,
+   "description": "Poplatek za správu 01.04 - 30.04",
+   "amount_usd": -9.2256
+  },
+  {
+   "date": "2026-05-11",
+   "type": "management_fee_vat",
+   "currency": "EUR",
+   "amount": -1.65,
+   "description": "DPH k popl. za evidenci, správu nebo přefakt. 01.04 - 30.04",
+   "amount_usd": -1.9416
+  },
+  {
+   "date": "2026-06-05",
+   "type": "management_fee",
+   "currency": "EUR",
+   "amount": -8.26,
+   "description": "Poplatek za správu 01.05 - 31.05",
+   "amount_usd": -9.6152
+  },
+  {
+   "date": "2026-06-05",
+   "type": "management_fee_vat",
+   "currency": "EUR",
+   "amount": -1.73,
+   "description": "DPH k popl. za evidenci, správu nebo přefakt. 01.05 - 31.05",
+   "amount_usd": -2.0138
+  },
+  {
+   "date": "2026-07-08",
+   "type": "management_fee",
+   "currency": "EUR",
+   "amount": -7.68,
+   "description": "Poplatek za správu 01.06 - 30.06",
+   "amount_usd": -8.7572
+  },
+  {
+   "date": "2026-07-08",
+   "type": "management_fee_vat",
+   "currency": "EUR",
+   "amount": -1.61,
+   "description": "DPH k popl. za evidenci, správu nebo přefakt. 01.06 - 30.06",
+   "amount_usd": -1.8358
+  },
+  {
+   "date": "2026-08-07",
+   "type": "management_fee",
+   "currency": "EUR",
+   "amount": -5.53,
+   "description": "Poplatek za správu 01.07 - 31.07",
+   "amount_usd": -6.3779
+  },
+  {
+   "date": "2026-08-07",
+   "type": "management_fee_vat",
+   "currency": "EUR",
+   "amount": -1.16,
+   "description": "DPH k popl. za evidenci, správu nebo přefakt. 01.07 - 31.07",
+   "amount_usd": -1.3379
+  },
+  {
+   "date": "2026-09-07",
+   "type": "management_fee",
+   "currency": "EUR",
+   "amount": -5.25,
+   "description": "Poplatek za správu 01.08 - 31.08",
+   "amount_usd": -6.1014
+  },
+  {
+   "date": "2026-09-07",
+   "type": "management_fee_vat",
+   "currency": "EUR",
+   "amount": -1.1,
+   "description": "DPH k popl. za evidenci, správu nebo přefakt. 01.08 - 31.08",
+   "amount_usd": -1.2784
   }
  ],
  "cash_balance": {
@@ -7079,7 +7879,8 @@
   "Kapitál KB (oprava 2026-09-23): výnos se počítá z evidence toků — počáteční kapitál (opening_cash + 14 synthetic_opening pozic k 30. 12. 2022), vklady (cash_flows deposit) a výběry (cash_flows withdrawal; doplněno 9 výběrů 12/2025–3/2026 z TRN CASH, převody na IBKR). Odstraněny chybné souhrny total_deposits_usd / total_deposits_by_ccy (obsahovaly jen USD+EUR vklady od 2024, bez CZK, bez roku 2023 a bez výběrů).",
   "Q3 2026 (KB) naimportováno (01.07.–30.09.2026): 4 prodeje z TRN CP (ACN, CRST.L, GOOG, UNH), 5 dividend, 3 withholding, 1 výběr (59 800 USD, 08.07.2026), 1 external_fee. Datum = vypořádání; u obchodů settle_date z TRN CP (GOOG/UNH: TRN CP 07.07., TRN CASH připsal 06.07. — ponechán TRN CP). Poplatky za správu + DPH vynechány. cash_balance + period k 30.09.2026, 14/14 pozic match STAV PTF Q3.",
   "Q4 2026 průběžně (29. 10. 2026): 6 prodejů z potvrzení o uzavření obchodu (MC.PA, NU, LMT, KSPI, HUYA, DIS – celé pozice), kb_id „?/ID obchodu“ (číslo pokynu doplní TRN CP). Hotovost je odhad: výpis k 30. 9. 2026 + čisté výnosy prodejů (USD +46 779,83, EUR +5 770,32), bez říjnových dividend a poplatků – cash_balance a cash_history (estimate: true). Při importu Q4 (TRN CP, TRN CASH, STAV PTF) prodeje nezdvojit, ověřit datum vypořádání (potvrzení GOOG 2. 7. 2026 uvádělo 6. 7., TRN CP 7. 7.) a odhad hotovosti nechat – snapshot k 31. 12. ho od toho dne nahradí.",
-  "Q4 2026 průběžně (4.–5. 11. 2026): 7 prodejů z potvrzení o uzavření obchodu (PRX.AS, P911.DE, VNA.DE, DNP.WA, FILA.MI, LNF.TO, YAL.AX – celé pozice, likvidace účtu; v KB zbývá jen delistovaný CNE.TO). kb_id „?/ID obchodu“, settle_date = Vypořádání z potvrzení, ověřit podle TRN CP Q4. Hotovost = odhad (výpis k 30. 9. + čisté výnosy prodejů) v cash_balance a cash_history k datu obchodu."
+  "Q4 2026 průběžně (4.–5. 11. 2026): 7 prodejů z potvrzení o uzavření obchodu (PRX.AS, P911.DE, VNA.DE, DNP.WA, FILA.MI, LNF.TO, YAL.AX – celé pozice, likvidace účtu; v KB zbývá jen delistovaný CNE.TO). kb_id „?/ID obchodu“, settle_date = Vypořádání z potvrzení, ověřit podle TRN CP Q4. Hotovost = odhad (výpis k 30. 9. + čisté výnosy prodejů) v cash_balance a cash_history k datu obchodu.",
+  "Poplatky za správu účtu (2026-11-18, kvůli tabu Poplatky): 100 záznamů v cash_flows – management_fee (Poplatek za správu), management_fee_vat (DPH k němu) a fee_rebilling (Přefakturace externích poplatků) z TRN CASH 2024–2026-Q3 a Výpisů 2023, datum = vypořádání. Součty kurzem ČNB souhlasí s ročními výpisy nákladů KB (RVN, custody průběžné): 2023 1 740 Kč, 2024 2 649 Kč, 2025 4 182 Kč. Rok 2022 jen jako roční souhrn 373 Kč z výpisu nákladů. Q4 2026 doplnit s výpisem za Q4."
  ],
  "synthetic_cutoff_date": "2023-03-31",
  "ytd_mark_to_market_usd": 0,

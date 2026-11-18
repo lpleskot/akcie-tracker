@@ -673,9 +673,12 @@
       "quantity": 250.0,
       "price": 17.325,
       "proceeds": -4331.25,
-      "commission": -3.0,
+      "commission": -20.33,
       "order_type": "LMT",
-      "code": "O"
+      "code": "O",
+      "ib_commission": -3.0,
+      "taxes": -17.33,
+      "note": "Komise = provize IBKR −3 EUR + French Daily Trade Charge Tax −17,33 EUR (Activity Statement U23077136_20251124_20260515.csv, sekce Transaction Fees; doplněno 2026-11-18)"
     },
     {
       "symbol": "NFLX",
@@ -1038,6 +1041,15 @@
       "currency": "USD",
       "amount": 2.6,
       "description": "USD Credit Interest for Mar-2026"
+    },
+    {
+      "date": "2026-04-22",
+      "type": "Other Fees",
+      "symbol": "KSPI",
+      "currency": "USD",
+      "amount": -1.3,
+      "description": "KSPI(US48581R2058) Cash Dividend USD 1.791359 per Share - FEE",
+      "source": "IBKR Activity Statement U23077136_20251124_20260515.csv, sekce Fees"
     }
   ],
   "cash_balance": {

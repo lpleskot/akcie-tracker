@@ -46,6 +46,7 @@
           <button class="tab" data-view="dividends">Dividendy</button>
           <button class="tab" data-view="allocation">Alokace</button>
           <button class="tab" data-view="report">Report pro účetní</button>
+          <button class="tab" data-view="fees">Poplatky</button>
           <button class="tab" data-view="portfolio-history">Hodnota portfolia</button>
         </div>
       </div>
@@ -367,6 +368,52 @@
         <div class="table-toolbar" data-view-actions></div>
         <div id="report-content"></div>
         <div id="report-summary"></div>
+      </section>
+
+      <section id="view-fees" class="view">
+        <div class="filter-bar">
+          <span class="filter-label">Rok:</span>
+          <div class="filter-chips" id="fees-year-chips"></div>
+          <span class="filter-count" id="fees-count"></span>
+        </div>
+        <div class="report-intro muted">
+          Všechny poplatky účtu za kalendářní rok v Kč, kurzem ČNB ke dni zaúčtování. Poplatky
+          z obchodů patří do roku podle data vypořádání, stejně jako v Reportu pro účetní.
+          <strong>Poplatky při nákupu a prodeji jsou v aplikaci součástí FIFO</strong> – nákupní
+          jsou v pořizovací ceně akcií, prodejní snižují výnos z prodeje, takže se v Reportu pro
+          účetní už projevují. Konverze měn, správa účtu, ostatní poplatky a placené úroky jsou
+          samostatný náklad.
+        </div>
+        <div id="fees-status" class="status" hidden></div>
+        <div id="fees-cards" class="summary" hidden></div>
+        <h4 class="fees-title" id="fees-years-title" hidden>Přehled po letech</h4>
+        <div class="table-wrap" id="fees-years-wrap" hidden>
+          <table id="tbl-fees-years">
+            <thead></thead>
+            <tbody></tbody>
+            <tfoot></tfoot>
+          </table>
+        </div>
+        <h4 class="fees-title" id="fees-items-title" hidden></h4>
+        <div class="table-toolbar" data-view-actions></div>
+        <div class="table-wrap" id="fees-wrap" hidden>
+          <table id="tbl-fees">
+            <thead>
+              <tr>
+                <th>Datum</th>
+                <th>Druh</th>
+                <th>Titul</th>
+                <th>Popis</th>
+                <th class="num">Částka</th>
+                <th>Měna</th>
+                <th class="num">Kurz ČNB</th>
+                <th class="num">Kč</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot></tfoot>
+          </table>
+        </div>
       </section>
 
       <section id="view-tax" class="view">

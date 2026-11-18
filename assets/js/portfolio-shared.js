@@ -16,6 +16,7 @@ import {
   isForexConversion,
   flexDate,
   transformFlexTrade,
+  transformFlexFxConversion,
   transformFlexDividend,
   transformFlexWithholding,
   transformFlexCashFlow,
@@ -129,10 +130,12 @@ export function mergeOverlayIntoPortfolio(portfolio, overlay, fxRates) {
     withholding: 0,
     corp_actions: 0,
     cash_flows: 0,
+    fx_conversions: 0,
     last_import: overlay.last_import || null,
   };
 
   portfolio.transactions = portfolio.transactions || [];
+  portfolio.fx_conversions = portfolio.fx_conversions || [];
   portfolio.dividends = portfolio.dividends || [];
   portfolio.withholding_tax = portfolio.withholding_tax || [];
   portfolio.corporate_actions = portfolio.corporate_actions || [];
@@ -144,7 +147,9 @@ export function mergeOverlayIntoPortfolio(portfolio, overlay, fxRates) {
   portfolio.nav_history = overlay.nav_snapshot || [];
 
   const idsOf = (arr) => new Set(arr.map((x) => x.flex_id).filter(Boolean));
-  const existingTradeIds = idsOf(portfolio.transactions);
+  // Konverze ze statického JSON (historie z výpisů) jsou v hotovosti výpisu už
+  // započtené – stejná konverze z overlay ji nesmí změnit podruhé
+  const existingTradeIds = new Set([...idsOf(portfolio.transactions), ...idsOf(portfolio.fx_conversions)]);
   const existingDivIds = idsOf(portfolio.dividends);
   const existingWithholdingIds = idsOf(portfolio.withholding_tax);
   const existingCaIds = idsOf(portfolio.corporate_actions);
@@ -188,6 +193,9 @@ export function mergeOverlayIntoPortfolio(portfolio, overlay, fxRates) {
     // Ověřeno na historii Lynx 2021–2026: zůstatky po měnách sedí s Cash Report IB.
     if (isForexConversion(t)) {
       existingTradeIds.add(t.tradeID);
+      // Záznam kvůli poplatku (tab Poplatky) – pozice ani FIFO ho nečtou
+      portfolio.fx_conversions.push(transformFlexFxConversion(t));
+      stats.fx_conversions++;
       const [baseCcy] = symbol.split(".");
       addCash(baseCcy, parseFloat(t.quantity));
       addCash(t.currency, parseFloat(t.proceeds));
